@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup — tela principal v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0f0d0c; --panel: #141211; --line: #2a2522; --text: #ece6e1; --muted: #8d837b; --accent: #e0774f; --pill: #1d1a18; }
+  html, body { height: 100%; background: var(--bg); color: var(--text);
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; overflow: hidden; }
+  .app { display: grid; grid-template-columns: 52px 1fr 340px; height: 100vh; }
+  .rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 14px 0; }
+  .rail .logo { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); }
+  .rail .ico { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+  .rail .ico.on { background: #221e1b; color: var(--text); }
+  .rail .ico svg { width: 16px; height: 16px; }
+  .rail .spacer { flex: 1; }
+  .rail .dot { width: 7px; height: 7px; border-radius: 50%; background: #3ecf8e; }
+  .stage { position: relative; overflow: hidden; background: radial-gradient(ellipse 80% 60% at 50% 20%, #3a2a20 0%, #1a1411 55%, #0f0d0c 100%); }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .head { position: absolute; top: 18px; left: 22px; z-index: 2; }
+  .head h1 { font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+  .head .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .head .sub b { color: #c9bfb7; font-weight: 500; }
+  .proj { margin-top: 12px; display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 8px; background: #161311cc; font-size: 12px; }
+  .proj code { color: #d8cfc7; }
+  .overlay { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+  .tag { position: absolute; transform: translate(-50%, 0); text-align: center; white-space: nowrap; }
+  .tag .nm { font-weight: 650; font-size: 13px; }
+  .tag .tool { color: var(--muted); font-size: 11px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; padding: 2px 8px; border-radius: 99px; background: var(--pill); border: 1px solid var(--line); font-size: 11px; color: #b7aca3; }
+  .pill i { width: 6px; height: 6px; border-radius: 50%; background: #6f655e; }
+  .pill.thinking i { background: #a78bfa; } .pill.working i { background: #f5a524; } .pill.done i { background: #3ecf8e; }
+  .bubble { position: absolute; transform: translate(-50%, -100%); max-width: 190px; padding: 8px 11px; border-radius: 10px; background: #1d1a18f0; border: 1px solid #332d29; font-size: 12px; color: #e6ded7; opacity: 0; transition: opacity .25s, transform .25s; text-align: left; }
+  .bubble.show { opacity: 1; transform: translate(-50%, calc(-100% - 4px)); }
+  .bubble.dots { background: #e9e4df; border-color: #fff; padding: 6px 12px; }
+  .bubble.dots span { display: inline-block; width: 6px; height: 6px; margin: 0 2px; border-radius: 50%; background: #9a918a; animation: b 1s infinite; }
+  .bubble.dots span:nth-child(2) { animation-delay: .15s } .bubble.dots span:nth-child(3) { animation-delay: .3s }
+  @keyframes b { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+  .composer { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(560px, 90%); z-index: 2; background: #151210ee; border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+  .chips { display: flex; gap: 4px; padding: 2px 2px 8px; flex-wrap: wrap; }
+  .chip { padding: 4px 9px; border-radius: 8px; font-size: 12px; color: #b9aea5; display: inline-flex; align-items: center; gap: 5px; }
+  .chip.on { background: #26211e; color: var(--text); }
+  .chip i { width: 8px; height: 8px; border-radius: 3px; }
+  .inp { display: flex; align-items: center; gap: 8px; border: 1px solid #5a3a2b; border-radius: 10px; padding: 8px 8px 8px 12px; }
+  .inp input { flex: 1; background: none; border: 0; outline: 0; color: var(--text); font: inherit; }
+  .send { width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--accent); color: #1a0f0a; font-weight: 700; cursor: pointer; }
+  .hint { color: #6f665f; font-size: 11px; padding: 6px 4px 0; display: flex; justify-content: space-between; }
+  .side { border-left: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-width: 0; }
+  .side .top { padding: 13px 16px; border-bottom: 1px solid var(--line); font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+  .side .top button { background: #241f1c; color: var(--text); border: 1px solid #3a332e; border-radius: 7px; padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .log { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .empty { margin-top: auto; } .empty h3 { font-size: 16px; margin-bottom: 4px; } .empty p { color: var(--muted); font-size: 12px; }
+  .me { align-self: flex-end; background: #ece6e1; color: #1a1512; padding: 7px 12px; border-radius: 12px; max-width: 85%; }
+  .me-l { align-self: flex-end; color: var(--muted); font-size: 10px; margin-bottom: -8px; }
+  .round { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .round .t { font-size: 10px; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+  .prop { margin-bottom: 7px; } .prop .r { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .prop .r b { width: 58px; } .prop .bar { flex: 1; height: 4px; background: #2a2522; border-radius: 4px; overflow: hidden; }
+  .prop .bar s { display: block; height: 100%; width: 0; background: var(--accent); transition: width .8s; }
+  .prop .pct { width: 30px; text-align: right; color: var(--muted); font-size: 11px; }
+  .prop .why { color: #a59a91; font-size: 11.5px; margin-left: 66px; }
+  .msg .who { font-weight: 650; font-size: 12px; } .msg .who small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .msg .tx { margin-top: 2px; } .msg .tags { margin-top: 6px; display: flex; gap: 5px; }
+  .msg .tags span { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #2a201b; color: #e8a283; }
+  .step { border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; display: flex; justify-content: space-between; color: #cfc6be; font-size: 12px; }
+  .step small { color: var(--muted); }
+  .diff { border: 1px solid #2f3a2f; background: #121611; border-radius: 9px; padding: 9px 11px; font-size: 12px; }
+  .diff .f { display: flex; justify-content: space-between; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; margin-top: 3px; }
+  .diff .f em { font-style: normal; color: #3ecf8e; } .diff .f em u { color: #f87171; text-decoration: none; margin-left: 6px; }
+  .diff .acts { display: flex; gap: 6px; margin-top: 9px; }
+  .diff .acts span { padding: 3px 9px; border-radius: 6px; border: 1px solid #39443a; font-size: 11.5px; }
+  .diff .acts span:first-child { background: #3ecf8e; color: #08130c; border-color: #3ecf8e; font-weight: 600; }
+  .note { position: absolute; right: 14px; top: 14px; z-index: 3; font-size: 11px; color: #8d837b; background: #00000055; padding: 4px 8px; border-radius: 6px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div class="app">
+  <nav class="rail">
+    <div class="logo"></div>
+    <div class="ico on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="16" height="12" rx="3"/><path d="M9 11v2M15 11v2"/></svg></div>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M17 11a3 3 0 0 0 0-6M21 20c0-2-1.5-3.6-3.5-4.4"/></svg></div>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></div>
+    <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h6l2 2h10v10H3z"/></svg></div>
+    <div class="spacer"></div>
+    <div class="dot"></div>
+  </nav>
+  <main class="stage" id="stage">
+    <div class="note">mockup v2 · mascote = identidade da ferramenta · clique em “Simular pedido”</div>
+    <div class="head">
+      <h1>Time</h1>
+      <div class="sub" id="sub"><b>6 agentes</b>, todos disponíveis</div>
+      <div class="proj">📁 <code>~/www/projects/meu-app</code> ▾</div>
+    </div>
+    <div class="overlay" id="overlay"></div>
+    <div class="composer">
+      <div class="chips" id="chips"><span class="chip on">👥 Time</span></div>
+      <div class="inp"><input id="q" value="Crie uma página de status com um endpoint /health"><button class="send" id="send">↑</button></div>
+      <div class="hint"><span>O time decide quem assume.</span><span>Enter envia · Shift+Enter nova linha</span></div>
+    </div>
+  </main>
+  <aside class="side">
+    <div class="top"><span id="ttl">Nova conversa</span><button id="run">▶ Simular pedido</button></div>
+    <div class="log" id="log"><div class="empty"><h3>Fale com o time</h3><p>Peça algo uma vez. Eles decidem entre si quem é o mais indicado e você acompanha cada passo.</p></div></div>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+// Cada mascote segue a identidade da ferramenta onde o agente roda; a função muda cor/acessório.
+const AGENTS = [
+  { id: 'bussola', nome: 'Bússola', tool: 'Claude Code', css: '#d97757', kind: 'clawd', cor: 0xd97757, extra: 'arms' },
+  { id: 'forja',   nome: 'Forja',   tool: 'Claude Code', css: '#c9643f', kind: 'clawd', cor: 0xc9643f, extra: 'ears', eyes: 'squint' },
+  { id: 'pincel',  nome: 'Pincel',  tool: 'Claude Code', css: '#e2b56f', kind: 'clawd', cor: 0xe2b56f, extra: 'ears' },
+  { id: 'radar',   nome: 'Radar',   tool: 'Gemini CLI',  css: '#8a7cf0', kind: 'star' },
+  { id: 'lupa',    nome: 'Lupa',    tool: 'Codex',       css: '#3d6df2', kind: 'cloud' },
+  { id: 'curinga', nome: 'Curinga', tool: 'opencode',    css: '#b9b9c2', kind: 'block' },
+];
+
+const stage = document.getElementById('stage'), overlay = document.getElementById('overlay');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
+stage.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+scene.add(new THREE.HemisphereLight(0xfff1e6, 0x2a1d16, 1.35));
+const key = new THREE.DirectionalLight(0xffe6d0, 2.6);
+key.position.set(3, 7, 8); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);
+Object.assign(key.shadow.camera, { left: -10, right: 10, top: 6, bottom: -4 }); key.shadow.radius = 8;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xffa36b, 1.1); rim.position.set(-6, 3, -5); scene.add(rim);
+const GROUND = -0.62;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), new THREE.ShadowMaterial({ opacity: 0.38 }));
+ground.rotation.x = -Math.PI / 2; ground.position.y = GROUND; ground.receiveShadow = true; scene.add(ground);
+
+const clay = (c, r = 0.55) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0.02 });
+const ink = new THREE.MeshStandardMaterial({ color: 0x15121a, roughness: 0.35 });
+const box = (w, h, d, m, r = 0.05) => { const o = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 4, r), m); o.castShadow = true; return o; };
+
+function makeEye(x, y, z, side, w = 0.13, h = 0.26) {
+  const g = new THREE.Group(); g.position.set(x, y, z);
+  const normal = box(w, h, 0.05, ink, 0.02);
+  const squint = new THREE.Group();
+  const a = box(0.19, 0.06, 0.05, ink, 0.02), b = a.clone();
+  a.rotation.z = side * 0.6; a.position.y = 0.05; b.rotation.z = -side * 0.6; b.position.y = -0.05; squint.add(a, b);
+  const happy = new THREE.Group();
+  const c = box(0.16, 0.06, 0.05, ink, 0.02), d = c.clone();
+  c.rotation.z = 0.7; c.position.x = -0.05; d.rotation.z = -0.7; d.position.x = 0.05; happy.add(c, d);
+  g.add(normal, squint, happy); g.userData = { normal, squint, happy };
+  return g;
+}
+
+// Tela de terminal (Codex / opencode): rosto desenhado num canvas.
+function makeScreen(w, h, fg, bg) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = Math.round(256 * h / w);
+  const ctx = cv.getContext('2d'); const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  let last = '';
+  mesh.userData.draw = (mode, t) => {
+    let txt;
+    if (mode === 'thinking') txt = ['.  ', '.. ', '...'][Math.floor(t * 3) % 3];
+    else if (mode === 'squint') txt = Math.floor(t * 6) % 2 ? '>_' : '> ';
+    else if (mode === 'happy') txt = '^ ^';
+    else if (mode === 'blink') txt = '- -';
+    else txt = Math.floor(t * 1.6) % 2 ? '>_' : '> ';
+    if (txt === last) return; last = txt;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, cv.width, cv.height); }
+    ctx.fillStyle = fg; ctx.font = `bold ${cv.height * 0.62}px ui-monospace, Menlo, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, cv.width / 2, cv.height / 2 + 4);
+    tex.needsUpdate = true;
+  };
+  return mesh;
+}
+
+function starGeometry() {
+  const s = new THREE.Shape(), k = 0.14;
+  s.moveTo(0, 1); s.quadraticCurveTo(k, k, 1, 0); s.quadraticCurveTo(k, -k, 0, -1);
+  s.quadraticCurveTo(-k, -k, -1, 0); s.quadraticCurveTo(-k, k, 0, 1);
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.09, bevelSize: 0.06, bevelSegments: 6, curveSegments: 32 });
+  g.center();
+  const pos = g.attributes.position, col = [], c = new THREE.Color();
+  const A = new THREE.Color(0x4a8cf7), B = new THREE.Color(0x9b72e8), C = new THREE.Color(0xe96b8a);
+  for (let i = 0; i < pos.count; i++) {
+    const t = THREE.MathUtils.clamp((pos.getX(i) - pos.getY(i) + 1.2) / 2.4, 0, 1);
+    t < 0.5 ? c.lerpColors(A, B, t * 2) : c.lerpColors(B, C, (t - 0.5) * 2);
+    col.push(c.r, c.g, c.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return g;
+}
+
+function makeMascot(s, i) {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const m = { s, root, body, eyes: [], screen: null, spin: null, state: 'idle', since: 0, phase: i * 1.3 };
+  const legs = (xs, w, h, d, mat, z = 0) => { for (const x of xs) { const l = box(w, h, d, mat, 0.03); l.position.set(x, GROUND + h / 2, z); root.add(l); } };
+
+  if (s.kind === 'clawd') {
+    const mat = clay(s.cor), W = 1.45, H = 0.92, D = 0.92, LH = 0.34;
+    const core = box(W, H, D, mat, 0.06); body.add(core);
+    if (s.extra === 'arms') for (const sx of [-1, 1]) { const a = box(0.3, 0.2, 0.34, mat, 0.04); a.position.set(sx * (W / 2 + 0.13), -0.06, 0); body.add(a); }
+    if (s.extra === 'ears') for (const sx of [-1, 1]) { const e = box(0.2, 0.26, 0.3, mat, 0.04); e.position.set(sx * 0.42, H / 2 + 0.12, 0); body.add(e); }
+    m.eyes = [makeEye(-0.25, 0.04, D / 2 + 0.01, 1), makeEye(0.25, 0.04, D / 2 + 0.01, -1)];
+    m.defaultEyes = s.eyes || 'normal';
+    body.add(...m.eyes);
+    const mouth = box(0.3, 0.07, 0.05, ink, 0.02); mouth.position.set(0, -0.24, D / 2 + 0.01); body.add(mouth); m.mouth = mouth;
+    legs([-0.55, -0.27, 0.27, 0.55], 0.15, LH, 0.3, mat);
+    m.baseY = GROUND + LH + H / 2 - 0.02;
+  } else if (s.kind === 'star') {
+    const star = new THREE.Mesh(starGeometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.1 }));
+    star.scale.setScalar(0.8); star.castShadow = true; body.add(star);
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xf3f0ff, roughness: 0.3 });
+    for (const x of [-0.08, 0.08]) { const e = box(0.07, 0.18, 0.04, eyeMat, 0.02); e.position.set(x, 0.02, 0.23); body.add(e); m.eyes.push({ star: e }); }
+    m.baseY = GROUND + 1.05; m.float = true;
+  } else if (s.kind === 'cloud') {
+    const mat = clay(0x3d6df2, 0.45), head = new THREE.Group(); head.position.y = 0.32; body.add(head);
+    for (const [x, y, z, r] of [[0, 0, 0, 0.5], [-0.42, -0.06, 0, 0.38], [0.42, -0.06, 0, 0.38], [-0.2, 0.3, -0.05, 0.36], [0.22, 0.28, -0.05, 0.38],
+      [0, -0.2, 0.02, 0.44], [-0.6, -0.26, -0.05, 0.27], [0.6, -0.26, -0.05, 0.27], [-0.32, -0.36, 0.05, 0.3], [0.32, -0.36, 0.05, 0.3]]) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 20), mat); b.position.set(x, y, z); b.castShadow = true; head.add(b);
+    }
+    const bezel = box(0.78, 0.5, 0.1, clay(0x0d2a8a, 0.3), 0.06); bezel.position.set(0, -0.03, 0.47); head.add(bezel);
+    m.screen = makeScreen(0.68, 0.4, '#dbe6ff', '#0a1f6e'); m.screen.position.set(0, -0.03, 0.525); head.add(m.screen);
+    const torso = box(0.56, 0.42, 0.42, mat, 0.1); torso.position.y = -0.38; body.add(torso);
+    const mini = makeScreen(0.3, 0.16, '#dbe6ff', '#0d2a8a'); mini.position.set(0, -0.38, 0.215); body.add(mini); m.mini = mini;
+    legs([-0.14, 0.14], 0.14, 0.24, 0.2, mat);
+    m.baseY = GROUND + 0.24 + 0.59;
+  } else if (s.kind === 'block') {
+    const mat = clay(0x2c2c31, 0.5), light = clay(0xd4d4da, 0.4), W = 1.1, H = 1.1, D = 0.9;
+    body.add(box(W, H, D, mat, 0.05));
+    const z = D / 2 + 0.02, fw = 0.8, fh = 0.8, t = 0.1;
+    for (const [x, y, w, h] of [[0, fh / 2 - t / 2, fw, t], [0, -fh / 2 + t / 2, fw, t], [-fw / 2 + t / 2, 0, t, fh], [fw / 2 - t / 2, 0, t, fh]]) {
+      const b = box(w, h, 0.06, light, 0.015); b.position.set(x, y, z); body.add(b);
+    }
+    m.screen = makeScreen(0.58, 0.58, '#f1f1f4', null); m.screen.position.set(0, 0, z + 0.01); body.add(m.screen);
+    const ant = box(0.08, 0.2, 0.08, light, 0.02); ant.position.y = H / 2 + 0.1; body.add(ant);
+    const tip = box(0.16, 0.16, 0.16, clay(0xf5f5f8, 0.3), 0.03); tip.position.y = H / 2 + 0.26; body.add(tip); m.spin = tip;
+    legs([-0.28, 0.28], 0.18, 0.28, 0.3, mat);
+    m.baseY = GROUND + 0.28 + H / 2 - 0.02;
+  }
+  body.position.y = m.baseY;
+  root.position.x = (i - (AGENTS.length - 1) / 2) * 2.35;
+  scene.add(root);
+  m.tag = document.createElement('div'); m.tag.className = 'tag';
+  m.tag.innerHTML = `<div class="nm">${s.nome}</div><div class="tool">${s.tool}</div><div class="pill"><i></i><span>Disponível</span></div>`;
+  m.bub = document.createElement('div'); m.bub.className = 'bubble';
+  overlay.append(m.tag, m.bub);
+  return m;
+}
+
+const M = AGENTS.map(makeMascot), byId = Object.fromEntries(M.map(m => [m.s.id, m]));
+const chips = document.getElementById('chips');
+for (const s of AGENTS) chips.insertAdjacentHTML('beforeend', `<span class="chip"><i style="background:${s.css}"></i>${s.nome}</span>`);
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h;
+  const need = AGENTS.length * 2.35 + 0.4;
+  const dist = (need / 2) / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+  camera.position.set(0, 1.5, Math.max(dist, 10)); camera.lookAt(0, 0.3, 0); camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+const v = new THREE.Vector3();
+function place(el, x, y, z) {
+  v.set(x, y, z).project(camera);
+  el.style.left = ((v.x + 1) / 2 * stage.clientWidth) + 'px';
+  el.style.top = ((-v.y + 1) / 2 * stage.clientHeight) + 'px';
+}
+const LABEL = { idle: 'Disponível', thinking: 'Pensando', working: 'Trabalhando', done: 'Concluído' };
+function setState(id, st) {
+  const m = byId[id]; m.state = st; m.since = performance.now() / 1000;
+  const p = m.tag.querySelector('.pill'); p.className = 'pill ' + st; p.querySelector('span').textContent = LABEL[st];
+  const busy = M.filter(x => x.state === 'thinking' || x.state === 'working').length;
+  document.getElementById('sub').innerHTML = busy ? `<b>${busy} de ${M.length}</b> trabalhando` : `<b>${M.length} agentes</b>, todos disponíveis`;
+}
+function say(id, text) {
+  const b = byId[id].bub;
+  if (text === '...') { b.className = 'bubble dots show'; b.innerHTML = '<span></span><span></span><span></span>'; }
+  else if (text) { b.className = 'bubble show'; b.textContent = text; }
+  else b.className = 'bubble';
+}
+
+const clock = new THREE.Clock();
+function tick() {
+  const t = clock.getElapsedTime(), now = performance.now() / 1000;
+  for (const m of M) {
+    const p = m.phase, age = now - m.since;
+    let y = Math.sin(t * 2 + p) * (m.float ? 0.07 : 0.022), rz = 0, ry = Math.sin(t * 0.6 + p) * 0.14, sq = 1;
+    let mode = m.defaultEyes || 'normal', eyeDY = 0, eyeDX = 0;
+    if (m.state === 'thinking') { rz = Math.sin(t * 3 + p) * 0.07; eyeDY = 0.06; eyeDX = Math.sin(t * 1.5 + p) * 0.05; mode = 'thinking'; }
+    if (m.state === 'working') { const k = Math.abs(Math.sin(t * 9 + p)); y = k * 0.07; sq = 1 - k * 0.04; mode = 'squint'; ry = Math.sin(t * 4) * 0.06; }
+    if (m.state === 'done') { mode = 'happy'; if (age < 1.3) y = Math.abs(Math.sin(age * 7)) * 0.24 * (1.3 - age); }
+    const blink = m.state === 'idle' && ((t + p * 2) % 4.2) < 0.12;
+    m.body.position.y = m.baseY + y; m.body.rotation.z = rz; m.root.rotation.y = ry;
+    if (m.float) m.body.rotation.y = m.state === 'working' ? t * 4 : Math.sin(t * 0.8 + p) * 0.4;
+    m.body.scale.set(1 + (1 - sq) * 0.5, sq, 1);
+    for (const e of m.eyes) {
+      if (e.star) { e.star.scale.y = blink ? 0.12 : mode === 'happy' ? 0.45 : 1; e.star.position.y = 0.02 + eyeDY; continue; }
+      const u = e.userData, em = mode === 'thinking' ? 'normal' : mode;
+      u.normal.visible = em === 'normal'; u.squint.visible = em === 'squint'; u.happy.visible = em === 'happy';
+      u.normal.scale.y = blink ? 0.12 : 1; u.normal.position.set(eyeDX, eyeDY, 0);
+    }
+    if (m.mouth) m.mouth.visible = m.state === 'working';
+    if (m.screen) m.screen.userData.draw(blink ? 'blink' : mode, t);
+    if (m.mini) m.mini.userData.draw(m.state === 'working' ? 'squint' : 'normal', t + 0.5);
+    if (m.spin) m.spin.rotation.y += m.state === 'thinking' ? 0.08 : m.state === 'working' ? 0.15 : 0.01;
+    place(m.tag, m.root.position.x, -0.85, 0.4);
+    place(m.bub, m.root.position.x + 0.35, 1.8, 0);
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+
+const log = document.getElementById('log');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const add = html => { log.insertAdjacentHTML('beforeend', html); log.scrollTop = log.scrollHeight; return log.lastElementChild; };
+const hhmm = () => new Date().toTimeString().slice(0, 5);
+let running = false;
+async function simulate() {
+  if (running) return; running = true;
+  const q = document.getElementById('q').value || 'Crie uma página de status com um endpoint /health';
+  log.innerHTML = ''; document.getElementById('ttl').textContent = q.slice(0, 30) + '…';
+  add(`<div class="me-l">Para o time</div>`); add(`<div class="me">${q}</div>`);
+  for (const m of M) { setState(m.s.id, 'thinking'); say(m.s.id, '...'); }
+  const wait = add(`<div class="step"><span>O time inteiro está pensando…</span></div>`);
+  await sleep(2400); wait.remove();
+  const props = [['forja', 93, 'Endpoint é back-end. Comigo.'], ['pincel', 76, 'A página de status é minha.'], ['bussola', 44, 'Coordeno, não executo essa.'],
+    ['lupa', 31, 'Reviso quando terminarem.'], ['radar', 18, 'Não precisa de pesquisa.'], ['curinga', 12, 'Passo essa.']];
+  const r = add(`<div class="round"><div class="t">RODADA DE PROPOSTAS</div>${props.map(([id, pct, why]) =>
+    `<div class="prop"><div class="r"><b style="color:${byId[id].s.css}">${byId[id].s.nome}</b><div class="bar"><s data-p="${pct}"></s></div><span class="pct">${pct}%</span></div><div class="why">${why}</div></div>`).join('')}</div>`);
+  for (const [id, , why] of props) { setState(id, 'idle'); say(id, why); }
+  await sleep(50); r.querySelectorAll('s').forEach(s => s.style.width = s.dataset.p + '%');
+  await sleep(1900);
+  add(`<div class="msg"><div class="who" style="color:#d97757">Bússola<small>${hhmm()}</small></div><div class="tx">Forja faz o endpoint (Sonnet), depois Pincel a página. Lupa revisa no fim.</div><div class="tags"><span>→ Forja</span><span>→ Pincel</span><span>→ Lupa</span></div></div>`);
+  for (const m of M) say(m.s.id, '');
+  await sleep(900);
+  const run = async (id, txt, done, ms, steps) => {
+    setState(id, 'working'); say(id, txt);
+    const st = add(`<div class="step"><span>⟳ ${byId[id].s.nome} está trabalhando</span><small>${steps} passos</small></div>`);
+    await sleep(ms);
+    st.innerHTML = `<span>✓ ${byId[id].s.nome} concluiu em ${(ms / 1000 * 6).toFixed(0)} s</span><small>${steps} passos ›</small>`;
+    setState(id, 'done'); say(id, done);
+    add(`<div class="msg"><div class="who" style="color:${byId[id].s.css}">${byId[id].s.nome}<small>${hhmm()}</small></div><div class="tx">${done}</div></div>`);
+    await sleep(1400); say(id, ''); setState(id, 'idle');
+  };
+  await run('forja', 'Montando a rota /health…', 'Rota criada, com teste. Sem firula.', 2600, 3);
+  await run('pincel', 'Desenhando a página…', 'Página pronta, responsiva e com tema escuro.', 2600, 4);
+  await run('lupa', 'Lendo o diff…', 'Um problema real: timeout sem limite. O resto passa.', 2200, 2);
+  add(`<div class="diff"><b>3 arquivos alterados</b>
+    <div class="f"><span>server/routes/health.ts</span><em>+24<u>−0</u></em></div>
+    <div class="f"><span>server/routes/health.test.ts</span><em>+31<u>−0</u></em></div>
+    <div class="f"><span>web/pages/status.tsx</span><em>+58<u>−3</u></em></div>
+    <div class="acts"><span>Manter tudo</span><span>Ver diff</span><span>Desfazer</span></div></div>`);
+  running = false;
+}
+document.getElementById('run').onclick = simulate;
+document.getElementById('send').onclick = simulate;
+document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') simulate(); });
+</script>
+</body>
+</html>
