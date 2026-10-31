@@ -36,15 +36,16 @@ function RunView({ run }: { run: RunBlock }) {
 
 export function ChatPanel() {
   const { chat, conversation, project, newConversation } = useRunStore()
-  const end = useRef<HTMLDivElement>(null)
-  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }) }, [chat])
+  const log = useRef<HTMLDivElement>(null)
+  // Rola só a lista de mensagens; scrollIntoView rolaria também o palco e o app inteiro.
+  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' }) }, [chat])
   return (
     <aside className="side">
       <div className="top">
         <span className="ttl">{conversation?.title ?? 'Nova conversa'}</span>
         {project && <button onClick={newConversation}>Nova conversa</button>}
       </div>
-      <div className="log">
+      <div className="log" ref={log}>
         {chat.runs.length === 0 && (
           <div className="empty">
             <h3>Fale com o time</h3>
@@ -52,7 +53,6 @@ export function ChatPanel() {
           </div>
         )}
         {chat.runs.map(r => <RunView key={r.runId} run={r} />)}
-        <div ref={end} />
       </div>
     </aside>
   )
