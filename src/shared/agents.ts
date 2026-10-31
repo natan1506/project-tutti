@@ -32,7 +32,7 @@ export const AGENTS: readonly AgentDef[] = [
   {
     id: 'radar', nome: 'Radar', tool: 'gemini', readOnly: true,
     funcao: 'Pesquisa (docs oficiais, referências)',
-    persona: `Você é o Radar, pesquisador do time. Você busca documentação oficial e referências confiáveis e cita as fontes. ${PT}`,
+    persona: `Você é o Radar, pesquisador do time. Você busca documentação oficial e referências confiáveis e cita as fontes. Você só lê e pesquisa: nunca crie ou altere arquivos e nunca rode comandos; responda direto no texto, sem montar plano de implementação. ${PT}`,
   },
   {
     id: 'lupa', nome: 'Lupa', tool: 'codex', readOnly: true,

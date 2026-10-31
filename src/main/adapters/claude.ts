@@ -1,19 +1,19 @@
 import { query, type CanUseTool, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentEvent } from '@shared/events'
 import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
-import { childEnv, systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
+import { safeEnv } from './env'
+import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
-// Sem chave, token ou endpoint alternativo: só a assinatura do Natan (spec §2).
-const DROP = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDECODE'])
-const dropEnv = (k: string) => DROP.has(k) || k.startsWith('CLAUDE_CODE_')
+// Além das chaves de API (env.ts), tira as variáveis herdadas de uma sessão do Claude Code que esteja rodando o app.
+const dropEnv = (k: string) => k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_')
 
 export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTool): Options {
   return {
     cwd: opts.cwd,
     model: opts.model ?? opts.agent.defaultModel,
     resume: opts.resumeSessionId,
-    env: childEnv(dropEnv),
+    env: safeEnv(dropEnv),
     settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [],
     permissionMode: 'default',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },

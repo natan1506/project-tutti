@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import type { RunEvent } from '@shared/events'
+import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
 import { registerIpc } from './ipc'
@@ -28,7 +29,7 @@ app.whenReady().then(async () => {
   const tools = cachedDetector(realExec)
   const runs = new RunService({
     store,
-    adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: undefined, opencode: undefined },
+    adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: undefined },
     emit: (runId, ev) => send(runId, ev),
     toolReady: async t => { const s = (await tools())[t]; return s.installed && s.loggedIn },
   })

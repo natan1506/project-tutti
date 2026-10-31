@@ -1,7 +1,8 @@
 import { Codex, type ThreadEvent, type ThreadOptions } from '@openai/codex-sdk'
 import type { AgentEvent } from '@shared/events'
 import { summarizeToolCall } from '../policy/commandPolicy'
-import { childEnv, systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
+import { safeEnv } from './env'
+import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 // O SDK do Codex não permite interceptar comandos: o Lupa roda sempre em sandbox só-leitura.
 
@@ -45,10 +46,8 @@ export function mapCodexEvent(ev: ThreadEvent, cwd: string, state: { threadId?: 
   }
 }
 
-const DROP = new Set(['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL'])
-
 export function codexEnv(): Record<string, string> {
-  return childEnv(k => DROP.has(k))
+  return safeEnv()
 }
 
 export class CodexAdapter implements AgentAdapter {
