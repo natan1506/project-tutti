@@ -50,7 +50,7 @@ Elenco **fixo**; a escalação por pedido e o modelo usado são **dinâmicos**. 
 | **Bússola** | Coordena: triagem, escalação, escolha de modelo, plano, notas, consolidação de lições | Claude Code | Bichinho laranja do Claude, com bracinhos |
 | **Forja** | Back-end, APIs, banco, testes | Claude Code | Bichinho do Claude mais escuro, orelhas, olhos `> <` |
 | **Pincel** | Front-end, UI, acessibilidade | Claude Code | Bichinho do Claude cor de areia, orelhas |
-| **Radar** | Pesquisa (docs oficiais, referências) | Gemini CLI | Estrela de 4 pontas com gradiente azul→roxo→rosa, flutuando |
+| **Radar** | Pesquisa (docs oficiais, referências) | Antigravity CLI (`agy`, Google) — substitui o Gemini CLI (decidido em 2026-10-31: é o que o Natan usa) | Estrela de 4 pontas com gradiente azul→roxo→rosa, flutuando |
 | **Lupa** | Code review | Codex | Nuvem azul com tela de terminal no rosto + corpinho |
 | **Curinga** | Tarefas gerais / modelos alternativos | opencode | Bloco escuro com moldura quadrada e tela no rosto, antena |
 
