@@ -13,7 +13,8 @@ describe('classifyToolCall', () => {
     { toolName: 'Edit', input: { file_path: P + '/src/x.ts' } },
     { toolName: 'Write', input: { file_path: 'src/novo.ts' } },
     ...['ls -la', 'cat a.ts', 'git status', 'git diff HEAD~1', 'git log --oneline', 'npm test', 'npm run lint',
-      'npm run build', 'npx tsc --noEmit', 'npx vitest run', 'rg foo src', 'ls && git status'].map(bash),
+      'npm run build', 'npx tsc --noEmit', 'npx vitest run', 'rg foo src', 'ls && git status',
+      'npm test 2>&1 | tail -30', 'ls 2>/dev/null', 'npx vitest run >/dev/null 2>&1'].map(bash),
   ])('libera %o', call => {
     expect(classifyToolCall(call, P)).toBe('allow')
   })
@@ -28,7 +29,8 @@ describe('classifyToolCall', () => {
     ...['npm install zod', 'npm i -D x', 'pnpm add x', 'yarn add x', 'pip install x', 'rm a.ts', 'rm -rf dist',
       'git push', 'git commit -m x', 'git reset --hard', 'git checkout main', 'git switch -c x', 'git rebase main',
       'git merge x', 'curl https://x', 'wget x', 'ssh host', 'sudo ls', 'cat /etc/hosts', 'ls && rm a', 'ls; curl x',
-      'echo x | sh', 'find . -delete', 'cd .. && ls', 'node script.js'].map(bash),
+      'echo x | sh', 'find . -delete', 'cd .. && ls', 'node script.js',
+      'echo x > a.txt', 'cat a >> b', 'npm test 2> erro.log', 'cat < /etc/hosts'].map(bash),
   ])('pede aprovação para %o', call => {
     expect(classifyToolCall(call, P)).toBe('ask')
   })

@@ -64,8 +64,13 @@ function splitSegments(command: string): string[] {
   return out.map(s => s.trim()).filter(Boolean)
 }
 
+// Redirecionamentos que não escrevem em arquivo: juntar stderr/stdout ou descartar em /dev/null.
+const HARMLESS_REDIRECT = /^(?:\d?>&\d|&?\d?>\/dev\/null)$/
+
 function tokenize(segment: string): string[] {
-  return (segment.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map(t => t.replace(/^(["'])(.*)\1$/, '$2'))
+  return (segment.match(/"[^"]*"|'[^']*'|\S+/g) ?? [])
+    .map(t => t.replace(/^(["'])(.*)\1$/, '$2'))
+    .filter(t => !HARMLESS_REDIRECT.test(t))
 }
 
 function classifySegment(tokens: string[], projectDir: string): Decision {
