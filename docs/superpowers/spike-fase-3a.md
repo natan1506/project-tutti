@@ -21,3 +21,17 @@
 ## Pergunta do Claude (`AskUserQuestion`) — ✅
 - `input`: `{questions:[{question, header, options:[{label, description}], multiSelect}]}`.
 - Resposta: `canUseTool` devolve `{behavior:'allow', updatedInput:{...input, answers:{[question]: resposta}}}`; o Claude seguiu a resposta (criou `resposta-teste.txt`).
+
+## Verificação no app (Task 7) — 2026-10-31
+
+`scripts/e2e/verify-fase3a.mjs` no app real; prints em `docs/superpowers/verificacao-fase-3a/`.
+
+| Passo | Resultado |
+|---|---|
+| 1. Elenco completo | ✅ Radar e Curinga liberados (CLIs detectados), sem erros no console |
+| 2. Radar pesquisa | ✅ `idle → thinking → working → done`; respondeu com link da fonte; `git status` inalterado |
+| 3. Curinga | ✅ criou `src/mult.js` sem perguntar; pediu aprovação de `npm install left-pad 2>&1 \| tail -20` (comando inteiro, com o pipe); negado → `package.json` intacto |
+| 4. Conversa contínua | ✅ Forja respondeu o caminho do arquivo que criou no pedido anterior |
+| 5. Pergunta | ✅ cartão com opções e campo livre; mascote em `waiting` com "Tenho uma pergunta"; resposta `pergunta-ok.js` → arquivo criado com esse nome |
+| 6. Cancelar o Radar | ✅ processo `agy` encerrado em até 3 s |
+| 7. Fechar o app | ✅ `opencode serve` encerrado em até 6 s, sem órfão |

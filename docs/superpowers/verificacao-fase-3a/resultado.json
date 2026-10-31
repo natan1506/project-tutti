@@ -1,0 +1,37 @@
+[
+  {
+    "step": "1 elenco completo",
+    "ok": true,
+    "detail": "radar/curinga=idle,idle erros=[]"
+  },
+  {
+    "step": "2 Radar pesquisa",
+    "ok": true,
+    "detail": "poses=idle,thinking,working,done resposta=\"A versão Active LTS atual do Node.js é a **v26 (\"Lithium\", iniciada na v26.13.0)** — com a v24 (\"Krypton\") e a v22 (\"Jod\") em Maintenance LT\" git inalterado=true"
+  },
+  {
+    "step": "3 Curinga com aprovação",
+    "ok": true,
+    "detail": "pediu=\"npm install left-pad 2>&1 | tail -20\" mult.js=true left-pad no package.json=false"
+  },
+  {
+    "step": "4 conversa contínua",
+    "ok": true,
+    "detail": "resposta=\"/Users/natansouza/Documents/www/projects/time-teste-fase1/src/sub.js\""
+  },
+  {
+    "step": "5 pergunta",
+    "ok": true,
+    "detail": "pose ao perguntar=waiting arquivo criado=true"
+  },
+  {
+    "step": "6 cancelar Radar",
+    "ok": true,
+    "detail": "agy rodando antes=true morreu em até 3 s=true"
+  },
+  {
+    "step": "7 sem órfão do opencode",
+    "ok": true,
+    "detail": "servidor rodando antes=true sumiu em até 6 s=true"
+  }
+]
