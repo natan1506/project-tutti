@@ -1,0 +1,27 @@
+[
+  {
+    "step": "1 pedido de time",
+    "ok": true,
+    "detail": "barras=6 chips na 1ª onda=2 paralelo observado=false aprovações dadas=[\"node -v && node --input-type=module -e \\\"import { health } from './server/health.js'; const r = health(); console.log(JSON.stringify(r)); if (r.ok !== true || health.js=true status.html=true erros=0"
+  },
+  {
+    "step": "3 fila",
+    "ok": true,
+    "detail": "viu \"Na fila (posição 1)\"=true sobre.html=true"
+  },
+  {
+    "step": "2 plano recusado",
+    "ok": true,
+    "detail": "Bússola ao pedir plano=waiting nada alterado=true"
+  },
+  {
+    "step": "4 chamada ao Radar",
+    "ok": true,
+    "detail": "radar trabalhando no palco=true chamada=\"→ perguntou ao Radar: Qual é a versão LTS atual do Node.js?← A versão **Active LTS** (Long-Term Support) atual do Node.js é o **Node.js 26** (codinome ***Lithiu\""
+  },
+  {
+    "step": "5 cancelar pedido de time",
+    "ok": false,
+    "detail": "dois trabalhando antes=false parou=true poses depois=done,idle"
+  }
+]
