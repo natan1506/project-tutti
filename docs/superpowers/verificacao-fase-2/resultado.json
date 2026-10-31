@@ -22,7 +22,7 @@
   {
     "step": "5 janela estreita",
     "ok": true,
-    "detail": "{\"stageW\":668,\"inside\":true,\"overlap\":false}"
+    "detail": "{\"stageW\":768,\"inside\":true,\"overlap\":false,\"bubbleMax\":110,\"spacingPx\":120,\"bubbleFits\":true}"
   },
   {
     "step": "6 fps",

@@ -69,7 +69,7 @@ export function Mascot({ id, index, x, view, selected, onSelect, labels, portal 
       {labels && (
         <>
           <Html center position={[0, -1.25, 0.4]} zIndexRange={[10, 0]} portal={portal as RefObject<HTMLElement>}><MascotLabel id={id} view={view} onSelect={select} /></Html>
-          <Html position={[0.35, 1.8, 0]} zIndexRange={[20, 10]} portal={portal as RefObject<HTMLElement>} style={{ pointerEvents: 'none' }}><Bubble view={view} /></Html>
+          <Html position={[0, 1.8, 0]} zIndexRange={[20, 10]} portal={portal as RefObject<HTMLElement>} style={{ pointerEvents: 'none' }}><Bubble view={view} /></Html>
         </>
       )}
     </group>

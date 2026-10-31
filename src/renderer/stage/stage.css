@@ -12,7 +12,7 @@
 .pill.waiting i { background: #f87171; }
 .pill.done i { background: #3ecf8e; }
 
-.bubble { max-width: 200px; width: max-content; padding: 8px 11px; border-radius: 10px; background: #17153af0; border: 1px solid #2f2b63;
+.bubble { max-width: var(--bubble-max, 200px); width: max-content; padding: 8px 11px; border-radius: 10px; background: #17153af0; border: 1px solid #2f2b63;
   font-size: 12px; color: #e3e1fa; transform: translate(-50%, -100%); animation: pop .2s ease-out; white-space: normal; }
 .bubble.alert { border-color: #8b6cf6; color: #fff; }
 .bubble.dots { background: #ecebfa; border-color: #fff; padding: 6px 12px; }

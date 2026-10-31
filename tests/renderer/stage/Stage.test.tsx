@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import ReactThreeTestRenderer from '@react-three/test-renderer'
 import { fireEvent, render } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AGENTS, type AgentId } from '@shared/agents'
 import { emptyChat } from '../../../src/renderer/state/chat'
 import { useRunStore } from '../../../src/renderer/state/runStore'
 import { deriveStage } from '../../../src/renderer/stage/derive'
 import { mascotX } from '../../../src/renderer/stage/layout'
-import { Stage, StageScene } from '../../../src/renderer/stage/Stage'
+import { CanvasBoundary, Stage, StageScene } from '../../../src/renderer/stage/Stage'
 import { MascotBody } from '../../../src/renderer/stage/mascots'
 import { motionFrame, type MotionFrame } from '../../../src/renderer/stage/motion'
 
@@ -93,5 +93,17 @@ describe('StageScene', () => {
       const [g] = r.scene.findAll(n => n.props.name === `mascot-${a.id}`)
       expect(g.instance.position.x).toBeCloseTo(mascotX(i, AGENTS.length))
     })
+  })
+})
+
+describe('CanvasBoundary', () => {
+  it('erro na cena 3D cai para a fileira 2D em vez de derrubar o app', () => {
+    const Boom = () => { throw new Error('WebGL falhou') }
+    const onError = vi.fn()
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { container } = render(<CanvasBoundary onError={onError}><Boom /></CanvasBoundary>)
+    err.mockRestore()
+    expect(onError).toHaveBeenCalledOnce()
+    expect(container.textContent).toBe('')
   })
 })

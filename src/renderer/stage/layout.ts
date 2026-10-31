@@ -12,3 +12,9 @@ export function fitCameraDistance(count: number, spacing: number, fovDeg: number
   const halfFov = (fovDeg * Math.PI) / 360
   return Math.max(need / 2 / (Math.tan(halfFov) * aspect), min)
 }
+
+/** Largura máxima do balão em px: menor que o espaço entre dois mascotes, para balões vizinhos nunca se sobreporem. */
+export function bubbleMaxWidth(stageWidthPx: number, count: number, spacing = SPACING, margin = 1.2): number {
+  const spacingPx = (stageWidthPx * spacing) / (count * spacing + margin)
+  return Math.min(200, Math.floor(spacingPx * 0.94))
+}

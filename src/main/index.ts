@@ -9,7 +9,7 @@ import { openStore } from './store/db'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1280, height: 800, backgroundColor: '#0c0b1f', title: 'Tutti',
+    width: 1280, height: 800, minWidth: 1200, minHeight: 640, backgroundColor: '#0c0b1f', title: 'Tutti',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true, nodeIntegration: false, sandbox: true,

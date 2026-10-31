@@ -78,9 +78,11 @@ const geo = await page.evaluate(() => {
   const r = [...document.querySelectorAll('[data-agent]')].map(e => e.getBoundingClientRect())
   const inside = r.every(b => b.left >= stage.left - 1 && b.right <= stage.right + 1)
   const overlap = r.some((b, i) => i > 0 && b.left < r[i - 1].right - 1)
-  return { stageW: Math.round(stage.width), inside, overlap }
+  const bubbleMax = parseInt(getComputedStyle(document.querySelector('.stage-3d')).getPropertyValue('--bubble-max'))
+  const spacingPx = (r[1].left + r[1].width / 2) - (r[0].left + r[0].width / 2)
+  return { stageW: Math.round(stage.width), inside, overlap, bubbleMax, spacingPx: Math.round(spacingPx), bubbleFits: bubbleMax <= spacingPx }
 })
-log('5 janela estreita', geo.inside && !geo.overlap, JSON.stringify(geo))
+log('5 janela estreita', geo.inside && !geo.overlap && geo.bubbleFits, JSON.stringify(geo))
 await shot(page, 'estreito')
 
 // Passo 6 — fps com o palco parado

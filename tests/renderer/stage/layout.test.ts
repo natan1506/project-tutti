@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitCameraDistance, mascotX, SPACING } from '../../../src/renderer/stage/layout'
+import { bubbleMaxWidth, fitCameraDistance, mascotX, SPACING } from '../../../src/renderer/stage/layout'
 
 describe('mascotX', () => {
   it('centraliza a fileira em zero', () => {
@@ -17,5 +17,17 @@ describe('fitCameraDistance', () => {
   })
   it('nunca chega mais perto que o mínimo', () => {
     expect(fitCameraDistance(1, SPACING, 28, 3)).toBe(10)
+  })
+})
+
+describe('bubbleMaxWidth', () => {
+  it.each([748, 848, 1400])('balão nunca passa do espaço entre dois mascotes (palco %ipx)', stage => {
+    const spacingPx = (stage * SPACING) / (6 * SPACING + 1.2)
+    const w = bubbleMaxWidth(stage, 6)
+    expect(w).toBeLessThanOrEqual(spacingPx)
+    expect(w).toBeGreaterThanOrEqual(Math.min(90, spacingPx))
+  })
+  it('tem teto de 200px em palcos grandes', () => {
+    expect(bubbleMaxWidth(4000, 6)).toBe(200)
   })
 })

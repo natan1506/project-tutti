@@ -1,11 +1,11 @@
 import { Environment, Lightformer } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ACESFilmicToneMapping } from 'three'
 import { AGENTS, type AgentId } from '@shared/agents'
 import { useRunStore } from '../state/runStore'
 import { deriveStage, type MascotView } from './derive'
-import { fitCameraDistance, mascotX, SPACING } from './layout'
+import { bubbleMaxWidth, fitCameraDistance, mascotX, SPACING } from './layout'
 import { Bubble, Mascot, MascotLabel } from './Mascot'
 import { GROUND } from './mascots/types'
 import './stage.css'
@@ -19,6 +19,14 @@ export function hasWebGL(): boolean {
   } catch {
     return false
   }
+}
+
+/** Qualquer erro dentro da cena 3D (renderer, shaders, mascotes) vira fallback 2D em vez de derrubar o app. */
+export class CanvasBoundary extends Component<{ onError(e: unknown): void; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(e: unknown) { this.props.onError(e) }
+  render() { return this.state.failed ? null : this.props.children }
 }
 
 /** Afasta a câmera o suficiente para os seis mascotes caberem na largura do palco. */
@@ -98,17 +106,28 @@ export function Stage({ webgl }: { webgl?: boolean } = {}) {
   const views = useMemo(() => deriveStage(chat, now), [chat, now])
   // Rótulos e balões vão para uma camada própria: o <Html> do drei não acha o pai do canvas no primeiro quadro.
   const overlay = useRef<HTMLDivElement>(null)
+  const box = useRef<HTMLDivElement>(null)
+  // Balões nunca mais largos que o espaço entre mascotes, para não se sobreporem em janelas estreitas.
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => el.style.setProperty('--bubble-max', `${bubbleMaxWidth(e.contentRect.width, AGENTS.length)}px`))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [canUse, lost])
 
   if (!canUse || lost) return <FlatStage views={views} onSelect={selectAgent} />
   return (
-    <div className="stage-3d">
-      <Canvas
-        shadows dpr={[1, 2]} camera={{ fov: FOV, position: [0, 1.5, 12] }}
-        gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping }}
-        onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); setLost(true) })}
-      >
-        <StageScene views={views} selected={selectedAgent} onSelect={selectAgent} portal={overlay} />
-      </Canvas>
+    <div className="stage-3d" ref={box}>
+      <CanvasBoundary onError={() => setLost(true)}>
+        <Canvas
+          shadows dpr={[1, 2]} camera={{ fov: FOV, position: [0, 1.5, 12] }}
+          gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping }}
+          onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); setLost(true) })}
+        >
+          <StageScene views={views} selected={selectedAgent} onSelect={selectAgent} portal={overlay} />
+        </Canvas>
+      </CanvasBoundary>
       <div className="stage-overlay" ref={overlay} />
     </div>
   )
