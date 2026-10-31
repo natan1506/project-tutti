@@ -98,6 +98,11 @@ function classifySegment(tokens: string[], projectDir: string): Decision {
   const pathsInside = () => values.every(a => !looksLikePath(a) || isInside(projectDir, a))
 
   if (cmd === 'cd') return args.length === 1 && isInside(projectDir, args[0]) ? 'allow' : 'ask'
+  // Criar pasta dentro do projeto é inofensivo (o Write já cria pastas); fora dele ou em .git, pergunta.
+  if (cmd === 'mkdir') {
+    const dirs = args.filter(a => !a.startsWith('-'))
+    return dirs.length > 0 && args.every(a => !a.startsWith('-') || a === '-p') && dirs.every(d => isInside(projectDir, d) && !touchesGitDir(d)) ? 'allow' : 'ask'
+  }
   if (READ_CMDS.has(cmd)) {
     if (cmd === 'find' && args.some(a => FIND_WRITE_FLAGS.has(a))) return 'ask'
     if (cmd === 'rg' && args.some(a => RG_DENY_FLAGS.test(a))) return 'ask'

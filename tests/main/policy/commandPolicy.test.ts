@@ -14,7 +14,8 @@ describe('classifyToolCall', () => {
     { toolName: 'Write', input: { file_path: 'src/novo.ts' } },
     ...['ls -la', 'cat a.ts', 'git status', 'git diff HEAD~1', 'git log --oneline', 'npm test', 'npm run lint',
       'npm run build', 'npx tsc --noEmit', 'npx vitest run', 'rg foo src', 'ls && git status',
-      'npm test 2>&1 | tail -30', 'ls 2>/dev/null', 'npx vitest run >/dev/null 2>&1'].map(bash),
+      'npm test 2>&1 | tail -30', 'ls 2>/dev/null', 'npx vitest run >/dev/null 2>&1',
+      'mkdir -p web', 'mkdir -p /tmp/proj/src/ui', 'mkdir src/a src/b'].map(bash),
   ])('libera %o', call => {
     expect(classifyToolCall(call, P)).toBe('allow')
   })
@@ -38,7 +39,8 @@ describe('classifyToolCall', () => {
       'git diff --output=/Users/n/.zshrc', 'git log --output ~/.bashrc', 'git diff --ext-diff', 'git -c core.pager=sh log',
       'git log --textconv', 'rg --pre ./x.sh foo', 'rg --pre-glob "*" --pre x foo', 'find . -fprint /tmp/x', 'find . -fls x',
       // caminhos fora do projeto disfarçados (I1)
-      'cat $HOME/.ssh/id_rsa', 'cat ~root/x'].map(bash),
+      'cat $HOME/.ssh/id_rsa', 'cat ~root/x',
+      'mkdir /tmp/fora', 'mkdir -p ../fora', 'mkdir -p .git/hooks'].map(bash),
     { toolName: 'Glob', input: { pattern: '/Users/n/.ssh/*' } },
     // I7: mexer no .git do projeto (hooks, fsmonitor, filtros) executa código no snapshot do app
     { toolName: 'Edit', input: { file_path: P + '/.git/config' } },
