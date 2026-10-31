@@ -4,7 +4,7 @@ import type { Pose } from './derive'
 
 export type Expression = 'normal' | 'squint' | 'happy'
 export interface MotionFrame {
-  y: number; rotZ: number; rotY: number; squash: number
+  pose: Pose; y: number; rotZ: number; rotY: number; squash: number
   expression: Expression; eyeDY: number; eyeDX: number; blink: boolean; spin: number
 }
 export interface MotionOptions { float?: boolean; defaultExpression?: Expression; reduced?: boolean }
@@ -15,6 +15,7 @@ export function motionFrame(pose: Pose, t: number, phase: number, sincePose: num
   const base = opts.defaultExpression ?? 'normal'
   const amp = pose === 'locked' ? 0.4 : 1
   const f: MotionFrame = {
+    pose,
     y: Math.sin(2 * t + phase) * (opts.float ? 0.07 : 0.022) * amp,
     rotZ: 0,
     rotY: Math.sin(0.6 * t + phase) * 0.14 * amp,
