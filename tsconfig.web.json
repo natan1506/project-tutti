@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "composite": true, "target": "ES2023", "module": "ESNext", "moduleResolution": "Bundler",
+    "strict": true, "skipLibCheck": true, "jsx": "react-jsx", "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": { "@shared/*": ["./src/shared/*"] }, "noEmit": true
+  },
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/preload/api.d.ts", "tests/renderer/**/*"]
+}

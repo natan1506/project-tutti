@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc -b"
   },
   "keywords": [],
   "author": "",
@@ -12,9 +15,21 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.314",
-    "@openai/codex-sdk": "0.166.0"
+    "@openai/codex-sdk": "0.166.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zustand": "5.0.16"
   },
   "devDependencies": {
-    "electron": "45.2.0"
-  }
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.2.0",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  },
+  "main": "out/main/index.js"
 }
