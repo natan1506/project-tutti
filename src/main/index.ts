@@ -9,7 +9,7 @@ import { openStore } from './store/db'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1280, height: 800, backgroundColor: '#0f0d0c', title: 'Time',
+    width: 1280, height: 800, backgroundColor: '#0c0b1f', title: 'Tutti',
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true, nodeIntegration: false, sandbox: true,
@@ -21,6 +21,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
+  app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
   const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
   const runs = new RunService({

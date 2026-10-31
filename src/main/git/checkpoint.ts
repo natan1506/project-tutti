@@ -11,7 +11,7 @@ export type { UndoResult }
 // Pontos de restauração do spec §6.3: guardados só em refs próprias (refs/time/…),
 // sem tocar em HEAD, branch, index ou stash do Natan.
 
-const AUTHOR = { GIT_AUTHOR_NAME: 'Time', GIT_AUTHOR_EMAIL: 'time@local', GIT_COMMITTER_NAME: 'Time', GIT_COMMITTER_EMAIL: 'time@local' }
+const AUTHOR = { GIT_AUTHOR_NAME: 'Tutti', GIT_AUTHOR_EMAIL: 'tutti@local', GIT_COMMITTER_NAME: 'Tutti', GIT_COMMITTER_EMAIL: 'tutti@local' }
 
 async function headExists(dir: string): Promise<boolean> {
   try {

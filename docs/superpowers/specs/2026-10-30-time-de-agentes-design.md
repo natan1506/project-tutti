@@ -1,6 +1,6 @@
 # Time de Agentes — documento de design
 
-**Data:** 2026-10-30 · **Autor:** Natan Souza (decisões) · nome do app provisório: **"Time"**
+**Data:** 2026-10-30 · **Autor:** Natan Souza (decisões) · nome do app: **Tutti** (decidido em 2026-10-31; logo em `build/logo-tutti.webp`)
 **Mockup de referência:** [`docs/mockups/tela-principal.html`](../../mockups/tela-principal.html) — abrir no navegador e clicar em "▶ Simular pedido". Os mascotes desse mockup foram **aprovados** como direção visual.
 
 Inspiração: post do Fernando Nogueira no LinkedIn sobre o "Estúdio" (painel em que um time de agentes de IA de empresas diferentes decide entre si quem assume cada pedido). Copiamos a estrutura e o fluxo; nome, agentes e implementação são nossos.
@@ -180,7 +180,9 @@ Referência visual: o mockup. Em alto nível:
 - **Tela Agentes:** por agente: ferramenta, modelos permitidos, evolução da nota ao longo do tempo, caderno de lições (ler/editar).
 - **Tela Atividade:** histórico de pedidos (todos os projetos) com status, duração, agentes, notas.
 - **Tela Projetos:** projetos recentes, memória do projeto (ler/editar).
-- Tema escuro (como o mockup); tema claro é opcional.
+- Tema escuro; tema claro é opcional.
+- **Paleta do app = paleta do logo Tutti** (decidido): fundo azul-marinho (`#0c0b1f`, painéis `#110f29`, palco em radial `#2b2575 → #15133a`), destaques em gradiente violeta → azul → ciano (`#8b6cf6 → #4f8df7 → #3fd8ee`). **Exceção:** os agentes mantêm as cores da identidade de cada ferramenta.
+- Nome conhecido em conflito: existe um projeto open source "tutti" (nutthouse/tutti) que também orquestra CLIs de agentes. Natan escolheu manter o nome.
 
 ### 9.1 Mascotes (decidido: 3D animados desde a v1)
 - Feitos em código com Three.js via React Three Fiber, um componente por mascote; sem modelos externos. O mockup mostra a técnica (caixas arredondadas, forma extrudada da estrela com gradiente por vértice, nuvem de esferas, rosto de terminal desenhado em canvas como textura).
@@ -195,7 +197,7 @@ Referência visual: o mockup. Em alto nível:
 
 **Natan decidiu:** app desktop (não web); Electron em vez de Tauri; mascotes 3D animados desde o início, na linha "mascote = ferramenta" do mockup v2; elenco fixo de 6 com escalação dinâmica (criar agentes fica para depois); agentes mexem direto na pasta escolhida; rodada de propostas no modelo "equilíbrio"; plano aprovado só em pedido grande; notas por pedido com o porquê, alimentando auto-aprendizado; Natan pode corrigir a nota do Bússola; agentes carregam só as instruções dele (CLAUDE.md/AGENTS.md), sem plugins/skills/hooks/MCP; fora da v1: voz, deploy, criar agentes, distribuir.
 
-**Minhas escolhas (Natan pode trocar):** nomes e funções dos agentes e ferramenta de cada um; paralelo só com áreas de arquivo disjuntas; um pedido por vez por projeto; ponto de restauração via git; níveis de aprovação de comando; até 2 tentativas de correção após testes; Lupa → responsável corrige uma vez; toggle para forçar plano; SQLite + Markdown; correção da nota substitui a original; nome provisório "Time"; desfazer = reverso só das mudanças dos agentes, disponível no histórico; conversa contínua com retomada de sessão; agente pode fazer pergunta em texto livre; chamadas no meio do trabalho só para agentes só-leitura; nota provisória que fecha na decisão do diff.
+**Minhas escolhas (Natan pode trocar):** nomes e funções dos agentes e ferramenta de cada um; paralelo só com áreas de arquivo disjuntas; um pedido por vez por projeto; ponto de restauração via git; níveis de aprovação de comando; até 2 tentativas de correção após testes; Lupa → responsável corrige uma vez; toggle para forçar plano; SQLite + Markdown; correção da nota substitui a original;  desfazer = reverso só das mudanças dos agentes, disponível no histórico; conversa contínua com retomada de sessão; agente pode fazer pergunta em texto livre; chamadas no meio do trabalho só para agentes só-leitura; nota provisória que fecha na decisão do diff.
 
 ## 12. Deixado para o construtor
 - Estrutura do repositório, bibliotecas (além de Electron, React, Three.js/R3F), empacotamento local.

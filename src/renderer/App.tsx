@@ -5,6 +5,7 @@ import { Composer } from './components/Composer'
 import { ProjectPicker } from './components/ProjectPicker'
 import type { AgentStatus } from './state/chat'
 import { useRunStore } from './state/runStore'
+import icon from './assets/icon.png'
 import './styles.css'
 
 const LABEL: Record<AgentStatus, string> = { disponivel: 'Disponível', trabalhando: 'Trabalhando', esperando: 'Esperando você', concluido: 'Concluído' }
@@ -17,10 +18,10 @@ export function App() {
 
   return (
     <div className="app">
-      <nav className="rail"><div className="logo" /></nav>
+      <nav className="rail"><img className="logo" src={icon} alt="Tutti" /></nav>
       <main className="stage">
         <div className="head">
-          <h1>Time</h1>
+          <h1>Tutti</h1>
           <div className="sub">{busy ? <><b>{busy} de {AGENTS.length}</b> trabalhando</> : <><b>{AGENTS.length} agentes</b>, todos disponíveis</>}</div>
           <ProjectPicker />
         </div>
