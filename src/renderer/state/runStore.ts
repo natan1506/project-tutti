@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import type { AgentId } from '@shared/agents'
+import type { AgentId, ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
-import type { Conversation, Project } from '@shared/models'
+import type { Conversation, Project, ToolStatus } from '@shared/models'
 import { applyEvent, chatFromHistory, emptyChat, withPrompt, type ChatState } from './chat'
 
 interface UiState {
@@ -9,6 +9,8 @@ interface UiState {
   conversation?: Conversation
   chat: ChatState
   selectedAgent: AgentId
+  tools?: Record<ToolKind, ToolStatus>
+  loadTools(): Promise<void>
   setProject(p: Project): Promise<void>
   selectAgent(id: AgentId): void
   newConversation(): void
@@ -28,6 +30,10 @@ export const useRunStore = create<UiState>((set, get) => ({
   },
 
   selectAgent: selectedAgent => set({ selectedAgent }),
+
+  async loadTools() {
+    set({ tools: await window.time.toolStatus() })
+  },
 
   newConversation: () => set({ conversation: undefined, chat: emptyChat() }),
 

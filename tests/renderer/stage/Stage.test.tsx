@@ -74,8 +74,9 @@ describe('Stage sem WebGL', () => {
     expect(container.querySelector('canvas')).toBeNull()
   })
 
-  it('clicar em agente da Fase 3 não troca a aba; clicar no Lupa troca', () => {
-    useRunStore.setState({ selectedAgent: 'forja' })
+  it('clicar em agente travado não troca a aba; clicar no Lupa troca', () => {
+    const tools = Object.fromEntries((['claude', 'codex', 'gemini', 'opencode'] as const).map(t => [t, { tool: t, installed: t !== 'gemini', loggedIn: t !== 'gemini' }]))
+    useRunStore.setState({ selectedAgent: 'forja', tools: tools as never })
     const { container } = render(<Stage webgl={false} />)
     fireEvent.click(container.querySelector('[data-agent="radar"]')!)
     expect(useRunStore.getState().selectedAgent).toBe('forja')

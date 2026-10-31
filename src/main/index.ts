@@ -6,6 +6,7 @@ import { CodexAdapter } from './adapters/codex'
 import { registerIpc } from './ipc'
 import { RunService } from './runs/runService'
 import { openStore } from './store/db'
+import { cachedDetector, realExec } from './tools/detect'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -24,12 +25,14 @@ app.whenReady().then(async () => {
   app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
   const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
+  const tools = cachedDetector(realExec)
   const runs = new RunService({
     store,
     adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: undefined, opencode: undefined },
     emit: (runId, ev) => send(runId, ev),
+    toolReady: async t => { const s = (await tools())[t]; return s.installed && s.loggedIn },
   })
   await runs.recover()
-  send = registerIpc(createWindow(), store, runs)
+  send = registerIpc(createWindow(), store, runs, tools)
 })
 app.on('window-all-closed', () => app.quit())

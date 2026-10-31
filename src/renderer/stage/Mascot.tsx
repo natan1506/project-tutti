@@ -9,7 +9,7 @@ import { MascotBody } from './mascots'
 import { GROUND } from './mascots/types'
 import { motionFrame, type MotionFrame } from './motion'
 
-const TOOL = { claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI', opencode: 'opencode' }
+const TOOL = { claude: 'Claude Code', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode' }
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function MascotLabel({ id, view, onSelect }: { id: AgentId; view: MascotView; onSelect: () => void }) {

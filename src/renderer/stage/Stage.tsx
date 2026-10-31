@@ -94,7 +94,7 @@ function FlatStage({ views, onSelect }: { views: Record<AgentId, MascotView>; on
 }
 
 export function Stage({ webgl }: { webgl?: boolean } = {}) {
-  const { chat, selectedAgent, selectAgent } = useRunStore()
+  const { chat, selectedAgent, selectAgent, tools } = useRunStore()
   const [canUse] = useState(() => webgl ?? hasWebGL())
   const [lost, setLost] = useState(false)
   const [now, setNow] = useState(() => Date.now())
@@ -103,7 +103,7 @@ export function Stage({ webgl }: { webgl?: boolean } = {}) {
     const id = setInterval(() => setNow(Date.now()), 500)
     return () => clearInterval(id)
   }, [])
-  const views = useMemo(() => deriveStage(chat, now), [chat, now])
+  const views = useMemo(() => deriveStage(chat, now, tools), [chat, now, tools])
   // Rótulos e balões vão para uma camada própria: o <Html> do drei não acha o pai do canvas no primeiro quadro.
   const overlay = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLDivElement>(null)

@@ -2,15 +2,15 @@ import { useState, type KeyboardEvent } from 'react'
 import { AGENTS } from '@shared/agents'
 import { useRunStore } from '../state/runStore'
 
-const LATER = 'chega na Fase 3'
+const LATER = 'chega na Fase 3B'
 const ERRORS: Record<string, string> = {
   PROJECT_BUSY: 'Já tem um pedido rodando neste projeto. Espere terminar ou cancele.',
   NOT_A_GIT_REPO: 'Esta pasta não usa git; abra o projeto de novo para iniciar um repositório.',
-  AGENT_NOT_AVAILABLE: 'Este agente chega na Fase 3.',
+  TOOL_UNAVAILABLE: 'A ferramenta deste agente não está pronta (instale ou entre nela).',
 }
 
 export function Composer() {
-  const { project, selectedAgent, selectAgent, send } = useRunStore()
+  const { project, selectedAgent, selectAgent, send, tools } = useRunStore()
   const [text, setText] = useState('')
   const [error, setError] = useState<string>()
 
@@ -35,12 +35,16 @@ export function Composer() {
     <div className="composer">
       <div className="chips">
         <button className="chip" disabled title={LATER}>👥 Time</button>
-        {AGENTS.map(a => (
-          <button key={a.id} className={`chip ${a.id === selectedAgent ? 'on' : ''}`} disabled={a.availableInPhase !== 1}
-            title={a.availableInPhase !== 1 ? LATER : a.funcao} onClick={() => selectAgent(a.id)}>
-            <i className={`dot-${a.id}`} />{a.nome}
-          </button>
-        ))}
+        {AGENTS.map(a => {
+          const t = tools?.[a.tool]
+          const off = !!t && !(t.installed && t.loggedIn)
+          return (
+            <button key={a.id} className={`chip ${a.id === selectedAgent ? 'on' : ''}`} disabled={off}
+              title={off ? t?.hint : a.funcao} onClick={() => selectAgent(a.id)}>
+              <i className={`dot-${a.id}`} />{a.nome}
+            </button>
+          )
+        })}
       </div>
       <div className="inp">
         <textarea rows={1} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey}

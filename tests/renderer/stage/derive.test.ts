@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { RunEvent } from '@shared/events'
-import type { RunRow } from '@shared/models'
+import type { ToolKind } from '@shared/agents'
+import type { RunRow, ToolStatus } from '@shared/models'
 import { applyEvent, chatFromHistory, emptyChat, type ChatState } from '../../../src/renderer/state/chat'
 import { bubbleText, deriveStage, DONE_BUBBLE_MS } from '../../../src/renderer/stage/derive'
 
 const NOW = 1_000_000
+const TOOLS = (over: Partial<Record<ToolKind, Partial<ToolStatus>>> = {}): Record<ToolKind, ToolStatus> =>
+  Object.fromEntries((['claude', 'codex', 'gemini', 'opencode'] as const).map(t => [t, { tool: t, installed: true, loggedIn: true, ...over[t] }])) as Record<ToolKind, ToolStatus>
 const play = (evs: RunEvent[], finishedAt?: number): ChatState => {
   let s = applyEvent(emptyChat(), 'r1', { type: 'run_started', runId: 'r1', agentId: 'forja' })
   for (const ev of evs) s = applyEvent(s, 'r1', ev)
@@ -12,10 +15,16 @@ const play = (evs: RunEvent[], finishedAt?: number): ChatState => {
 }
 
 describe('deriveStage', () => {
-  it('agentes da Fase 3 ficam travados', () => {
+  it('sem status das ferramentas (carregando), ninguém fica travado', () => {
     const v = deriveStage(emptyChat(), NOW)
-    expect(v.radar).toEqual({ pose: 'locked', label: 'Fase 3' })
-    expect(v.curinga).toEqual({ pose: 'locked', label: 'Fase 3' })
+    expect(v.radar.pose).toBe('idle')
+    expect(v.curinga.pose).toBe('idle')
+  })
+
+  it('ferramenta indisponível trava o agente com a instrução', () => {
+    const v = deriveStage(emptyChat(), NOW, TOOLS({ gemini: { installed: false, loggedIn: false, hint: 'Instale o Antigravity' } }))
+    expect(v.radar).toEqual({ pose: 'locked', label: 'Instale o Antigravity' })
+    expect(v.forja.pose).toBe('idle')
   })
 
   it('sem pedido fica disponível sem balão', () => {

@@ -14,6 +14,8 @@ interface Deps {
   adapters: Record<ToolKind, AgentAdapter | undefined>
   emit: (runId: string, ev: RunEvent) => void
   homeDir?: string
+  /** Ferramenta instalada e logada? (padrão: sim) */
+  toolReady?: (tool: ToolKind) => Promise<boolean>
 }
 
 const refs = (runId: string) => ({ before: `refs/time/runs/${runId}/before`, after: `refs/time/runs/${runId}/after` })
@@ -30,9 +32,9 @@ export class RunService {
   async start(input: StartRunInput): Promise<string> {
     const agent = getAgent(input.agentId)
     const adapter = this.deps.adapters[agent.tool]
-    if (agent.availableInPhase !== 1 || !adapter) throw new Error('AGENT_NOT_AVAILABLE')
+    if (!adapter || !(await (this.deps.toolReady?.(agent.tool) ?? true))) throw new Error('TOOL_UNAVAILABLE')
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
-    // Spec §6.2: um pedido por vez por projeto (a fila chega na Fase 3).
+    // Spec §6.2: um pedido por vez por projeto (a fila chega na Fase 3B).
     if (this.busyProjects.has(input.projectPath)) throw new Error('PROJECT_BUSY')
     this.busyProjects.add(input.projectPath)
 

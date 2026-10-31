@@ -15,6 +15,7 @@ const api: TimeApi = {
   cancelRun: runId => ipcRenderer.invoke('cancelRun', runId),
   undo: (runId, paths) => ipcRenderer.invoke('undo', runId, paths),
   patch: (runId, path) => ipcRenderer.invoke('patch', runId, path),
+  toolStatus: () => ipcRenderer.invoke('toolStatus'),
   onRunEvent: cb => {
     const listener = (_e: IpcRendererEvent, runId: string, ev: RunEvent) => cb(runId, ev)
     ipcRenderer.on('runEvent', listener)

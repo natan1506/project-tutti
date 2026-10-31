@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import type { ToolKind } from '@shared/agents'
 import type { AgentEvent, RunEvent } from '@shared/events'
 import type { AdapterRunOptions, AgentAdapter } from '../../../src/main/adapters/types'
 import { runGit } from '../../../src/main/git/git'
@@ -16,7 +17,7 @@ class FakeAdapter implements AgentAdapter {
   run(opts: AdapterRunOptions) { this.seen = opts; return this.script(opts) }
 }
 
-async function setup(script: Script, { git = true } = {}) {
+async function setup(script: Script, { git = true, toolReady }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean> } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'run-'))
   if (git) {
     await runGit(dir, ['init', '-q'])
@@ -29,7 +30,7 @@ async function setup(script: Script, { git = true } = {}) {
   const fake = new FakeAdapter(script)
   const svc = new RunService({
     store, adapters: { claude: fake, codex: undefined, gemini: undefined, opencode: undefined },
-    emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')),
+    emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady,
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
   return { dir, store, conv, emitted, fake, svc, start }
@@ -68,9 +69,16 @@ describe('RunService', () => {
     expect(store.listRuns(conv.id)).toEqual([])
   })
 
-  it('recusa agente que só chega na Fase 3', async () => {
-    const { svc, dir, conv } = await setup(async function* () { yield { type: 'done' } })
-    await expect(svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'radar', prompt: 'x' })).rejects.toThrow('AGENT_NOT_AVAILABLE')
+  it('recusa agente cuja ferramenta não tem adaptador', async () => {
+    const { svc, dir, conv, store } = await setup(async function* () { yield { type: 'done' } })
+    await expect(svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'radar', prompt: 'x' })).rejects.toThrow('TOOL_UNAVAILABLE')
+    expect(store.listRuns(conv.id)).toEqual([])
+  })
+
+  it('recusa agente cuja ferramenta não está pronta (não instalada ou sem login)', async () => {
+    const { svc, dir, conv, store } = await setup(async function* () { yield { type: 'done' } }, { toolReady: async t => t !== 'claude' })
+    await expect(svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt: 'x' })).rejects.toThrow('TOOL_UNAVAILABLE')
+    expect(store.listRuns(conv.id)).toEqual([])
   })
 
   it('aprovação vai e volta', async () => {

@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-// Material de "massinha" dos mascotes; agentes travados (Fase 3) ficam translúcidos via contexto.
+// Material de "massinha" dos mascotes; agentes travados (ferramenta indisponível) ficam translúcidos via contexto.
 
 export const DimContext = createContext(false)
 

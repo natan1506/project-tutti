@@ -1,4 +1,5 @@
-import { AGENTS, type AgentId } from '@shared/agents'
+import { AGENTS, type AgentId, type ToolKind } from '@shared/agents'
+import type { ToolStatus } from '@shared/models'
 import type { ChatState, RunBlock } from '../state/chat'
 
 // O que cada mascote mostra no palco, derivado só do estado do chat (spec §9.1).
@@ -36,9 +37,11 @@ function viewFor(run: RunBlock | undefined, now: number): MascotView {
   return { ...IDLE, bubble: 'Cancelado.', bubbleKind: 'text' }
 }
 
-export function deriveStage(chat: ChatState, now: number): Record<AgentId, MascotView> {
+/** `tools` ausente = ainda carregando: ninguém fica travado. */
+export function deriveStage(chat: ChatState, now: number, tools?: Record<ToolKind, ToolStatus>): Record<AgentId, MascotView> {
   return Object.fromEntries(AGENTS.map(a => {
-    if (a.availableInPhase !== 1) return [a.id, { pose: 'locked', label: 'Fase 3' }]
+    const t = tools?.[a.tool]
+    if (t && !(t.installed && t.loggedIn)) return [a.id, { pose: 'locked', label: t.hint ?? 'Indisponível' }]
     const last = chat.runs.filter(r => r.agentId === a.id).at(-1)
     return [a.id, viewFor(last, now)]
   })) as Record<AgentId, MascotView>

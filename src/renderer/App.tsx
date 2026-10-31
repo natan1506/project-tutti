@@ -9,8 +9,9 @@ import icon from './assets/icon.png'
 import './styles.css'
 
 export function App() {
-  const { chat, receive } = useRunStore()
+  const { chat, receive, loadTools } = useRunStore()
   useEffect(() => window.time.onRunEvent(receive), [receive])
+  useEffect(() => { void loadTools() }, [loadTools])
   const busy = Object.values(chat.agentStatus).filter(s => s === 'trabalhando' || s === 'esperando').length
 
   return (

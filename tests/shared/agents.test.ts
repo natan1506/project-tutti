@@ -9,7 +9,7 @@ describe('elenco', () => {
     ])
     expect(getAgent('lupa').readOnly).toBe(true)
     expect(getAgent('radar').readOnly).toBe(true)
-    expect(AGENTS.filter(a => a.availableInPhase === 1).map(a => a.id)).toEqual(['bussola', 'forja', 'pincel', 'lupa'])
+    expect(AGENTS.every(a => !('availableInPhase' in a))).toBe(true)
     expect(getAgent('forja').nome).toBe('Forja')
     expect(getAgent('bussola').nome).toBe('Bússola')
   })
