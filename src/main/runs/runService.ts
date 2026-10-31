@@ -199,6 +199,37 @@ export class RunService {
     }
   }
 
+  /** Spec §5.4: pergunta ao Radar/Lupa em modo consulta, sem repassar a ferramenta (profundidade 1). */
+  private askAgent(runId: string, from: StartRunInput['agentId'], cwd: string, signal: AbortSignal): NonNullable<AdapterRunOptions['askAgent']> {
+    return async (to, question) => {
+      const agent = getAgent(to)
+      this.record(runId, { type: 'agent_call', from, to, question })
+      const adapter = this.deps.adapters[agent.tool]
+      let answer: string
+      if (!adapter || !(await (this.deps.toolReady?.(agent.tool) ?? true))) answer = `O ${agent.nome} não está disponível.`
+      else {
+        const ctl = new AbortController()
+        const onParent = () => ctl.abort()
+        signal.addEventListener('abort', onParent, { once: true })
+        const timer = setTimeout(() => ctl.abort(), 120_000)
+        const texts: string[] = []
+        try {
+          for await (const ev of adapter.run({ agent, prompt: question, cwd, instructions: '', signal: ctl.signal, mode: 'consult', requestApproval: async () => false })) {
+            if (ev.type === 'text') texts.push(ev.text)
+          }
+        } catch {
+          // falha do chamado vira "não respondeu" para quem perguntou
+        } finally {
+          clearTimeout(timer)
+          signal.removeEventListener('abort', onParent)
+        }
+        answer = texts.join('\n\n') || `O ${agent.nome} não respondeu a tempo.`
+      }
+      this.record(runId, { type: 'agent_call_answer', from, to, answer })
+      return answer
+    }
+  }
+
   private async execute(runId: string, input: StartRunInput, adapter: AgentAdapter, signal: AbortSignal, withCheckpoint: boolean): Promise<void> {
     let status: RunStatus = 'done'
     let sessionId: string | undefined
@@ -215,6 +246,7 @@ export class RunService {
           agent, prompt: input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(input.model ? { model: input.model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
+          ...(input.mode !== 'consult' ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal) } : {}),
         })
         try {
           for await (const ev of events) {

@@ -1,6 +1,7 @@
 import { query, type CanUseTool, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentEvent } from '@shared/events'
 import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
+import { AGENT_CALL_TOOL, makeAgentCallTool } from '../team/agentCalls'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
@@ -16,7 +17,8 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     model: opts.model ?? opts.agent.defaultModel,
     resume: opts.resumeSessionId,
     env: safeEnv(dropEnv),
-    settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [],
+    settingSources: [], strictMcpConfig: true, plugins: [], skills: [],
+    mcpServers: opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent) } : {},
     permissionMode: 'default',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },
     canUseTool,
@@ -57,6 +59,8 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
         ? { behavior: 'allow', updatedInput: input }
         : { behavior: 'deny', message: 'Modo consulta: só leitura.' }
     }
+    // A ferramenta do app é carregada sob demanda: o Claude Code passa por ToolSearch antes (spike da Fase 3B).
+    if (opts.askAgent && (toolName === AGENT_CALL_TOOL || toolName === 'ToolSearch')) return { behavior: 'allow', updatedInput: input }
     if (toolName === 'AskUserQuestion') {
       const answers: Record<string, string> = {}
       for (const q of (input as AskInput).questions ?? []) {

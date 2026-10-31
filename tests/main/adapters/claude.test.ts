@@ -119,4 +119,18 @@ describe('makeCanUseTool', () => {
   it('modo trabalho não muda', () => {
     expect(buildClaudeOptions(opts(), async () => ({ behavior: 'allow' })).disallowedTools).toBeUndefined()
   })
+  it('com askAgent: servidor tutti, MCP estrito, ferramenta e ToolSearch liberados sem perguntar', async () => {
+    const o = opts({ askAgent: async () => 'ok' })
+    const options = buildClaudeOptions(o, async () => ({ behavior: 'allow' }))
+    expect(Object.keys(options.mcpServers ?? {})).toEqual(['tutti'])
+    expect(options.strictMcpConfig).toBe(true)
+    const can = makeCanUseTool(o)
+    expect(await can('mcp__tutti__perguntar_ao_time', { agente: 'radar', pergunta: 'x' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
+    expect(await can('ToolSearch', { query: 'select:mcp__tutti__perguntar_ao_time' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
+    expect(o.requestApproval).not.toHaveBeenCalled()
+  })
+  it('sem askAgent (ou em consulta) não há servidor', () => {
+    expect(buildClaudeOptions(opts(), async () => ({ behavior: 'allow' })).mcpServers).toEqual({})
+    expect(buildClaudeOptions(opts({ askAgent: async () => '', mode: 'consult' }), async () => ({ behavior: 'allow' })).mcpServers).toEqual({})
+  })
 })

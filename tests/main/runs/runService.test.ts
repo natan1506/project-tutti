@@ -18,7 +18,7 @@ class FakeAdapter implements AgentAdapter {
   run(opts: AdapterRunOptions) { this.seen = opts; this.calls.push(opts); return this.script(opts) }
 }
 
-async function setup(script: Script, { git = true, toolReady }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean> } = {}) {
+async function setup(script: Script, { git = true, toolReady, radar = false }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'run-'))
   if (git) {
     await runGit(dir, ['init', '-q'])
@@ -30,7 +30,7 @@ async function setup(script: Script, { git = true, toolReady }: { git?: boolean;
   const emitted: RunEvent[] = []
   const fake = new FakeAdapter(script)
   const svc = new RunService({
-    store, adapters: { claude: fake, codex: undefined, gemini: undefined, opencode: undefined },
+    store, adapters: { claude: fake, codex: undefined, gemini: radar ? fake : undefined, opencode: undefined },
     emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady,
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
@@ -316,5 +316,29 @@ describe('RunService', () => {
     expect(fake.calls).toHaveLength(1)
     expect(emitted.some(e => e.type === 'notice')).toBe(false)
     expect(emitted).toContainEqual({ type: 'error', message: 'rate limit exceeded' })
+  })
+  it('agente pergunta ao Radar: consulta sem repassar a ferramenta, eventos no run de quem perguntou', async () => {
+    let answer = ''
+    const { fake, emitted, svc, start } = await setup(async function* (o) {
+      if (o.mode === 'consult') { yield { type: 'text', text: `Radar: ${o.prompt}` }; yield { type: 'done' }; return }
+      answer = await o.askAgent!('radar', 'qual versão?')
+      yield { type: 'done' }
+    }, { radar: true })
+    await svc.whenFinished(await start())
+    const consult = fake.calls.find(c => c.mode === 'consult')!
+    expect(consult.agent.id).toBe('radar')
+    expect(consult.askAgent).toBeUndefined()
+    expect(answer).toContain('qual versão?')
+    expect(emitted).toContainEqual({ type: 'agent_call', from: 'forja', to: 'radar', question: 'qual versão?' })
+    expect(emitted).toContainEqual({ type: 'agent_call_answer', from: 'forja', to: 'radar', answer })
+  })
+
+  it('Radar indisponível: resposta pronta sem chamar adaptador', async () => {
+    let answer = ''
+    const { fake, svc, start } = await setup(async function* (o) { answer = await o.askAgent!('radar', 'x'); yield { type: 'done' } },
+      { toolReady: async t => t !== 'gemini' })
+    await svc.whenFinished(await start())
+    expect(answer).toBe('O Radar não está disponível.')
+    expect(fake.calls.filter(c => c.mode === 'consult')).toEqual([])
   })
 })

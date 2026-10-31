@@ -1,5 +1,6 @@
 import type { AgentDef } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
+import type { AskAgent } from '../team/agentCalls'
 
 export interface AdapterRunOptions {
   agent: AgentDef
@@ -14,6 +15,8 @@ export interface AdapterRunOptions {
   requestApproval(req: { toolName: string; summary: string }): Promise<boolean>
   /** Pergunta em texto livre ao Natan (spec §5.7.2); `null` = sem resposta (cancelado). */
   askUser?(q: { text: string; options?: string[] }): Promise<string | null>
+  /** Pergunta ao Radar ou ao Lupa no meio do trabalho (spec §5.4); só o adaptador Claude usa. */
+  askAgent?: AskAgent
 }
 
 export interface AgentAdapter {
