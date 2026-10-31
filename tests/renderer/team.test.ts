@@ -69,4 +69,10 @@ describe('palco do time', () => {
       [P, { type: 'child_started', runId: 'c1', agentId: 'forja', task: 'api' }], ['c1', { type: 'tool', name: 'Edit', summary: 'server/a.js' }]]), 0)
     expect(v.forja).toMatchObject({ pose: 'working', bubble: 'Editando server/a.js' })
   })
+  it('quem está sendo consultado aparece trabalhando, respondendo a quem perguntou', () => {
+    const base: [string, RunEvent][] = [['c1', { type: 'run_started', runId: 'c1', agentId: 'forja' }], ['c1', { type: 'agent_call', from: 'forja', to: 'radar', question: 'versão?' }]]
+    expect(deriveStage(play(base), 0).radar).toEqual({ pose: 'working', label: 'Trabalhando', bubble: 'Respondendo ao Forja', bubbleKind: 'text' })
+    const answered = play([...base, ['c1', { type: 'agent_call_answer', from: 'forja', to: 'radar', answer: 'Node 26' }]])
+    expect(deriveStage(answered, 0).radar.pose).toBe('idle')
+  })
 })

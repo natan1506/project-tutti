@@ -1,4 +1,4 @@
-import { AGENTS, type AgentId, type ToolKind } from '@shared/agents'
+import { AGENTS, getAgent, type AgentId, type ToolKind } from '@shared/agents'
 import type { ToolStatus } from '@shared/models'
 import type { ChatState, RunBlock } from '../state/chat'
 
@@ -64,6 +64,9 @@ export function deriveStage(chat: ChatState, now: number, tools?: Record<ToolKin
     if (t && !(t.installed && t.loggedIn)) return [a.id, { pose: 'locked', label: t.hint ?? 'Indisponível' }]
     const fromTeam = team && teamView(team, a.id)
     if (fromTeam) return [a.id, fromTeam]
+    // Consulta no meio do trabalho (spec §5.4): o consultado aparece trabalhando para quem perguntou.
+    const asker = chat.runs.find(r => r.status === 'running' && r.calls.some(c => c.to === a.id && c.answer === undefined))
+    if (asker) return [a.id, { pose: 'working', label: 'Trabalhando', bubble: `Respondendo ao ${getAgent(asker.agentId).nome}`, bubbleKind: 'text' }]
     // O run-pai do time não é "trabalho do Bússola": o palco usa o último run comum de cada agente.
     const last = chat.runs.filter(r => r.agentId === a.id && !r.team).at(-1)
     return [a.id, viewFor(last, now)]
