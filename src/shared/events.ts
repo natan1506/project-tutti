@@ -22,4 +22,5 @@ export type RunEvent =
   | AgentEvent
   | { type: 'run_started'; runId: string; agentId: AgentId }
   | { type: 'diff'; files: DiffFile[] }
+  | { type: 'notice'; text: string }
   | { type: 'run_finished'; status: RunStatus }

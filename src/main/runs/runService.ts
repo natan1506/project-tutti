@@ -133,14 +133,26 @@ export class RunService {
     try {
       const instructions = await loadInstructions(input.projectPath, this.deps.homeDir)
       if (signal.aborted) return
-      const events = adapter.run({
-        agent: getAgent(input.agentId), prompt: input.prompt, cwd: input.projectPath, instructions, signal,
-        requestApproval: this.requestApproval(runId, signal),
-      })
-      for await (const ev of events) {
-        if (ev.type === 'done') sessionId = ev.sessionId
-        if (ev.type === 'error') status = 'error'
-        this.record(runId, ev)
+      const agent = getAgent(input.agentId)
+      // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
+      let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id) ?? undefined
+      for (;;) {
+        let started = false
+        let staleSession = false
+        const events = adapter.run({
+          agent, prompt: input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
+          requestApproval: this.requestApproval(runId, signal),
+        })
+        for await (const ev of events) {
+          if (!started && resume && ev.type === 'error') { staleSession = true; break }
+          started = true
+          if (ev.type === 'done') sessionId = ev.sessionId
+          if (ev.type === 'error') status = 'error'
+          this.record(runId, ev)
+        }
+        if (!staleSession || signal.aborted) break
+        this.record(runId, { type: 'notice', text: `Não consegui retomar a conversa anterior do ${agent.nome}; comecei uma nova.` })
+        resume = undefined
       }
     } catch (e) {
       if (!signal.aborted) {

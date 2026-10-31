@@ -15,6 +15,7 @@ export interface RunBlock {
   files?: DiffFile[]
   status: RunStatus
   error?: string
+  notices: string[]
   startedAt: number
   finishedAt?: number
 }
@@ -27,7 +28,7 @@ export function emptyChat(): ChatState {
 /** Reducer puro: aplica um evento do processo principal ao estado do chat. */
 export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatState {
   if (ev.type === 'run_started') {
-    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], status: 'running', startedAt: Date.now() }
+    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], notices: [], status: 'running', startedAt: Date.now() }
     return { runs: [...state.runs, block], agentStatus: { ...state.agentStatus, [ev.agentId]: 'trabalhando' } }
   }
   const run = state.runs.find(r => r.runId === runId)
@@ -44,6 +45,7 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'approval_resolved':
       return set({ approvals: run.approvals.map(a => (a.id === ev.id ? { ...a, allowed: ev.allowed } : a)) }, 'trabalhando')
     case 'error': return set({ error: ev.message })
+    case 'notice': return set({ notices: [...run.notices, ev.text] })
     case 'diff': return set({ files: ev.files })
     case 'run_finished':
       return set({ status: ev.status, finishedAt: Date.now() }, ev.status === 'done' ? 'concluido' : 'disponivel')

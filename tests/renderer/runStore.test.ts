@@ -59,6 +59,10 @@ describe('applyEvent', () => {
     expect(s.agentStatus.forja).toBe('disponivel')
   })
 
+  it('aviso fica guardado no bloco', () => {
+    expect(play([started(), ['r1', { type: 'notice', text: 'comecei uma nova' }]]).runs[0].notices).toEqual(['comecei uma nova'])
+  })
+
   it('erro fica guardado no bloco', () => {
     expect(play([started(), ['r1', { type: 'error', message: 'limite' }]]).runs[0].error).toBe('limite')
   })

@@ -25,6 +25,7 @@ function RunView({ run }: { run: RunBlock }) {
         <small>{passos} {open ? '▾' : '›'}</small>
       </div>
       {open && <ul className="steps">{run.steps.map((s, i) => <li key={i}><b>{s.name}</b> <code>{s.summary}</code></li>)}</ul>}
+      {run.notices.map((n, i) => <div key={i} className="note">{n}</div>)}
       {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar</button>}
       {run.approvals.map(a => <ApprovalCard key={a.id} approval={a} />)}
       {run.text && <div className={`msg msg-${run.agentId}`}><div className="who">{nome}</div><div className="tx">{run.text}</div></div>}

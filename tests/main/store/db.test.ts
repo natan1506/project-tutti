@@ -52,4 +52,22 @@ describe('store', () => {
     expect(s2.markInterruptedRuns()).toBe(1)
     expect(s2.listRuns(c.id)[0]).toMatchObject({ status: 'interrupted', hasCheckpoint: true })
   })
+  it('lastSessionFor devolve a sessão do pedido concluído mais recente daquele agente naquela conversa', () => {
+    const s = openStore(':memory:')
+    const p = s.upsertProject('/a')
+    const c1 = s.createConversation(p.id, 'c1'), c2 = s.createConversation(p.id, 'c2')
+    const run = (id: string, conv: string, agentId: 'forja' | 'pincel', status: 'done' | 'error' | 'cancelled', sid: string, at: number) => {
+      s.createRun({ id, conversationId: conv, agentId, prompt: 'x', startedAt: at, hasCheckpoint: true })
+      s.finishRun(id, status, sid)
+    }
+    run('r1', c1.id, 'forja', 'done', 's-velha', 1)
+    run('r2', c1.id, 'forja', 'done', 's-nova', 2)
+    run('r3', c1.id, 'forja', 'error', 's-erro', 3)
+    run('r4', c1.id, 'forja', 'cancelled', 's-cancel', 4)
+    run('r5', c1.id, 'pincel', 'done', 's-pincel', 5)
+    run('r6', c2.id, 'forja', 'done', 's-outra-conversa', 6)
+    expect(s.lastSessionFor(c1.id, 'forja')).toBe('s-nova')
+    expect(s.lastSessionFor(c1.id, 'pincel')).toBe('s-pincel')
+    expect(s.lastSessionFor(c2.id, 'pincel')).toBeNull()
+  })
 })

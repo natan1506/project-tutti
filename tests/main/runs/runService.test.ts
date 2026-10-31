@@ -13,8 +13,9 @@ import { RunService } from '../../../src/main/runs/runService'
 type Script = (opts: AdapterRunOptions) => AsyncGenerator<AgentEvent>
 class FakeAdapter implements AgentAdapter {
   seen?: AdapterRunOptions
+  calls: AdapterRunOptions[] = []
   constructor(private script: Script) {}
-  run(opts: AdapterRunOptions) { this.seen = opts; return this.script(opts) }
+  run(opts: AdapterRunOptions) { this.seen = opts; this.calls.push(opts); return this.script(opts) }
 }
 
 async function setup(script: Script, { git = true, toolReady }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean> } = {}) {
@@ -191,5 +192,41 @@ describe('RunService', () => {
     await svc.whenFinished(runId)
     expect(fake.seen).toBeUndefined()
     expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
+  })
+  it('segundo pedido ao mesmo agente na mesma conversa retoma a sessão; conversa nova não', async () => {
+    const { fake, svc, start, store, conv, dir } = await setup(async function* () { yield { type: 'done', sessionId: 'sess-1' } })
+    await svc.whenFinished(await start('primeiro'))
+    await svc.whenFinished(await start('segundo'))
+    expect(fake.calls.map(c => c.resumeSessionId)).toEqual([undefined, 'sess-1'])
+    const nova = store.createConversation(store.upsertProject(dir).id, 'nova')
+    await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: nova.id, agentId: 'forja', prompt: 'x' }))
+    expect(fake.calls.at(-1)!.resumeSessionId).toBeUndefined()
+  })
+
+  it('sessão que a CLI não reconhece mais: avisa e começa de novo uma vez', async () => {
+    const { fake, emitted, svc, start, store, conv } = await setup(async function* (o) {
+      if (o.resumeSessionId === 'sumiu') { yield { type: 'error', message: 'session not found' }; return }
+      yield { type: 'text', text: 'ok' }
+      yield { type: 'done', sessionId: 'nova' }
+    })
+    store.createRun({ id: 'antigo', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    store.finishRun('antigo', 'done', 'sumiu')
+    const runId = await start()
+    await svc.whenFinished(runId)
+    expect(fake.calls.map(c => c.resumeSessionId)).toEqual(['sumiu', undefined])
+    expect(emitted.map(e => e.type)).toEqual(['run_started', 'notice', 'text', 'done', 'diff', 'run_finished'])
+    expect(emitted[1]).toEqual({ type: 'notice', text: 'Não consegui retomar a conversa anterior do Forja; comecei uma nova.' })
+    expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'done' })
+  })
+
+  it('erro depois de começar a trabalhar não repete o pedido', async () => {
+    const { fake, svc, start, store, conv } = await setup(async function* () {
+      yield { type: 'text', text: 'começando' }
+      yield { type: 'error', message: 'caiu' }
+    })
+    store.createRun({ id: 'antigo', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    store.finishRun('antigo', 'done', 's1')
+    await svc.whenFinished(await start())
+    expect(fake.calls).toHaveLength(1)
   })
 })

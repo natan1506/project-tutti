@@ -19,6 +19,7 @@ export interface Store {
   listRuns(conversationId: string): RunRow[]
   listEvents(runId: string): RunEvent[]
   listRunsByStatus(status: RunStatus): RunRow[]
+  lastSessionFor(conversationId: string, agentId: AgentId): string | null
   markInterruptedRuns(): number
   projectPathForRun(runId: string): string | undefined
   close(): void
@@ -91,6 +92,11 @@ export function openStore(file: string): Store {
     },
     listRunsByStatus(status) {
       return (db.prepare('SELECT * FROM runs WHERE status = ?').all(status) as Row[]).map(toRun)
+    },
+    lastSessionFor(conversationId, agentId) {
+      const r = db.prepare(`SELECT session_id FROM runs WHERE conversation_id = ? AND agent_id = ? AND status = 'done'
+        AND session_id IS NOT NULL ORDER BY started_at DESC LIMIT 1`).get(conversationId, agentId) as Row | undefined
+      return (r?.session_id as string | undefined) ?? null
     },
     markInterruptedRuns() {
       return Number(db.prepare("UPDATE runs SET status = 'interrupted', finished_at = ? WHERE status = 'running'").run(now()).changes)
