@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import ReactThreeTestRenderer from '@react-three/test-renderer'
+import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { AgentId } from '@shared/agents'
+import { AGENTS, type AgentId } from '@shared/agents'
+import { emptyChat } from '../../../src/renderer/state/chat'
+import { useRunStore } from '../../../src/renderer/state/runStore'
+import { deriveStage } from '../../../src/renderer/stage/derive'
+import { mascotX } from '../../../src/renderer/stage/layout'
+import { Stage, StageScene } from '../../../src/renderer/stage/Stage'
 import { MascotBody } from '../../../src/renderer/stage/mascots'
 import { motionFrame, type MotionFrame } from '../../../src/renderer/stage/motion'
 
@@ -58,5 +64,34 @@ describe('MascotBody', () => {
     expect(visible('eye-squint')).toEqual([true, true])
     expect(visible('eye-normal')).toEqual([false, false])
     expect(visible('eye-happy')).toEqual([false, false])
+  })
+})
+
+describe('Stage sem WebGL', () => {
+  it('cai para a fileira 2D com os seis agentes', () => {
+    const { container } = render(<Stage webgl={false} />)
+    expect(container.querySelectorAll('.agent')).toHaveLength(6)
+    expect(container.querySelector('canvas')).toBeNull()
+  })
+
+  it('clicar em agente da Fase 3 não troca a aba; clicar no Lupa troca', () => {
+    useRunStore.setState({ selectedAgent: 'forja' })
+    const { container } = render(<Stage webgl={false} />)
+    fireEvent.click(container.querySelector('[data-agent="radar"]')!)
+    expect(useRunStore.getState().selectedAgent).toBe('forja')
+    fireEvent.click(container.querySelector('[data-agent="lupa"]')!)
+    expect(useRunStore.getState().selectedAgent).toBe('lupa')
+  })
+})
+
+describe('StageScene', () => {
+  it('posiciona os seis mascotes em fileira', async () => {
+    const r = await ReactThreeTestRenderer.create(
+      <StageScene views={deriveStage(emptyChat(), 0)} selected="forja" onSelect={() => {}} headless />,
+    )
+    AGENTS.forEach((a, i) => {
+      const [g] = r.scene.findAll(n => n.props.name === `mascot-${a.id}`)
+      expect(g.instance.position.x).toBeCloseTo(mascotX(i, AGENTS.length))
+    })
   })
 })

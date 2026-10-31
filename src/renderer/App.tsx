@@ -3,13 +3,10 @@ import { AGENTS } from '@shared/agents'
 import { ChatPanel } from './components/ChatPanel'
 import { Composer } from './components/Composer'
 import { ProjectPicker } from './components/ProjectPicker'
-import type { AgentStatus } from './state/chat'
+import { Stage } from './stage/Stage'
 import { useRunStore } from './state/runStore'
 import icon from './assets/icon.png'
 import './styles.css'
-
-const LABEL: Record<AgentStatus, string> = { disponivel: 'Disponível', trabalhando: 'Trabalhando', esperando: 'Esperando você', concluido: 'Concluído' }
-const TOOL = { claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI', opencode: 'opencode' }
 
 export function App() {
   const { chat, receive } = useRunStore()
@@ -25,20 +22,7 @@ export function App() {
           <div className="sub">{busy ? <><b>{busy} de {AGENTS.length}</b> trabalhando</> : <><b>{AGENTS.length} agentes</b>, todos disponíveis</>}</div>
           <ProjectPicker />
         </div>
-        {/* Placeholder do palco 3D (Fase 2) */}
-        <div className="cast">
-          {AGENTS.map(a => {
-            const st = chat.agentStatus[a.id]
-            return (
-              <div key={a.id} className={`agent ${a.availableInPhase !== 1 ? 'later' : ''}`}>
-                <div className={`avatar dot-${a.id}`} />
-                <div className="nm">{a.nome}</div>
-                <div className="tool">{TOOL[a.tool]}</div>
-                <div className={`pill ${st}`}><i />{a.availableInPhase !== 1 ? 'Fase 3' : LABEL[st]}</div>
-              </div>
-            )
-          })}
-        </div>
+        <Stage />
         <Composer />
       </main>
       <ChatPanel />
