@@ -3,13 +3,9 @@ import { basename } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { AgentId } from '@shared/agents'
 import type { RunEvent, RunStatus } from '@shared/events'
+import type { Conversation, Project, RunRow } from '@shared/models'
 
-export interface Project { id: string; path: string; name: string; lastOpenedAt: number }
-export interface Conversation { id: string; projectId: string; title: string; createdAt: number }
-export interface RunRow {
-  id: string; conversationId: string; agentId: AgentId; prompt: string; status: RunStatus
-  sessionId: string | null; startedAt: number; finishedAt: number | null; hasCheckpoint: boolean
-}
+export type { Conversation, Project, RunRow }
 
 export interface Store {
   upsertProject(path: string): Project

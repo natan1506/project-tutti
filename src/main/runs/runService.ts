@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { getAgent, type ToolKind } from '@shared/agents'
 import type { RunEvent, RunStatus } from '@shared/events'
+import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
-import { diffBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
+import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
 import { isGitRepo, runGit } from '../git/git'
 import { loadInstructions } from '../instructions/loadInstructions'
 import type { Store } from '../store/db'
 
-export interface StartRunInput { projectPath: string; conversationId: string; agentId: AgentId; prompt: string }
 
 interface Deps {
   store: Store
@@ -65,6 +65,17 @@ export class RunService {
       return { ok: false, conflicts: [] }
     }
     return undo(dir, before, after, paths)
+  }
+
+  async patch(runId: string, path?: string): Promise<string> {
+    const dir = this.deps.store.projectPathForRun(runId)
+    if (!dir) return ''
+    const { before, after } = refs(runId)
+    try {
+      return await patchBetween(dir, before, after, path ? [path] : undefined)
+    } catch {
+      return ''
+    }
   }
 
   recover(): void {

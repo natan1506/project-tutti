@@ -1,0 +1,59 @@
+import { useEffect, useRef, useState } from 'react'
+import { getAgent } from '@shared/agents'
+import { useRunStore } from '../state/runStore'
+import type { RunBlock } from '../state/chat'
+import { ApprovalCard } from './ApprovalCard'
+import { DiffCard } from './DiffCard'
+
+const FINISHED: Record<string, string> = { cancelled: 'cancelado', error: 'parou com erro', interrupted: 'interrompido (app fechado)' }
+
+function RunView({ run }: { run: RunBlock }) {
+  const [open, setOpen] = useState(false)
+  const nome = getAgent(run.agentId).nome
+  const secs = run.finishedAt ? Math.max(1, Math.round((run.finishedAt - run.startedAt) / 1000)) : undefined
+  const n = run.steps.length
+  const passos = `${n} ${n === 1 ? 'passo' : 'passos'}`
+  return (
+    <>
+      {run.prompt && <><div className="me-l">Para {nome}</div><div className="me">{run.prompt}</div></>}
+      <div className="step" onClick={() => setOpen(o => !o)}>
+        <span>
+          {run.status === 'running' ? `⟳ ${nome} está trabalhando`
+            : run.status === 'done' ? `✓ ${nome} concluiu${secs ? ` em ${secs} s` : ''}`
+            : `■ ${nome}: ${FINISHED[run.status]}`}
+        </span>
+        <small>{passos} {open ? '▾' : '›'}</small>
+      </div>
+      {open && <ul className="steps">{run.steps.map((s, i) => <li key={i}><b>{s.name}</b> <code>{s.summary}</code></li>)}</ul>}
+      {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar</button>}
+      {run.approvals.map(a => <ApprovalCard key={a.id} approval={a} />)}
+      {run.text && <div className={`msg msg-${run.agentId}`}><div className="who">{nome}</div><div className="tx">{run.text}</div></div>}
+      {run.error && <div className="note err">{run.error}</div>}
+      {run.status !== 'running' && <DiffCard run={run} />}
+    </>
+  )
+}
+
+export function ChatPanel() {
+  const { chat, conversation, project, newConversation } = useRunStore()
+  const end = useRef<HTMLDivElement>(null)
+  useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth' }) }, [chat])
+  return (
+    <aside className="side">
+      <div className="top">
+        <span className="ttl">{conversation?.title ?? 'Nova conversa'}</span>
+        {project && <button onClick={newConversation}>Nova conversa</button>}
+      </div>
+      <div className="log">
+        {chat.runs.length === 0 && (
+          <div className="empty">
+            <h3>Fale com o time</h3>
+            <p>{project ? 'Escolha um agente embaixo e peça algo. Você acompanha cada passo e decide o que fica.' : 'Abra um projeto no topo para começar.'}</p>
+          </div>
+        )}
+        {chat.runs.map(r => <RunView key={r.runId} run={r} />)}
+        <div ref={end} />
+      </div>
+    </aside>
+  )
+}

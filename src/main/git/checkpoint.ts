@@ -3,7 +3,10 @@ import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { DiffFile } from '@shared/events'
+import type { UndoResult } from '@shared/models'
 import { runGit } from './git'
+
+export type { UndoResult }
 
 // Pontos de restauração do spec §6.3: guardados só em refs próprias (refs/time/…),
 // sem tocar em HEAD, branch, index ou stash do Natan.
@@ -53,8 +56,6 @@ export async function diffBetween(dir: string, fromRef: string, toRef: string): 
 export function patchBetween(dir: string, fromRef: string, toRef: string, paths?: string[]): Promise<string> {
   return runGit(dir, ['diff', '--no-renames', '--binary', fromRef, toRef, ...(paths?.length ? ['--', ...paths] : [])])
 }
-
-export type UndoResult = { ok: true } | { ok: false; conflicts: string[] }
 
 /** Desfaz só as mudanças entre os dois pontos, preservando o que mudou depois sem sobreposição. */
 export async function undo(dir: string, fromRef: string, toRef: string, paths?: string[]): Promise<UndoResult> {
