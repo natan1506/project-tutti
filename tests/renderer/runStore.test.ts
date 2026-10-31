@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import type { RunEvent } from '@shared/events'
-import { applyEvent, emptyChat, type ChatState } from '../../src/renderer/state/chat'
+import type { RunRow } from '@shared/models'
+import { applyEvent, chatFromHistory, emptyChat, type ChatState } from '../../src/renderer/state/chat'
+
+describe('chatFromHistory', () => {
+  const row = (o: Partial<RunRow>): RunRow => ({
+    id: 'r1', conversationId: 'c', agentId: 'forja', prompt: 'faz', status: 'done', sessionId: null, startedAt: 1000, finishedAt: 3000, hasCheckpoint: true, ...o,
+  })
+  it('usa o status gravado quando o run foi interrompido sem run_finished', () => {
+    const s = chatFromHistory([row({ status: 'interrupted' })], { r1: [{ type: 'run_started', runId: 'r1', agentId: 'forja' }] })
+    expect(s.runs[0]).toMatchObject({ status: 'interrupted', prompt: 'faz', startedAt: 1000, finishedAt: 3000 })
+    expect(s.agentStatus.forja).toBe('disponivel')
+  })
+  it('reconstrói prompt, texto e tempos do histórico', () => {
+    const s = chatFromHistory([row({})], { r1: [{ type: 'run_started', runId: 'r1', agentId: 'forja' }, { type: 'text', text: 'oi' }, { type: 'run_finished', status: 'done' }] })
+    expect(s.runs[0]).toMatchObject({ status: 'done', text: 'oi', prompt: 'faz', startedAt: 1000, finishedAt: 3000 })
+  })
+})
 
 const play = (evs: [string, RunEvent][], s: ChatState = emptyChat()) => evs.reduce((st, [id, ev]) => applyEvent(st, id, ev), s)
 const started = (id = 'r1'): [string, RunEvent] => [id, { type: 'run_started', runId: id, agentId: 'forja' }]

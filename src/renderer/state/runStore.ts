@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { AgentId } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import type { Conversation, Project } from '@shared/models'
-import { applyEvent, emptyChat, withPrompt, type ChatState } from './chat'
+import { applyEvent, chatFromHistory, emptyChat, withPrompt, type ChatState } from './chat'
 
 interface UiState {
   project?: Project
@@ -33,13 +33,7 @@ export const useRunStore = create<UiState>((set, get) => ({
 
   async openConversation(conversation) {
     const { runs, events } = await window.time.loadConversation(conversation.id)
-    let chat = emptyChat()
-    for (const r of runs) {
-      for (const ev of events[r.id] ?? []) chat = applyEvent(chat, r.id, ev)
-      chat = withPrompt(chat, r.id, r.prompt)
-    }
-    // Ao reabrir, ninguém está trabalhando: o estado dos mascotes começa do zero.
-    set({ conversation, chat: { ...chat, agentStatus: emptyChat().agentStatus } })
+    set({ conversation, chat: chatFromHistory(runs, events) })
   },
 
   async send(prompt) {

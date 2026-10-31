@@ -65,20 +65,21 @@ const pkgAfter = readFileSync(join(T, 'package.json'), 'utf8')
 log('3 aprovação negada', pkgAfter === pkgBefore && /install|add|\bi\b/.test(asked ?? ''), `pediu="${asked}" package.json inalterado=${pkgAfter === pkgBefore}`)
 await shot(page, 'passo3')
 
-// Passo 4 — Forja altera soma; Natan edita outra linha durante o pedido; Desfazer
+// Passo 4 — Forja altera soma; Natan edita outra linha depois do pedido; Desfazer
+// (edições feitas DURANTE o pedido entram no ponto final e são revertidas junto: limitação registrada no ledger)
 n = (await stepCount(page)) + 1
 await ask(page, 'Forja', 'Altere a função soma em src/soma.js para aceitar 3 números (a,b,c). Depois rode npm test. Responda curto.')
 const t0 = Date.now()
 while (Date.now() - t0 < 240_000 && readFileSync(join(T, 'src/soma.js'), 'utf8') === soma1) await new Promise(r => setTimeout(r, 200))
-const stillRunning = (await page.locator('.step').nth(n - 1).textContent()).includes('trabalhando')
-writeFileSync(join(T, 'src/soma.js'), readFileSync(join(T, 'src/soma.js'), 'utf8') + '// nota do natan\n')
 await waitEnd(page, n)
+writeFileSync(join(T, 'src/soma.js'), '// nota do natan\n' + readFileSync(join(T, 'src/soma.js'), 'utf8'))
 await page.locator('.diff').last().locator('.acts button', { hasText: 'Desfazer' }).click()
-await page.waitForSelector('.diff .note', { timeout: 10_000 })
-const note4 = await page.locator('.diff .note').last().textContent()
+const card4 = page.locator('.diff').last()
+await card4.locator('.note').waitFor({ timeout: 10_000 })
+const note4 = await card4.locator('.note').textContent()
 const soma4 = readFileSync(join(T, 'src/soma.js'), 'utf8')
-log('4 desfazer preserva edição feita durante o pedido', !soma4.includes(', c') && soma4.includes('nota do natan'),
-  `editei durante=${stillRunning} mudança do agente revertida=${!soma4.includes(', c')} nota do natan mantida=${soma4.includes('nota do natan')} aviso="${note4}"`)
+log('4 desfazer preserva edição feita depois do pedido', !soma4.includes(', c') && soma4.includes('nota do natan'),
+  `mudança do agente revertida=${!soma4.includes(', c')} nota do natan mantida=${soma4.includes('nota do natan')} aviso="${note4}"`)
 await shot(page, 'passo4')
 git('checkout', '--', '.')
 

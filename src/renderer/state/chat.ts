@@ -1,5 +1,6 @@
 import { AGENTS, type AgentId } from '@shared/agents'
 import type { DiffFile, RunEvent, RunStatus } from '@shared/events'
+import type { RunRow } from '@shared/models'
 
 export type AgentStatus = 'disponivel' | 'trabalhando' | 'esperando' | 'concluido'
 
@@ -47,6 +48,21 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'run_finished':
       return set({ status: ev.status, finishedAt: Date.now() }, ev.status === 'done' ? 'concluido' : 'disponivel')
     default: return state
+  }
+}
+
+/** Reconstrói o chat de uma conversa salva; o status e os tempos gravados no banco prevalecem sobre os eventos. */
+export function chatFromHistory(runs: RunRow[], events: Record<string, RunEvent[]>): ChatState {
+  let chat = emptyChat()
+  for (const r of runs) for (const ev of events[r.id] ?? []) chat = applyEvent(chat, r.id, ev)
+  const rows = new Map(runs.map(r => [r.id, r]))
+  return {
+    // Ao reabrir, ninguém está trabalhando: o estado dos mascotes começa do zero.
+    agentStatus: emptyChat().agentStatus,
+    runs: chat.runs.map(b => {
+      const r = rows.get(b.runId)!
+      return { ...b, prompt: r.prompt, status: r.status, startedAt: r.startedAt, finishedAt: r.finishedAt ?? undefined }
+    }),
   }
 }
 
