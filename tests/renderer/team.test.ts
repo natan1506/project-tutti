@@ -75,4 +75,12 @@ describe('palco do time', () => {
     const answered = play([...base, ['c1', { type: 'agent_call_answer', from: 'forja', to: 'radar', answer: 'Node 26' }]])
     expect(deriveStage(answered, 0).radar.pose).toBe('idle')
   })
+  it('I-2: pedido de time na fila não esconde o que está rodando; saiu da fila (posição 0) limpa a nota', () => {
+    const s0 = play([...parentStart, TRIAGE, LINEUP, ['c1', { type: 'run_started', runId: 'c1', agentId: 'forja' }],
+      [P, { type: 'child_started', runId: 'c1', agentId: 'forja', task: 'api' }], ['c1', { type: 'tool', name: 'Edit', summary: 'server/a.js' }],
+      ['B', { type: 'run_started', runId: 'B', agentId: 'bussola' }], ['B', { type: 'team_started' }], ['B', { type: 'queued', position: 1 }]])
+    expect(deriveStage(s0, 0).forja).toMatchObject({ pose: 'working' })
+    const s1 = applyEvent(s0, 'B', { type: 'queued', position: 0 })
+    expect(s1.runs.find(r => r.runId === 'B')!.queued).toBeUndefined()
+  })
 })

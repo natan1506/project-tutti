@@ -129,7 +129,7 @@ function classifySegment(tokens: string[], projectDir: string): Decision {
 
 /** Escrever em `.git/` (config, hooks, filtros) executaria código no próximo snapshot do app. */
 function touchesGitDir(p: string): boolean {
-  return p.split(/[\\/]/).includes('.git')
+  return p.split(/[\\/]/).some(seg => seg.toLowerCase() === '.git')
 }
 
 function looksLikePath(a: string): boolean {

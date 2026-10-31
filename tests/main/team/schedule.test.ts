@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentId } from '@shared/agents'
 import type { Lineup, TeamStep } from '@shared/team'
-import { areasOverlap, buildWaves, isBig } from '../../../src/main/team/schedule'
+import { areasOverlap, buildWaves, isBig, normalizeAreas } from '../../../src/main/team/schedule'
 
 const step = (agentId: AgentId, areas: string[] = []): TeamStep => ({ agentId, task: 't', areas })
 const lineup = (steps: TeamStep[], big = false): Lineup => ({ steps, big, summary: '' })
@@ -37,6 +37,9 @@ describe('buildWaves', () => {
     expect(buildWaves([step('forja', ['a']), step('forja', ['b'])])).toEqual([[0], [1]])
   })
   it('sem passos, sem ondas', () => expect(buildWaves([])).toEqual([]))
+  it('M-3: quem escreve não entra na onda em que o Lupa revisa', () => {
+    expect(buildWaves([step('forja', ['server']), step('lupa'), step('pincel', ['web'])])).toEqual([[0], [1], [2]])
+  })
 })
 
 describe('isBig', () => {
@@ -46,4 +49,21 @@ describe('isBig', () => {
     'área estrutural %s', area => expect(isBig(lineup([step('forja', [area])]), false)).toBe(true))
   it('pequeno', () => expect(isBig(lineup([step('forja', ['server/health.js']), step('pincel', ['web'])]), false)).toBe(false))
   it('forçado', () => expect(isBig(lineup([step('forja', ['a'])]), true)).toBe(true))
+})
+
+describe('normalizeAreas (I-3)', () => {
+  const cwd = '/Users/n/proj'
+  it('caminho absoluto dentro do projeto vira relativo e se cruza com o relativo', () => {
+    const a = normalizeAreas(['/Users/n/proj/src/api'], cwd), b = normalizeAreas(['src/api/x.ts'], cwd)
+    expect(a).toEqual(['src/api'])
+    expect(areasOverlap(a, b)).toBe(true)
+  })
+  it('.. e maiúsculas são normalizados', () => {
+    expect(normalizeAreas(['src/a/../b', 'Src/Api'], cwd)).toEqual(['src/b', 'src/api'])
+  })
+  it('área fora do projeto ou vazia vira * (cruza com tudo)', () => {
+    expect(normalizeAreas(['../fora'], cwd)).toEqual(['*'])
+    expect(normalizeAreas(['/etc'], cwd)).toEqual(['*'])
+    expect(normalizeAreas(['.'], cwd)).toEqual(['*'])
+  })
 })

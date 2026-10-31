@@ -225,4 +225,50 @@ describe('TeamService', () => {
     expect(evs.some(e => e.type === 'text' && e.text === 'Parei porque o Forja falhou.')).toBe(true)
     expect(evs.at(-1)).toEqual({ type: 'run_finished', status: 'error' })
   })
+  it('I-1: falha ao iniciar um filho da onda cancela e espera os irmãos antes de fechar e liberar a fila', async () => {
+    const t = await setup({ work: async function* (o) { await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true })) } })
+    const realStart = t.runs.startChild.bind(t.runs)
+    t.runs.startChild = async input => { if (input.agentId === 'pincel') throw new Error('TOOL_UNAVAILABLE'); return realStart(input) }
+    const id = await t.start()
+    await t.team.whenFinished(id)
+    const kids = t.store.listChildren(id)
+    expect(kids.map(k => k.agentId)).toEqual(['forja'])
+    expect(kids[0].status).toBe('cancelled')
+    const evs = t.parentEvents(id)
+    expect(evs.some(e => e.type === 'error' && /Pincel/.test(e.message) && !/TOOL_UNAVAILABLE/.test(e.message))).toBe(true)
+    expect(evs.at(-1)).toEqual({ type: 'run_finished', status: 'error' })
+  })
+
+  it('M-2: filho cancelado pelo Natan para o time (sem próxima onda)', async () => {
+    const lineup = { ...LINEUP, steps: [{ agentId: 'forja', task: 'a', areas: ['server'] }, { agentId: 'lupa', task: 'revisar', areas: [] }] }
+    const t = await setup({ brain: fakeBrain([TRIAGE], [lineup]), work: async function* (o) {
+      await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))
+    } })
+    const id = await t.start()
+    await waitFor(() => t.store.listChildren(id).length === 1)
+    t.runs.cancel(t.store.listChildren(id)[0].id)
+    await t.team.whenFinished(id)
+    expect(t.store.listChildren(id).map(k => k.agentId)).toEqual(['forja'])
+    expect(t.parentEvents(id).at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
+  })
+
+  it('M-6: Bússola que falha (exceção) não é chamado de novo; resposta inválida é', async () => {
+    let calls = 0
+    const t = await setup({ brain: { triage: async () => { calls++; throw new Error('rate limit') }, lineup: async () => LINEUP } })
+    await t.team.whenFinished(await t.start())
+    expect(calls).toBe(1)
+  })
+
+  it('I-2: pedido de time emite a vez quando sai da fila', async () => {
+    const t = await setup({ work: async function* (o) { await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true })) } })
+    const first = await t.start()
+    const second = await t.start({ prompt: 'dois' })
+    await waitFor(() => t.parentEvents(second).some(e => e.type === 'queued'))
+    t.team.cancel(first)
+    await waitFor(() => t.parentEvents(second).some(e => e.type === 'triage'))
+    const evs = t.parentEvents(second)
+    expect(evs.findIndex(e => e.type === 'queued' && e.position === 0)).toBeGreaterThan(evs.findIndex(e => e.type === 'queued' && e.position === 1))
+    t.team.cancel(second)
+    await t.team.whenFinished(second)
+  })
 })

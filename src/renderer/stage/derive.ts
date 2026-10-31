@@ -58,7 +58,8 @@ function teamView(team: RunBlock, id: AgentId): MascotView | undefined {
 
 /** `tools` ausente = ainda carregando: ninguém fica travado. */
 export function deriveStage(chat: ChatState, now: number, tools?: Record<ToolKind, ToolStatus>): Record<AgentId, MascotView> {
-  const team = chat.runs.filter(r => r.team && r.status === 'running').at(-1)
+  // Pedido de time ainda na fila não manda no palco: quem manda é o que está rodando.
+  const team = chat.runs.filter(r => r.team && r.status === 'running' && r.queued === undefined).at(-1)
   return Object.fromEntries(AGENTS.map(a => {
     const t = tools?.[a.tool]
     if (t && !(t.installed && t.loggedIn)) return [a.id, { pose: 'locked', label: t.hint ?? 'Indisponível' }]

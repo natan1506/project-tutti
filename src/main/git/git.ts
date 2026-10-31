@@ -8,7 +8,8 @@ export function runGit(cwd: string, args: string[], opts: GitOptions = {}): Prom
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !k.startsWith('GIT_')) env[k] = v
   Object.assign(env, opts.env)
   return new Promise((resolve, reject) => {
-    const child = spawn('git', ['-c', 'core.quotepath=false', ...args], { cwd, env })
+    // O git do app nunca executa fsmonitor nem hooks configurados no repositório (um agente poderia ter mexido neles).
+    const child = spawn('git', ['-c', 'core.quotepath=false', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', ...args], { cwd, env })
     let out = '', err = ''
     child.stdout.on('data', d => { out += d })
     child.stderr.on('data', d => { err += d })

@@ -9,7 +9,7 @@ import type { Store } from '../store/db'
 import type { Brain } from './brain'
 import { parseConfirmation, parseLineup, parseTriage } from './parse'
 import { childPrompt, confirmPrompt } from './prompts'
-import { buildWaves, isBig } from './schedule'
+import { buildWaves, isBig, normalizeAreas } from './schedule'
 
 // Spec §5.2–5.4: um pedido de time é um run-pai do Bússola (ponto de restauração e diff do pedido inteiro)
 // com um run-filho por passo da escalação.
@@ -86,6 +86,9 @@ export class TeamService {
         this.say(parentId, { type: 'error', message: e instanceof Error ? e.message : String(e) })
       }
     } finally {
+      // Nenhum filho pode continuar escrevendo depois que o pedido fecha e a fila anda.
+      for (const c of active) runs.cancel(c)
+      await Promise.all([...active].map(c => runs.whenFinished(c)))
       if (signal.aborted) status = 'cancelled'
       if (checkpoint && !(await runs.finalDiff(parentId, input.projectPath))) status = 'error'
       runs.close(parentId, status)
@@ -99,11 +102,13 @@ export class TeamService {
   }
 
   /** Chama o Bússola e valida; uma nova tentativa se vier inválido. */
+  /** Chama o Bússola e valida; uma nova tentativa só se a resposta veio inválida (falha de chamada não se repete). */
   private async ask<T>(call: () => Promise<unknown>, parse: (raw: unknown) => T | null, signal: AbortSignal): Promise<T | null | 'abort'> {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const raw = await untilAbort(call().catch(() => null), signal)
-      if (raw === 'abort') return 'abort'
-      const parsed = parse(raw)
+      const res = await untilAbort(call().then(raw => ({ raw }), () => null), signal)
+      if (res === 'abort') return 'abort'
+      if (!res) return null
+      const parsed = parse(res.raw)
       if (parsed) return parsed
     }
     return null
@@ -133,7 +138,8 @@ export class TeamService {
       raw => parseLineup(raw, available, ALLOWED_MODELS), signal)
     if (lineup === 'abort') return 'cancelled'
     if (!lineup) { this.say(parentId, { type: 'error', message: BRAIN_FAILED }); return 'error' }
-    const waves = buildWaves(lineup.steps)
+    // Ondas calculadas com áreas normalizadas; o texto original das áreas segue para os agentes.
+    const waves = buildWaves(lineup.steps.map(st => ({ ...st, areas: normalizeAreas(st.areas, cwd) })))
     const big = isBig(lineup, !!input.forcePlan)
     this.say(parentId, { type: 'lineup', lineup, waves, big })
 
@@ -147,7 +153,7 @@ export class TeamService {
 
     for (const wave of waves) {
       if (signal.aborted) return 'cancelled'
-      const ids = await Promise.all(wave.map(async i => {
+      const started = await Promise.allSettled(wave.map(async i => {
         const step = lineup.steps[i]
         const others = wave.filter(j => j !== i).map(j => lineup.steps[j])
         const id = await runs.startChild({
@@ -159,13 +165,29 @@ export class TeamService {
         this.say(parentId, { type: 'child_started', runId: id, agentId: step.agentId, task: step.task })
         return id
       }))
+      const ids = started.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []))
+      const notStarted = wave.filter((_, k) => started[k].status === 'rejected').map(i => lineup.steps[i].agentId)
+      if (notStarted.length) {
+        // Um passo não começou: os irmãos já iniciados param (o pedido fecha inteiro, sem ninguém escrevendo sozinho).
+        for (const id of ids) runs.cancel(id)
+        await Promise.all(ids.map(id => runs.whenFinished(id)))
+        ids.forEach(id => active.delete(id))
+        this.say(parentId, { type: 'error', message: `Não consegui iniciar ${notStarted.map(a => `o ${getAgent(a).nome}`).join(' e ')}: a ferramenta não está pronta.` })
+        return 'error'
+      }
       await Promise.all(ids.map(id => runs.whenFinished(id)))
       ids.forEach(id => active.delete(id))
       if (signal.aborted) return 'cancelled'
-      const failed = ids.map(id => store.getRun(id)).find(r => r?.status === 'error')
+      const results = ids.map(id => store.getRun(id))
+      const failed = results.find(r => r?.status === 'error')
       if (failed) {
         this.say(parentId, { type: 'text', text: `Parei porque o ${getAgent(failed.agentId).nome} falhou.` })
         return 'error'
+      }
+      const cancelled = results.find(r => r?.status === 'cancelled')
+      if (cancelled) {
+        this.say(parentId, { type: 'text', text: `Parei porque o passo do ${getAgent(cancelled.agentId).nome} foi cancelado.` })
+        return 'cancelled'
       }
     }
     return 'done'

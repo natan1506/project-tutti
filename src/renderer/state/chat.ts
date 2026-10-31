@@ -68,7 +68,7 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
       return set({ questions: run.questions.map(q => (q.id === ev.id ? { ...q, answer: ev.answer } : q)) }, 'trabalhando')
     case 'error': return set({ error: ev.message })
     case 'notice': return set({ notices: [...run.notices, ev.text] })
-    case 'queued': return set({ queued: ev.position })
+    case 'queued': return set({ queued: ev.position > 0 ? ev.position : undefined })
     case 'team_started': return set({ team: true })
     case 'triage': return set({ triage: { scores: ev.scores, candidates: ev.candidates } })
     case 'confirmation': return set({ confirmations: [...run.confirmations, ev.confirmation] })

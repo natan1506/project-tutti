@@ -1,3 +1,4 @@
+import { isAbsolute, relative, resolve } from 'node:path'
 import { getAgent } from '@shared/agents'
 import type { Lineup, TeamStep } from '@shared/team'
 
@@ -8,6 +9,19 @@ export const STRUCTURAL: RegExp[] = [
   /(^|\/)tsconfig[^/]*\.json$/, /(^|\/)[^/]+\.config\.[cm]?[jt]s$/, /(^|\/)\.env[^/]*$/,
   /(^|\/)(migrations|prisma)(\/|$)/, /(^|\/)Dockerfile$/,
 ]
+
+/**
+ * Áreas comparáveis: relativas à pasta do projeto, sem `..`, em minúsculas (o APFS do macOS não diferencia).
+ * O que sai do projeto ou não dá para resolver vira `*` (se cruza com tudo, então roda em sequência).
+ */
+export function normalizeAreas(areas: string[], cwd: string): string[] {
+  const out = areas.map(a => {
+    const rel = relative(cwd, resolve(cwd, a.trim()))
+    if (!rel || rel.startsWith('..') || isAbsolute(rel)) return '*'
+    return rel.split(/[\\/]+/).join('/').toLowerCase()
+  })
+  return [...new Set(out)]
+}
 
 const within = (a: string, b: string) => a === b || a.startsWith(b + '/')
 
@@ -26,7 +40,8 @@ export function buildWaves(steps: TeamStep[]): number[][] {
     const fits = last
       && !last.some(j => steps[j].agentId === s.agentId)
       && (writes(s)
-        ? !last.some(j => writes(steps[j]) && areasOverlap(steps[j].areas, s.areas))
+        // Quem escreve não entra na onda em que o Lupa revisa (ele revisaria trabalho pela metade).
+        ? !last.some(j => steps[j].agentId === 'lupa' || (writes(steps[j]) && areasOverlap(steps[j].areas, s.areas)))
         // Revisão só depois de quem escreveu; pesquisa pode correr junto.
         : s.agentId !== 'lupa' || !last.some(j => writes(steps[j])))
     if (fits) last.push(i)

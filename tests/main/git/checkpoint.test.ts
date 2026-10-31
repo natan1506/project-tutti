@@ -134,3 +134,14 @@ describe('isGitRepo / initRepo', () => {
     expect(await diffBetween(dir, B, A)).toEqual([{ path: 'n.txt', status: 'A', added: 1, removed: 0 }])
   })
 })
+
+describe('I-4: git do app não executa fsmonitor nem hooks do repositório', () => {
+  it('snapshot ignora core.fsmonitor configurado no projeto', async () => {
+    const dir = await makeRepo()
+    const marker = join(dir, '..', 'fsmonitor-rodou')
+    await runGit(dir, ['config', 'core.fsmonitor', `touch ${marker}`])
+    writeFileSync(join(dir, 'a.txt'), 'mudou\n')
+    await snapshot(dir, B)
+    expect(existsSync(marker)).toBe(false)
+  })
+})

@@ -40,12 +40,14 @@ describe('classifyToolCall', () => {
       'git log --textconv', 'rg --pre ./x.sh foo', 'rg --pre-glob "*" --pre x foo', 'find . -fprint /tmp/x', 'find . -fls x',
       // caminhos fora do projeto disfarçados (I1)
       'cat $HOME/.ssh/id_rsa', 'cat ~root/x',
-      'mkdir /tmp/fora', 'mkdir -p ../fora', 'mkdir -p .git/hooks'].map(bash),
+      'mkdir /tmp/fora', 'mkdir -p ../fora', 'mkdir -p .git/hooks', 'mkdir -p .Git/hooks'].map(bash),
     { toolName: 'Glob', input: { pattern: '/Users/n/.ssh/*' } },
     // I7: mexer no .git do projeto (hooks, fsmonitor, filtros) executa código no snapshot do app
     { toolName: 'Edit', input: { file_path: P + '/.git/config' } },
     { toolName: 'Write', input: { file_path: '.git/hooks/pre-commit' } },
     { toolName: 'Write', input: { file_path: 'vendor/lib/.git/config' } },
+    // I-4: macOS não diferencia maiúsculas
+    { toolName: 'Write', input: { file_path: '.GIT/config' } },
     { toolName: 'Grep', input: { pattern: 'x', glob: '/etc/*' } },
   ])('pede aprovação para %o', call => {
     expect(classifyToolCall(call, P)).toBe('ask')

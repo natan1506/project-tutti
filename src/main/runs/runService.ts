@@ -69,7 +69,9 @@ export class RunService {
    * Também usado pelo TeamService para o run-pai.
    */
   async waitTurn(runId: string, projectPath: string, signal: AbortSignal): Promise<boolean> {
-    const turn = this.queue.acquire(projectPath, runId, pos => { if (pos > 0) this.record(runId, { type: 'queued', position: pos }) })
+    let waited = false
+    // Posição 0 só é anunciada para quem esperou: avisa o painel que o pedido saiu da fila.
+    const turn = this.queue.acquire(projectPath, runId, pos => { if (pos > 0 || waited) { waited = true; this.record(runId, { type: 'queued', position: pos }) } })
     const aborted = new Promise<'abort'>(resolve => signal.addEventListener('abort', () => resolve('abort'), { once: true }))
     if ((await Promise.race([turn, aborted])) === 'abort' && this.queue.remove(projectPath, runId)) {
       this.close(runId, 'cancelled')
