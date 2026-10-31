@@ -78,3 +78,6 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .diff-viewer pre { overflow: auto; font: 12px ui-monospace, Menlo, monospace; }
 .diff-viewer .add { color: #3ecf8e; background: #3ecf8e14; } .diff-viewer .del { color: #f87171; background: #f8717114; }
 .diff-viewer .hunk { color: var(--accent-soft); } .diff-viewer .h { color: var(--muted); }
+
+.question .q { margin: 2px 0 4px; }
+.question .answer { flex: 1; background: #120f2e; border: 1px solid #3a3478; border-radius: 7px; color: var(--text); padding: 4px 8px; font: inherit; outline: 0; }

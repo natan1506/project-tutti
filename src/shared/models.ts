@@ -22,6 +22,7 @@ export interface TimeApi {
   loadConversation(id: string): Promise<{ runs: RunRow[]; events: Record<string, RunEvent[]> }>
   startRun(input: StartRunInput): Promise<string>
   respondApproval(id: string, allowed: boolean): Promise<void>
+  answerQuestion(id: string, answer: string): Promise<void>
   cancelRun(runId: string): Promise<void>
   undo(runId: string, paths?: string[]): Promise<UndoResult>
   patch(runId: string, path?: string): Promise<string>

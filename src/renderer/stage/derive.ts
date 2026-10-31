@@ -24,6 +24,7 @@ export function bubbleText(raw: string, max = 60): string {
 function viewFor(run: RunBlock | undefined, now: number): MascotView {
   if (!run) return IDLE
   if (run.status === 'running') {
+    if (run.questions.some(q => q.answer === undefined)) return { pose: 'waiting', label: 'Esperando você', bubble: 'Tenho uma pergunta', bubbleKind: 'alert' }
     const pending = run.approvals.find(a => a.allowed === undefined)
     if (pending) return { pose: 'waiting', label: 'Esperando você', bubble: bubbleText(`Preciso da sua aprovação: ${pending.summary}`), bubbleKind: 'alert' }
     const last = run.steps.at(-1)

@@ -43,8 +43,20 @@ export function mapClaudeMessage(msg: SDKMessage, cwd: string): AgentEvent[] {
   return []
 }
 
+interface AskInput { questions?: { question: string; options?: { label: string }[] }[] }
+const NO_ANSWER = 'O Natan não respondeu; siga com a opção mais sensata e registre a suposição.'
+
 export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
   return async (toolName, input) => {
+    if (toolName === 'AskUserQuestion') {
+      const answers: Record<string, string> = {}
+      for (const q of (input as AskInput).questions ?? []) {
+        const answer = await opts.askUser?.({ text: q.question, options: q.options?.map(o => o.label) })
+        if (answer == null) return { behavior: 'deny', message: NO_ANSWER }
+        answers[q.question] = answer
+      }
+      return { behavior: 'allow', updatedInput: { ...input, answers } }
+    }
     const call = { toolName, input }
     if (classifyToolCall(call, opts.cwd) === 'allow') return { behavior: 'allow', updatedInput: input }
     const allowed = await opts.requestApproval({ toolName, summary: summarizeToolCall(call, opts.cwd) })

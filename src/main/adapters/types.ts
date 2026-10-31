@@ -10,6 +10,8 @@ export interface AdapterRunOptions {
   resumeSessionId?: string
   signal: AbortSignal
   requestApproval(req: { toolName: string; summary: string }): Promise<boolean>
+  /** Pergunta em texto livre ao Natan (spec §5.7.2); `null` = sem resposta (cancelado). */
+  askUser?(q: { text: string; options?: string[] }): Promise<string | null>
 }
 
 export interface AgentAdapter {

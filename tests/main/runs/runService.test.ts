@@ -229,4 +229,31 @@ describe('RunService', () => {
     await svc.whenFinished(await start())
     expect(fake.calls).toHaveLength(1)
   })
+  it('pergunta vai ao Natan e a resposta volta ao agente', async () => {
+    let answer: string | null | undefined
+    const { emitted, svc, start } = await setup(async function* (o) {
+      answer = await o.askUser!({ text: 'Qual nome?', options: ['a', 'b'] })
+      yield { type: 'done' }
+    })
+    const runId = await start()
+    await waitFor(() => emitted.some(e => e.type === 'question'))
+    const q = emitted.find(e => e.type === 'question') as Extract<RunEvent, { type: 'question' }>
+    expect(q).toMatchObject({ text: 'Qual nome?', options: ['a', 'b'] })
+    svc.answerQuestion(q.id, 'b')
+    await svc.whenFinished(runId)
+    expect(answer).toBe('b')
+    expect(emitted).toContainEqual({ type: 'question_answered', id: q.id, answer: 'b' })
+  })
+
+  it('cancelar com pergunta pendente resolve sem resposta e fecha o run', async () => {
+    let answer: string | null | undefined = 'x'
+    const { emitted, svc, start } = await setup(async function* (o) { answer = await o.askUser!({ text: 'Q?' }) })
+    const runId = await start()
+    await waitFor(() => emitted.some(e => e.type === 'question'))
+    svc.cancel(runId)
+    await svc.whenFinished(runId)
+    expect(answer).toBeNull()
+    expect(emitted.some(e => e.type === 'question_answered' && e.answer === null)).toBe(true)
+    expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
+  })
 })

@@ -24,6 +24,7 @@ const refs = (runId: string) => ({ before: `refs/time/runs/${runId}/before`, aft
 export class RunService {
   private controllers = new Map<string, AbortController>()
   private approvals = new Map<string, (allowed: boolean) => void>()
+  private questions = new Map<string, (answer: string | null) => void>()
   private finished = new Map<string, Promise<void>>()
   private busyProjects = new Set<string>()
 
@@ -60,6 +61,10 @@ export class RunService {
 
   respondApproval(approvalId: string, allowed: boolean): void {
     this.approvals.get(approvalId)?.(allowed)
+  }
+
+  answerQuestion(questionId: string, answer: string): void {
+    this.questions.get(questionId)?.(answer)
   }
 
   cancel(runId: string): void {
@@ -127,6 +132,21 @@ export class RunService {
     }
   }
 
+  private askUser(runId: string, signal: AbortSignal): NonNullable<AdapterRunOptions['askUser']> {
+    return async ({ text, options }) => {
+      const id = randomUUID()
+      this.record(runId, { type: 'question', id, text, ...(options?.length ? { options } : {}) })
+      const answer = await new Promise<string | null>(resolve => {
+        if (signal.aborted) return resolve(null)
+        this.questions.set(id, resolve)
+        signal.addEventListener('abort', () => resolve(null), { once: true })
+      })
+      this.questions.delete(id)
+      this.record(runId, { type: 'question_answered', id, answer })
+      return answer
+    }
+  }
+
   private async execute(runId: string, input: StartRunInput, adapter: AgentAdapter, signal: AbortSignal): Promise<void> {
     let status: RunStatus = 'done'
     let sessionId: string | undefined
@@ -141,7 +161,7 @@ export class RunService {
         let staleSession = false
         const events = adapter.run({
           agent, prompt: input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
-          requestApproval: this.requestApproval(runId, signal),
+          requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
         })
         for await (const ev of events) {
           if (!started && resume && ev.type === 'error') { staleSession = true; break }

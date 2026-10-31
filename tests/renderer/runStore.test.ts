@@ -59,6 +59,15 @@ describe('applyEvent', () => {
     expect(s.agentStatus.forja).toBe('disponivel')
   })
 
+  it('pergunta pendente põe o agente esperando; resposta volta a trabalhando', () => {
+    let s = play([started(), ['r1', { type: 'question', id: 'q1', text: 'Qual nome?', options: ['a'] }]])
+    expect(s.runs[0].questions).toEqual([{ id: 'q1', text: 'Qual nome?', options: ['a'] }])
+    expect(s.agentStatus.forja).toBe('esperando')
+    s = applyEvent(s, 'r1', { type: 'question_answered', id: 'q1', answer: 'a' })
+    expect(s.runs[0].questions[0]).toMatchObject({ answer: 'a' })
+    expect(s.agentStatus.forja).toBe('trabalhando')
+  })
+
   it('aviso fica guardado no bloco', () => {
     expect(play([started(), ['r1', { type: 'notice', text: 'comecei uma nova' }]]).runs[0].notices).toEqual(['comecei uma nova'])
   })

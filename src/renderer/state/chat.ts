@@ -5,6 +5,7 @@ import type { RunRow } from '@shared/models'
 export type AgentStatus = 'disponivel' | 'trabalhando' | 'esperando' | 'concluido'
 
 export interface Approval { id: string; toolName: string; summary: string; allowed?: boolean }
+export interface Question { id: string; text: string; options?: string[]; answer?: string | null }
 export interface RunBlock {
   runId: string
   agentId: AgentId
@@ -12,6 +13,7 @@ export interface RunBlock {
   text: string
   steps: { name: string; summary: string }[]
   approvals: Approval[]
+  questions: Question[]
   files?: DiffFile[]
   status: RunStatus
   error?: string
@@ -28,7 +30,7 @@ export function emptyChat(): ChatState {
 /** Reducer puro: aplica um evento do processo principal ao estado do chat. */
 export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatState {
   if (ev.type === 'run_started') {
-    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], notices: [], status: 'running', startedAt: Date.now() }
+    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], questions: [], notices: [], status: 'running', startedAt: Date.now() }
     return { runs: [...state.runs, block], agentStatus: { ...state.agentStatus, [ev.agentId]: 'trabalhando' } }
   }
   const run = state.runs.find(r => r.runId === runId)
@@ -44,6 +46,10 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
       return set({ approvals: [...run.approvals, { id: ev.id, toolName: ev.toolName, summary: ev.summary }] }, 'esperando')
     case 'approval_resolved':
       return set({ approvals: run.approvals.map(a => (a.id === ev.id ? { ...a, allowed: ev.allowed } : a)) }, 'trabalhando')
+    case 'question':
+      return set({ questions: [...run.questions, { id: ev.id, text: ev.text, ...(ev.options ? { options: ev.options } : {}) }] }, 'esperando')
+    case 'question_answered':
+      return set({ questions: run.questions.map(q => (q.id === ev.id ? { ...q, answer: ev.answer } : q)) }, 'trabalhando')
     case 'error': return set({ error: ev.message })
     case 'notice': return set({ notices: [...run.notices, ev.text] })
     case 'diff': return set({ files: ev.files })

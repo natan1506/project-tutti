@@ -12,6 +12,7 @@ const api: TimeApi = {
   loadConversation: id => ipcRenderer.invoke('loadConversation', id),
   startRun: input => ipcRenderer.invoke('startRun', input),
   respondApproval: (id, allowed) => ipcRenderer.invoke('respondApproval', id, allowed),
+  answerQuestion: (id, answer) => ipcRenderer.invoke('answerQuestion', id, answer),
   cancelRun: runId => ipcRenderer.invoke('cancelRun', runId),
   undo: (runId, paths) => ipcRenderer.invoke('undo', runId, paths),
   patch: (runId, path) => ipcRenderer.invoke('patch', runId, path),

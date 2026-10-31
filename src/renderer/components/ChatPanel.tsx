@@ -3,6 +3,7 @@ import { getAgent } from '@shared/agents'
 import { useRunStore } from '../state/runStore'
 import type { RunBlock } from '../state/chat'
 import { ApprovalCard } from './ApprovalCard'
+import { QuestionCard } from './QuestionCard'
 import { DiffCard } from './DiffCard'
 
 const FINISHED: Record<string, string> = { cancelled: 'cancelado', error: 'parou com erro', interrupted: 'interrompido (app fechado)' }
@@ -28,6 +29,7 @@ function RunView({ run }: { run: RunBlock }) {
       {run.notices.map((n, i) => <div key={i} className="note">{n}</div>)}
       {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar</button>}
       {run.approvals.map(a => <ApprovalCard key={a.id} approval={a} />)}
+      {run.questions.map(q => <QuestionCard key={q.id} question={q} />)}
       {run.text && <div className={`msg msg-${run.agentId}`}><div className="who">{nome}</div><div className="tx">{run.text}</div></div>}
       {run.error && <div className="note err">{run.error}</div>}
       {run.status !== 'running' && <DiffCard run={run} />}

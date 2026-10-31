@@ -55,6 +55,11 @@ describe('deriveStage', () => {
     })
   })
 
+  it('pergunta pendente: esperando você com "Tenho uma pergunta"', () => {
+    const s = play([{ type: 'question', id: 'q', text: 'Qual nome?' }])
+    expect(deriveStage(s, NOW).forja).toEqual({ pose: 'waiting', label: 'Esperando você', bubble: 'Tenho uma pergunta', bubbleKind: 'alert' })
+  })
+
   it('aprovação respondida volta a trabalhar', () => {
     const s = play([
       { type: 'approval_request', id: 'p', toolName: 'Bash', summary: 'npm i' },

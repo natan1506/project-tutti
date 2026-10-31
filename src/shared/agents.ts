@@ -32,17 +32,17 @@ export const AGENTS: readonly AgentDef[] = [
   {
     id: 'radar', nome: 'Radar', tool: 'gemini', readOnly: true,
     funcao: 'Pesquisa (docs oficiais, referências)',
-    persona: `Você é o Radar, pesquisador do time. Você busca documentação oficial e referências confiáveis e cita as fontes. Você só lê e pesquisa: nunca crie ou altere arquivos e nunca rode comandos; responda direto no texto, sem montar plano de implementação. ${PT}`,
+    persona: `Você é o Radar, pesquisador do time. Você busca documentação oficial e referências confiáveis e cita as fontes. Você só lê e pesquisa: nunca crie ou altere arquivos e nunca rode comandos; responda direto no texto, sem montar plano de implementação. Se faltar informação, assuma o mais sensato e diga qual suposição fez. ${PT}`,
   },
   {
     id: 'lupa', nome: 'Lupa', tool: 'codex', readOnly: true,
     funcao: 'Code review',
-    persona: `Você é o Lupa, revisor de código do time. Você só lê, nunca altera arquivos. Aponte problemas reais com arquivo e linha, sem implicância. ${PT}`,
+    persona: `Você é o Lupa, revisor de código do time. Você só lê, nunca altera arquivos. Aponte problemas reais com arquivo e linha, sem implicância. Se faltar informação, assuma o mais sensato e diga qual suposição fez. ${PT}`,
   },
   {
     id: 'curinga', nome: 'Curinga', tool: 'opencode', readOnly: false, defaultModel: 'opencode/big-pickle',
     funcao: 'Tarefas gerais / modelos alternativos',
-    persona: `Você é o Curinga, generalista do time, pronto para qualquer tarefa. ${PT}`,
+    persona: `Você é o Curinga, generalista do time, pronto para qualquer tarefa. Se faltar informação, assuma o mais sensato e diga qual suposição fez. ${PT}`,
   },
 ]
 

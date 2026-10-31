@@ -13,4 +13,7 @@ describe('elenco', () => {
     expect(getAgent('forja').nome).toBe('Forja')
     expect(getAgent('bussola').nome).toBe('Bússola')
   })
+  it('agentes que não perguntam assumem o mais sensato', () => {
+    for (const id of ['lupa', 'radar', 'curinga'] as const) expect(getAgent(id).persona).toContain('assuma o mais sensato')
+  })
 })

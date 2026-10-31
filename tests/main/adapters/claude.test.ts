@@ -88,4 +88,21 @@ describe('makeCanUseTool', () => {
     const r = await makeCanUseTool(o)('Bash', { command: 'rm a' }, { signal, toolUseID: 't' } as never)
     expect(r).toEqual({ behavior: 'deny', message: 'Natan negou este comando.' })
   })
+  it('AskUserQuestion pergunta ao Natan e devolve as respostas no formato do SDK', async () => {
+    const askUser = vi.fn(async (q: { text: string; options?: string[] }) => (q.text.startsWith('Qual nome') ? 'pergunta-ok.js' : 'sim'))
+    const o = opts({ askUser })
+    const input = { questions: [
+      { question: 'Qual nome dar ao arquivo?', header: 'Nome', multiSelect: false, options: [{ label: 'a.js', description: '' }, { label: 'b.js', description: '' }] },
+      { question: 'Posso sobrescrever?', header: 'OK', multiSelect: false, options: [] },
+    ] }
+    const r = await makeCanUseTool(o)('AskUserQuestion', input, { signal, toolUseID: 't' } as never)
+    expect(askUser).toHaveBeenCalledWith({ text: 'Qual nome dar ao arquivo?', options: ['a.js', 'b.js'] })
+    expect(r).toEqual({ behavior: 'allow', updatedInput: { ...input, answers: { 'Qual nome dar ao arquivo?': 'pergunta-ok.js', 'Posso sobrescrever?': 'sim' } } })
+    expect(o.requestApproval).not.toHaveBeenCalled()
+  })
+
+  it('pergunta sem resposta (cancelada) manda o agente seguir com a suposição mais sensata', async () => {
+    const r = await makeCanUseTool(opts({ askUser: async () => null }))('AskUserQuestion', { questions: [{ question: 'Q?', header: 'h', multiSelect: false, options: [] }] }, { signal, toolUseID: 't' } as never)
+    expect(r).toEqual({ behavior: 'deny', message: 'O Natan não respondeu; siga com a opção mais sensata e registre a suposição.' })
+  })
 })

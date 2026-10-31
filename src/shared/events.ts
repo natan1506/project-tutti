@@ -15,6 +15,8 @@ export type AgentEvent =
   | { type: 'file_changed'; path: string }
   | { type: 'approval_request'; id: string; toolName: string; summary: string }
   | { type: 'approval_resolved'; id: string; allowed: boolean }
+  | { type: 'question'; id: string; text: string; options?: string[] }
+  | { type: 'question_answered'; id: string; answer: string | null }
   | { type: 'done'; sessionId?: string }
   | { type: 'error'; message: string }
 

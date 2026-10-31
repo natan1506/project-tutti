@@ -42,6 +42,7 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
   ipcMain.handle('startRun', (_e, input: StartRunInput) =>
     runs.start({ projectPath: absolutePath(input?.projectPath), conversationId: text(input?.conversationId), agentId: agentId(input?.agentId), prompt: text(input?.prompt) }))
   ipcMain.handle('respondApproval', (_e, id, allowed) => runs.respondApproval(text(id), allowed === true))
+  ipcMain.handle('answerQuestion', (_e, id, answer) => runs.answerQuestion(text(id), text(answer)))
   ipcMain.handle('cancelRun', (_e, runId) => runs.cancel(text(runId)))
   ipcMain.handle('undo', (_e, runId, p) => runs.undo(text(runId), paths(p)))
   ipcMain.handle('patch', (_e, runId, p) => runs.patch(text(runId), p === undefined ? undefined : text(p)))
