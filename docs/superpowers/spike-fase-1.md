@@ -24,3 +24,23 @@
 
 ## Não instalados (Fase 3)
 - Gemini CLI, opencode.
+
+## Verificação no app (Task 11) — 2026-10-31
+
+Rodada automatizada com Playwright dirigindo o app Electron real (`scripts/e2e/verify-fase1.mjs`) na pasta descartável `~/Documents/www/projects/time-teste-fase1`. Prints em `docs/superpowers/verificacao-fase-1/`.
+
+| Passo | Resultado |
+|---|---|
+| 2. Forja cria `src/soma.js` e roda `npm test` | ✅ sem pedir aprovação; diff mostra `A src/soma.js` |
+| 3. Pincel tenta `npm install left-pad`, Natan nega | ✅ card de aprovação apareceu; `package.json` inalterado; agente respondeu que não instalou |
+| 4. Forja altera `soma`; Natan edita outra linha **depois** do pedido; Desfazer | ✅ mudança do agente revertida, edição do Natan mantida |
+| 5. Lupa revisa `src/soma.js` | ✅ resposta em PT-BR; nenhum arquivo alterado |
+| 6. Fechar o app no meio de um pedido e reabrir | ✅ card "interrompido (app fechado)" |
+
+Bugs achados e corrigidos na verificação:
+- `npm test 2>&1 | tail -30` pedia aprovação → política ignora redirecionamentos inofensivos.
+- Conversa reaberta mostrava pedido interrompido como "trabalhando" → status vem do banco.
+
+Limitações confirmadas:
+- **Edição do Natan feita DURANTE um pedido** entra no ponto de restauração final e o Desfazer reverte junto (diff do agente incluiu a linha do Natan). Edições feitas **depois** do pedido são preservadas.
+- Em arquivos pequenos, qualquer edição do Natan perto do trecho do agente vira conflito: o app avisa e não mexe em nada (comportamento seguro).

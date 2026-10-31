@@ -41,7 +41,7 @@ export function DiffCard({ run }: { run: RunBlock }) {
         </div>
       )}
       {outcome?.kind === 'kept' && <div className="note">Mantido.</div>}
-      {outcome?.kind === 'undone' && <div className="note">Desfeito. Suas edições feitas durante o pedido foram preservadas.</div>}
+      {outcome?.kind === 'undone' && <div className="note">Desfeito. Edições suas feitas depois do pedido foram preservadas.</div>}
       {outcome?.kind === 'conflict' && <div className="note err">Não desfiz nada: você editou os mesmos trechos em {outcome.files.join(', ')}.</div>}
       {outcome?.kind === 'unavailable' && <div className="note err">Pedido interrompido antes do fim; desfazer indisponível.</div>}
       {patch !== undefined && <DiffViewer patch={patch} onClose={() => setPatch(undefined)} />}
