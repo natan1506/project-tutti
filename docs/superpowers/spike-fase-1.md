@@ -1,0 +1,26 @@
+# Spike da Fase 1 — resultados (2026-10-31)
+
+## 1. Claude Agent SDK 0.3.314 — ✅ sim
+- Rodou pela **assinatura**: `init.apiKeySource = "none"`, `model = claude-sonnet-5-5`, `result success`, `hello.txt` criado.
+- Com `settingSources: []`, `strictMcpConfig`, `mcpServers: {}`, `plugins: []`: **nenhum plugin/MCP do Natan** carregado. Só plugins embutidos (`cc-plugin-agents-md`, `cc-plugin-telemetry`, `cc-plugin-plugin-authoring`, origem `builtin`) e as skills embutidas do Claude Code.
+  - Decisão: passar também `skills: []` no adaptador para desligar skills embutidas.
+  - Observação: a lista de ferramentas do spike incluiu ferramentas do ambiente desktop (Artifact, Cron…, ScheduleWakeup) porque o spike rodou dentro de uma sessão do app Claude, herdando o `env`. No adaptador, remover do `env` filho as variáveis `CLAUDE_CODE_*` / `CLAUDECODE` herdadas, além de `ANTHROPIC_API_KEY`.
+- `canUseTool` **foi chamado para `Write`**, **não** para `Bash ls`: no `permissionMode: 'default'` a própria CLI libera comandos só-leitura sem perguntar. Isso é compatível com a política (leitura = liberado). Comandos fora da lista de leitura da CLI chegam ao `canUseTool`, onde aplicamos `classifyToolCall`.
+- Formato observado: `assistant.message.content[]` com blocos `text` e `tool_use {name, input}`; `result {subtype:'success', session_id, is_error}`; outras mensagens (`user`, `rate_limit_event`, `system/task_summary`, `system/post_turn_summary`) são ignoradas.
+
+## 2. Codex SDK 0.166.0 — ✅ sim
+- Rodou pela assinatura com `OPENAI_API_KEY` removida; `config: { mcp_servers: {} }` foi aceito.
+- `sandboxMode: 'read-only'` + `approvalPolicy: 'never'`: a tentativa de criar `x.txt` foi **negada**; `x.txt` não existe.
+- Eventos: `thread.started {thread_id}`, `turn.started`, `item.started|completed` com `item.type` = `agent_message {text}` | `command_execution {command, aggregated_output, exit_code, status}`; `turn.completed {usage}`. O `command` vem embrulhado: `/bin/zsh -lc "<cmd>"` — o adaptador deve desembrulhar para o resumo.
+- `thread.id` disponível após o run (para retomar).
+- Atenção: existe `~/.codex/hooks.json` do Natan; o SDK pode executá-lo. Fica registrado para a Fase 3 (não bloqueia o Lupa só-leitura).
+
+## 3. SQLite no Electron — ✅ `node:sqlite`
+- Electron 45.2.0 com Node 24.22.1: `DatabaseSync` funcionou. **Decisão: `node:sqlite`**, sem `better-sqlite3`.
+
+## Modelos
+- Claude: `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`.
+- Codex: padrão da config do Natan (`codex -m` aceita outro).
+
+## Não instalados (Fase 3)
+- Gemini CLI, opencode.
