@@ -162,15 +162,54 @@ describe('RunService', () => {
     expect(existsSync(join(dir, 'do-agente.ts'))).toBe(false)
   })
 
-  it('não começa um segundo pedido no mesmo projeto enquanto o primeiro roda', async () => {
+  it('segundo pedido no mesmo projeto espera na fila e começa sozinho', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
-    const first = await start()
-    await expect(start()).rejects.toThrow('PROJECT_BUSY')
+    const order: string[] = []
+    const { svc, start, emitted } = await setup(async function* (o) { order.push(o.prompt); if (o.prompt === 'um') await gate; yield { type: 'done' } })
+    const first = await start('um')
+    const second = await start('dois')
+    await waitFor(() => emitted.some(e => e.type === 'queued') && order.length === 1)
+    expect(emitted).toContainEqual({ type: 'queued', position: 1 })
+    expect(order).toEqual(['um'])
     release()
     await svc.whenFinished(first)
-    await svc.whenFinished(await start())
+    await svc.whenFinished(second)
+    expect(order).toEqual(['um', 'dois'])
+  })
+
+  it('cancelar um pedido na fila tira ele de lá sem rodar nada', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { svc, start, fake, dir } = await setup(async function* (o) { if (o.prompt === 'um') await gate; yield { type: 'done' } })
+    const first = await start('um')
+    const second = await start('dois')
+    await waitFor(() => fake.calls.length === 1)
+    svc.cancel(second)
+    await svc.whenFinished(second)
+    expect(fake.calls.map(c => c.prompt)).toEqual(['um'])
+    await expect(runGit(dir, ['rev-parse', '--verify', '-q', `refs/time/runs/${second}/before`])).rejects.toThrow()
+    release()
+    await svc.whenFinished(first)
+  })
+
+  it('run-filho não usa fila nem ponto de restauração e guarda o pai', async () => {
+    const { svc, start, store, emitted, dir } = await setup(async function* () { yield { type: 'done' } })
+    const parent = await start('pai')
+    await svc.whenFinished(parent)
+    const child = await svc.startChild({ projectPath: dir, conversationId: store.getRun(parent)!.conversationId, agentId: 'forja', prompt: 'filho', parentRunId: parent })
+    await svc.whenFinished(child)
+    expect(store.getRun(child)).toMatchObject({ parentRunId: parent, status: 'done' })
+    await expect(runGit(dir, ['rev-parse', '--verify', '-q', `refs/time/runs/${child}/before`])).rejects.toThrow()
+    expect(emitted.filter(e => e.type === 'diff')).toHaveLength(1)
+  })
+
+  it('run que estava na fila quando o app fechou vira interrompido sem refs', async () => {
+    const { store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
+    store.createRun({ id: 'na-fila', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: false })
+    await svc.recover()
+    expect(store.getRun('na-fila')!.status).toBe('interrupted')
+    expect(await svc.undo('na-fila')).toEqual({ ok: false, conflicts: [] })
   })
 
   it('falha no ponto final ainda fecha o run como error', async () => {

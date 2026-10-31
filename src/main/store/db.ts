@@ -12,7 +12,8 @@ export interface Store {
   recentProjects(limit?: number): Project[]
   createConversation(projectId: string, title: string): Conversation
   listConversations(projectId: string): Conversation[]
-  createRun(r: Omit<RunRow, 'status' | 'finishedAt' | 'sessionId'>): RunRow
+  createRun(r: Omit<RunRow, 'status' | 'finishedAt' | 'sessionId' | 'parentRunId'> & { parentRunId?: string }): RunRow
+  listChildren(parentRunId: string): RunRow[]
   finishRun(id: string, status: RunStatus, sessionId?: string): void
   getRun(id: string): RunRow | undefined
   appendEvent(runId: string, ev: RunEvent): void
@@ -41,12 +42,15 @@ const toRun = (r: Row): RunRow => ({
   id: r.id as string, conversationId: r.conversation_id as string, agentId: r.agent_id as AgentId, prompt: r.prompt as string,
   status: r.status as RunStatus, sessionId: (r.session_id as string | null) ?? null, startedAt: r.started_at as number,
   finishedAt: (r.finished_at as number | null) ?? null, hasCheckpoint: r.has_checkpoint === 1,
+  parentRunId: (r.parent_run_id as string | null) ?? null,
 })
 
 export function openStore(file: string): Store {
   const db = new DatabaseSync(file)
   if (file !== ':memory:') db.exec('PRAGMA journal_mode=WAL')
   db.exec(SCHEMA)
+  // Fase 3B: runs-filhos de um pedido de time.
+  if (!(db.prepare('PRAGMA table_info(runs)').all() as Row[]).some(c => c.name === 'parent_run_id')) db.exec('ALTER TABLE runs ADD COLUMN parent_run_id TEXT')
   // Date.now() pode repetir dentro do mesmo milissegundo; o relógio do store nunca anda para trás nem empata.
   let last = 0
   const now = () => (last = Math.max(Date.now(), last + 1))
@@ -69,8 +73,8 @@ export function openStore(file: string): Store {
       return (db.prepare('SELECT * FROM conversations WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Row[]).map(toConversation)
     },
     createRun(r) {
-      db.prepare(`INSERT INTO runs (id, conversation_id, agent_id, prompt, status, started_at, has_checkpoint)
-        VALUES (?, ?, ?, ?, 'running', ?, ?)`).run(r.id, r.conversationId, r.agentId, r.prompt, r.startedAt, r.hasCheckpoint ? 1 : 0)
+      db.prepare(`INSERT INTO runs (id, conversation_id, agent_id, prompt, status, started_at, has_checkpoint, parent_run_id)
+        VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`).run(r.id, r.conversationId, r.agentId, r.prompt, r.startedAt, r.hasCheckpoint ? 1 : 0, r.parentRunId ?? null)
       return this.getRun(r.id)!
     },
     finishRun(id, status, sessionId) {
@@ -83,6 +87,9 @@ export function openStore(file: string): Store {
     appendEvent(runId, ev) {
       db.prepare('INSERT INTO events (run_id, seq, json) VALUES (?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM events WHERE run_id = ?), ?)')
         .run(runId, runId, JSON.stringify(ev))
+    },
+    listChildren(parentRunId) {
+      return (db.prepare('SELECT * FROM runs WHERE parent_run_id = ? ORDER BY started_at').all(parentRunId) as Row[]).map(toRun)
     },
     listRuns(conversationId) {
       return (db.prepare('SELECT * FROM runs WHERE conversation_id = ? ORDER BY started_at').all(conversationId) as Row[]).map(toRun)

@@ -6,10 +6,15 @@ export interface Conversation { id: string; projectId: string; title: string; cr
 export interface RunRow {
   id: string; conversationId: string; agentId: AgentId; prompt: string; status: RunStatus
   sessionId: string | null; startedAt: number; finishedAt: number | null; hasCheckpoint: boolean
+  parentRunId: string | null
 }
 export interface ToolStatus { tool: ToolKind; installed: boolean; loggedIn: boolean; version?: string; hint?: string }
 export type UndoResult = { ok: true } | { ok: false; conflicts: string[] }
-export interface StartRunInput { projectPath: string; conversationId: string; agentId: AgentId; prompt: string }
+export interface StartRunInput {
+  projectPath: string; conversationId: string; agentId: AgentId; prompt: string
+  /** Só runs-filhos de um pedido de time. */
+  parentRunId?: string; model?: string; mode?: 'work' | 'consult'
+}
 
 /** API exposta ao renderer pelo preload como `window.time`. */
 export interface TimeApi {

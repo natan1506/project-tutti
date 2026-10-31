@@ -7,7 +7,7 @@ import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../g
 import { isGitRepo, runGit } from '../git/git'
 import { loadInstructions } from '../instructions/loadInstructions'
 import type { Store } from '../store/db'
-
+import { ProjectQueue } from './projectQueue'
 
 interface Deps {
   store: Store
@@ -29,33 +29,82 @@ export class RunService {
   private approvals = new Map<string, (allowed: boolean) => void>()
   private questions = new Map<string, (answer: string | null) => void>()
   private finished = new Map<string, Promise<void>>()
-  private busyProjects = new Set<string>()
+  /** Spec §6.2: um pedido por vez por projeto. Compartilhada com o TeamService (run-pai do time). */
+  readonly queue = new ProjectQueue()
 
   constructor(private deps: Deps) {}
 
+  /** Pedido direto a um agente: espera a vez do projeto, ponto de restauração, agente, diff. */
   async start(input: StartRunInput): Promise<string> {
     const agent = getAgent(input.agentId)
-    const adapter = this.deps.adapters[agent.tool]
-    if (!adapter || !(await (this.deps.toolReady?.(agent.tool) ?? true))) throw new Error('TOOL_UNAVAILABLE')
+    const adapter = await this.readyAdapter(agent.tool)
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
-    // Spec §6.2: um pedido por vez por projeto (a fila chega na Fase 3B).
-    if (this.busyProjects.has(input.projectPath)) throw new Error('PROJECT_BUSY')
-    this.busyProjects.add(input.projectPath)
-
-    const runId = randomUUID()
-    try {
-      await snapshot(input.projectPath, refs(runId).before)
-    } catch (e) {
-      this.busyProjects.delete(input.projectPath)
-      throw e
-    }
-    this.deps.store.createRun({ id: runId, conversationId: input.conversationId, agentId: agent.id, prompt: input.prompt, startedAt: Date.now(), hasCheckpoint: true })
-    this.record(runId, { type: 'run_started', runId, agentId: agent.id })
-
-    const controller = new AbortController()
-    this.controllers.set(runId, controller)
-    this.finished.set(runId, this.execute(runId, input, adapter, controller.signal))
+    const runId = this.open(input, true)
+    const signal = this.controllers.get(runId)!.signal
+    this.finished.set(runId, (async () => {
+      if (!(await this.waitTurn(runId, input.projectPath, signal))) return
+      try {
+        await snapshot(input.projectPath, refs(runId).before)
+        await this.execute(runId, input, adapter, signal, true)
+      } catch (e) {
+        this.record(runId, { type: 'error', message: e instanceof Error ? e.message : String(e) })
+        this.close(runId, 'error')
+      } finally {
+        this.queue.release(input.projectPath, runId)
+      }
+    })())
     return runId
+  }
+
+  /** Passo de um pedido de time: sem fila e sem ponto de restauração próprios (o pai cuida dos dois). */
+  async startChild(input: StartRunInput & { parentRunId: string }): Promise<string> {
+    const adapter = await this.readyAdapter(getAgent(input.agentId).tool)
+    const runId = this.open(input, false)
+    this.finished.set(runId, this.execute(runId, input, adapter, this.controllers.get(runId)!.signal, false))
+    return runId
+  }
+
+  /**
+   * Espera a vez do projeto na fila. Cancelado enquanto espera: sai da fila, fecha `cancelled` e devolve false.
+   * Também usado pelo TeamService para o run-pai.
+   */
+  async waitTurn(runId: string, projectPath: string, signal: AbortSignal): Promise<boolean> {
+    const turn = this.queue.acquire(projectPath, runId, pos => { if (pos > 0) this.record(runId, { type: 'queued', position: pos }) })
+    const aborted = new Promise<'abort'>(resolve => signal.addEventListener('abort', () => resolve('abort'), { once: true }))
+    if ((await Promise.race([turn, aborted])) === 'abort' && this.queue.remove(projectPath, runId)) {
+      this.close(runId, 'cancelled')
+      return false
+    }
+    return !signal.aborted || this.queue.position(projectPath, runId) === 0
+  }
+
+  private async readyAdapter(tool: ToolKind): Promise<AgentAdapter> {
+    const adapter = this.deps.adapters[tool]
+    if (!adapter || !(await (this.deps.toolReady?.(tool) ?? true))) throw new Error('TOOL_UNAVAILABLE')
+    return adapter
+  }
+
+  /** Cria o run (status running) e o controle de cancelamento. */
+  open(input: StartRunInput, hasCheckpoint: boolean): string {
+    const runId = randomUUID()
+    this.deps.store.createRun({
+      id: runId, conversationId: input.conversationId, agentId: input.agentId, prompt: input.prompt, startedAt: Date.now(),
+      hasCheckpoint, ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+    })
+    this.record(runId, { type: 'run_started', runId, agentId: input.agentId })
+    this.controllers.set(runId, new AbortController())
+    return runId
+  }
+
+  /** Fecha o run: evento final, status gravado, controle liberado. */
+  close(runId: string, status: RunStatus, sessionId?: string): void {
+    this.record(runId, { type: 'run_finished', status })
+    this.deps.store.finishRun(runId, status, sessionId)
+    this.controllers.delete(runId)
+  }
+
+  signalOf(runId: string): AbortSignal | undefined {
+    return this.controllers.get(runId)?.signal
   }
 
   whenFinished(runId: string): Promise<void> {
@@ -115,7 +164,7 @@ export class RunService {
     }
   }
 
-  private record(runId: string, ev: RunEvent): void {
+  record(runId: string, ev: RunEvent): void {
     this.deps.store.appendEvent(runId, ev)
     this.deps.emit(runId, ev)
   }
@@ -150,7 +199,7 @@ export class RunService {
     }
   }
 
-  private async execute(runId: string, input: StartRunInput, adapter: AgentAdapter, signal: AbortSignal): Promise<void> {
+  private async execute(runId: string, input: StartRunInput, adapter: AgentAdapter, signal: AbortSignal, withCheckpoint: boolean): Promise<void> {
     let status: RunStatus = 'done'
     let sessionId: string | undefined
     try {
@@ -164,6 +213,7 @@ export class RunService {
         let staleSession = false
         const events = adapter.run({
           agent, prompt: input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
+          ...(input.model ? { model: input.model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
         })
         try {
@@ -189,18 +239,25 @@ export class RunService {
       }
     } finally {
       if (signal.aborted) status = 'cancelled'
-      const { before, after } = refs(runId)
-      try {
-        await snapshot(input.projectPath, after)
-        this.record(runId, { type: 'diff', files: await diffBetween(input.projectPath, before, after) })
-      } catch (e) {
-        status = 'error'
-        this.record(runId, { type: 'error', message: `Não consegui gravar o ponto final: ${e instanceof Error ? e.message : String(e)}` })
-      }
-      this.record(runId, { type: 'run_finished', status })
-      this.deps.store.finishRun(runId, status, sessionId)
-      this.controllers.delete(runId)
-      this.busyProjects.delete(input.projectPath)
+      if (withCheckpoint && !(await this.finalDiff(runId, input.projectPath))) status = 'error'
+      this.close(runId, status, sessionId)
     }
+  }
+
+  /** Grava o ponto final e emite o diff do pedido; false se não conseguiu. */
+  async finalDiff(runId: string, projectPath: string): Promise<boolean> {
+    const { before, after } = refs(runId)
+    try {
+      await snapshot(projectPath, after)
+      this.record(runId, { type: 'diff', files: await diffBetween(projectPath, before, after) })
+      return true
+    } catch (e) {
+      this.record(runId, { type: 'error', message: `Não consegui gravar o ponto final: ${e instanceof Error ? e.message : String(e)}` })
+      return false
+    }
+  }
+
+  async snapshotBefore(runId: string, projectPath: string): Promise<void> {
+    await snapshot(projectPath, refs(runId).before)
   }
 }

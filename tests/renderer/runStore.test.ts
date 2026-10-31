@@ -5,7 +5,7 @@ import { applyEvent, chatFromHistory, emptyChat, type ChatState } from '../../sr
 
 describe('chatFromHistory', () => {
   const row = (o: Partial<RunRow>): RunRow => ({
-    id: 'r1', conversationId: 'c', agentId: 'forja', prompt: 'faz', status: 'done', sessionId: null, startedAt: 1000, finishedAt: 3000, hasCheckpoint: true, ...o,
+    id: 'r1', conversationId: 'c', agentId: 'forja', prompt: 'faz', status: 'done', sessionId: null, startedAt: 1000, finishedAt: 3000, hasCheckpoint: true, parentRunId: null, ...o,
   })
   it('usa o status gravado quando o run foi interrompido sem run_finished', () => {
     const s = chatFromHistory([row({ status: 'interrupted' })], { r1: [{ type: 'run_started', runId: 'r1', agentId: 'forja' }] })

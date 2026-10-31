@@ -94,7 +94,7 @@ describe('deriveStage', () => {
   })
 
   it('pedido interrompido de uma conversa reaberta não prende o mascote', () => {
-    const row: RunRow = { id: 'r1', conversationId: 'c', agentId: 'forja', prompt: 'x', status: 'interrupted', sessionId: null, startedAt: 1, finishedAt: NOW - 10_000, hasCheckpoint: true }
+    const row: RunRow = { id: 'r1', conversationId: 'c', agentId: 'forja', prompt: 'x', status: 'interrupted', sessionId: null, startedAt: 1, finishedAt: NOW - 10_000, hasCheckpoint: true, parentRunId: null }
     const s = chatFromHistory([row], { r1: [{ type: 'run_started', runId: 'r1', agentId: 'forja' }, { type: 'tool', name: 'Bash', summary: 'ls' }] })
     expect(deriveStage(s, NOW).forja).toEqual({ pose: 'idle', label: 'Disponível' })
   })
