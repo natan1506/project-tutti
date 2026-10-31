@@ -40,7 +40,7 @@ export const AGENTS: readonly AgentDef[] = [
     persona: `Você é o Lupa, revisor de código do time. Você só lê, nunca altera arquivos. Aponte problemas reais com arquivo e linha, sem implicância. ${PT}`,
   },
   {
-    id: 'curinga', nome: 'Curinga', tool: 'opencode', readOnly: false,
+    id: 'curinga', nome: 'Curinga', tool: 'opencode', readOnly: false, defaultModel: 'opencode/big-pickle',
     funcao: 'Tarefas gerais / modelos alternativos',
     persona: `Você é o Curinga, generalista do time, pronto para qualquer tarefa. ${PT}`,
   },

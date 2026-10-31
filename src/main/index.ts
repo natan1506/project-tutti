@@ -4,6 +4,7 @@ import type { RunEvent } from '@shared/events'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
+import { OpencodeAdapter, OpencodeHost, startOpencodeServer } from './adapters/opencode'
 import { registerIpc } from './ipc'
 import { RunService } from './runs/runService'
 import { openStore } from './store/db'
@@ -27,9 +28,18 @@ app.whenReady().then(async () => {
   const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
   const tools = cachedDetector(realExec)
+  const opencode = new OpencodeHost(() => startOpencodeServer())
+  let quitting = false
+  app.on('before-quit', e => {
+    if (quitting || !opencode.isRunning) return
+    // Espera o servidor do opencode sair (até ~3 s) para não deixar processo órfão.
+    e.preventDefault()
+    quitting = true
+    void opencode.close().finally(() => app.quit())
+  })
   const runs = new RunService({
     store,
-    adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: undefined },
+    adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) },
     emit: (runId, ev) => send(runId, ev),
     toolReady: async t => { const s = (await tools())[t]; return s.installed && s.loggedIn },
   })
