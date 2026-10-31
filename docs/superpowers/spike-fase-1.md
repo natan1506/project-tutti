@@ -44,3 +44,18 @@ Bugs achados e corrigidos na verificação:
 Limitações confirmadas:
 - **Edição do Natan feita DURANTE um pedido** entra no ponto de restauração final e o Desfazer reverte junto (diff do agente incluiu a linha do Natan). Edições feitas **depois** do pedido são preservadas.
 - Em arquivos pequenos, qualquer edição do Natan perto do trecho do agente vira conflito: o app avisa e não mexe em nada (comportamento seguro).
+
+## Verificação da Fase 2 (palco 3D) — 2026-10-31
+
+Script `scripts/e2e/verify-fase2.mjs` dirigindo o app real; prints em `docs/superpowers/verificacao-fase-2/`.
+
+| Passo | Resultado |
+|---|---|
+| 1. Palco parado | ✅ 1 canvas WebGL, 6 rótulos, Radar e Curinga `locked`, nenhum erro no console |
+| 2. Clique no mascote | ✅ Pincel selecionado; clicar no Radar não muda a aba |
+| 3. Pedido ao Forja | ✅ `idle → thinking → working → done → idle`; balão "Editando src/div.js" |
+| 4. Pincel pede aprovação | ✅ pose `waiting` com balão "Preciso da sua aprovação: npm install left-pad"; após negar, `done` |
+| 5. Janela estreita (palco 668 px) | ✅ seis rótulos dentro do palco, sem sobreposição |
+| 6. Desempenho | ✅ 60 fps com o palco parado |
+
+Ajustes feitos a partir dos prints: rótulo da Bússola sumia (drei `<Html>` sem pai no 1º quadro → camada própria via `portal`); braço da Bússola cortado na borda (margem da câmera 0.4 → 1.2); rótulos sobre as pernas (descidos para y −1.25).

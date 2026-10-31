@@ -1,0 +1,32 @@
+[
+  {
+    "step": "1 palco 3D",
+    "ok": true,
+    "detail": "canvas=1 rótulos=6 radar/curinga=locked,locked erros=[]"
+  },
+  {
+    "step": "2 clique escolhe agente",
+    "ok": true,
+    "detail": "pincel selecionado=1 após clicar no radar continua=1"
+  },
+  {
+    "step": "3 estados do Forja",
+    "ok": true,
+    "detail": "sequência=idle → thinking → working → done → idle balão trabalhando=\"Editando src/div.js\""
+  },
+  {
+    "step": "4 esperando aprovação",
+    "ok": true,
+    "detail": "balão=\"Preciso da sua aprovação: npm install left-pad\" depois=done"
+  },
+  {
+    "step": "5 janela estreita",
+    "ok": true,
+    "detail": "{\"stageW\":668,\"inside\":true,\"overlap\":false}"
+  },
+  {
+    "step": "6 fps",
+    "ok": true,
+    "detail": "60 fps"
+  }
+]
