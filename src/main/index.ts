@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import type { ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter } from './adapters/claude'
@@ -8,6 +9,8 @@ import { OpencodeAdapter, OpencodeHost, startOpencodeServer } from './adapters/o
 import { registerIpc } from './ipc'
 import { RunService } from './runs/runService'
 import { openStore } from './store/db'
+import { ClaudeBrain } from './team/brain'
+import { TeamService } from './team/teamService'
 import { cachedDetector, realExec } from './tools/detect'
 
 function createWindow(): BrowserWindow {
@@ -37,13 +40,16 @@ app.whenReady().then(async () => {
     quitting = true
     void opencode.close().finally(() => app.quit())
   })
+  const adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) }
+  const toolReady = async (t: ToolKind) => { const s = (await tools())[t]; return s.installed && s.loggedIn }
   const runs = new RunService({
     store,
-    adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) },
+    adapters,
     emit: (runId, ev) => send(runId, ev),
-    toolReady: async t => { const s = (await tools())[t]; return s.installed && s.loggedIn },
+    toolReady,
   })
+  const team = new TeamService({ runs, store, brain: new ClaudeBrain(), adapters, toolReady, emit: (runId, ev) => send(runId, ev) })
   await runs.recover()
-  send = registerIpc(createWindow(), store, runs, tools)
+  send = registerIpc(createWindow(), store, runs, team, tools)
 })
 app.on('window-all-closed', () => app.quit())

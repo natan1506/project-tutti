@@ -26,6 +26,8 @@ export interface TimeApi {
   listConversations(projectId: string): Promise<Conversation[]>
   loadConversation(id: string): Promise<{ runs: RunRow[]; events: Record<string, RunEvent[]> }>
   startRun(input: StartRunInput): Promise<string>
+  startTeam(input: { projectPath: string; conversationId: string; prompt: string; fullRound?: boolean; forcePlan?: boolean }): Promise<string>
+  respondPlan(id: string, approved: boolean): Promise<void>
   respondApproval(id: string, allowed: boolean): Promise<void>
   answerQuestion(id: string, answer: string): Promise<void>
   cancelRun(runId: string): Promise<void>

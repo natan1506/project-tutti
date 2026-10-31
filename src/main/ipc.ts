@@ -5,6 +5,7 @@ import type { RunEvent } from '@shared/events'
 import type { StartRunInput, ToolStatus } from '@shared/models'
 import { initRepo, isGitRepo } from './git/git'
 import type { RunService } from './runs/runService'
+import type { TeamService } from './team/teamService'
 import type { Store } from './store/db'
 
 const absolutePath = (p: unknown): string => {
@@ -21,7 +22,7 @@ const agentId = (id: unknown): AgentId => {
 }
 const paths = (p: unknown): string[] | undefined => (Array.isArray(p) ? p.map(text) : undefined)
 
-export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, tools: () => Promise<Record<ToolKind, ToolStatus>>): (runId: string, ev: RunEvent) => void {
+export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, team: TeamService, tools: () => Promise<Record<ToolKind, ToolStatus>>): (runId: string, ev: RunEvent) => void {
   ipcMain.handle('toolStatus', () => tools())
   ipcMain.handle('pickFolder', async () => {
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
@@ -41,6 +42,11 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
   })
   ipcMain.handle('startRun', (_e, input: StartRunInput) =>
     runs.start({ projectPath: absolutePath(input?.projectPath), conversationId: text(input?.conversationId), agentId: agentId(input?.agentId), prompt: text(input?.prompt) }))
+  ipcMain.handle('startTeam', (_e, input) => team.start({
+    projectPath: absolutePath(input?.projectPath), conversationId: text(input?.conversationId), prompt: text(input?.prompt),
+    fullRound: input?.fullRound === true, forcePlan: input?.forcePlan === true,
+  }))
+  ipcMain.handle('respondPlan', (_e, id, approved) => team.respondPlan(text(id), approved === true))
   ipcMain.handle('respondApproval', (_e, id, allowed) => runs.respondApproval(text(id), allowed === true))
   ipcMain.handle('answerQuestion', (_e, id, answer) => runs.answerQuestion(text(id), text(answer)))
   ipcMain.handle('cancelRun', (_e, runId) => runs.cancel(text(runId)))
