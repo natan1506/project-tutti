@@ -1,5 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { AgentEvent } from '@shared/events'
 import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
 import { safeEnv } from './env'
@@ -25,6 +28,8 @@ const RULES = [
   { action: 'edit', resource: '*', effect: 'ask' },
   { action: 'webfetch', resource: '*', effect: 'ask' },
   { action: 'external_directory', resource: '*', effect: 'ask' },
+  // Sub-agentes criam sessões filhas cujas permissões o app não acompanha: proibidos.
+  { action: 'task', resource: '*', effect: 'deny' },
 ]
 const DEFAULT_MODEL = 'opencode/big-pickle'
 
@@ -44,16 +49,25 @@ export function parseSse(buffer: string): { events: OcEvent[]; rest: string } {
   return { events, rest }
 }
 
-export function permissionToToolCall(data: Record<string, unknown>): { toolName: string; input: Record<string, unknown> } {
+type ToolCall = { toolName: string; input: Record<string, unknown> }
+
+/**
+ * Transforma um pedido de permissão em chamadas para a política §6.4 — uma por recurso, para nenhum escapar.
+ * `toolInput` é o input do `session.tool.called` correspondente: o comando roda no `workdir` dele, não na pasta do projeto.
+ */
+export function permissionToToolCalls(data: Record<string, unknown>, cwd: string, toolInput?: Record<string, unknown>): ToolCall[] {
   const resources = Array.isArray(data.resources) ? data.resources.map(String) : []
-  const first = resources[0] ?? ''
   switch (data.action) {
-    // O opencode manda cada comando de um pipe como um recurso; juntamos para a política avaliar todos.
-    case 'shell': return { toolName: 'Bash', input: { command: resources.join(' | ') } }
-    case 'edit': return { toolName: 'Edit', input: { file_path: first } }
-    case 'read': return { toolName: 'Read', input: { file_path: first } }
-    case 'webfetch': return { toolName: 'WebFetch', input: { url: first } }
-    default: return { toolName: String(data.action), input: {} }
+    case 'shell': {
+      // O opencode manda cada comando de um pipe como um recurso; juntamos para a política avaliar todos.
+      const command = resources.join(' | ')
+      const workdir = typeof toolInput?.workdir === 'string' ? toolInput.workdir : undefined
+      return [{ toolName: 'Bash', input: { command: workdir && workdir !== cwd ? `cd ${workdir} && ${command}` : command } }]
+    }
+    case 'edit': return resources.map(r => ({ toolName: 'Edit', input: { file_path: r } }))
+    case 'read': return resources.map(r => ({ toolName: 'Read', input: { file_path: r } }))
+    case 'webfetch': return resources.map(r => ({ toolName: 'WebFetch', input: { url: r } }))
+    default: return [{ toolName: String(data.action), input: { resource: resources.join(', ') } }]
   }
 }
 
@@ -80,18 +94,21 @@ export function mapOpencodeEvent(ev: OcEvent, sessionId: string, cwd: string): A
   }
 }
 
-export interface Server { api: OpencodeApi; close(): Promise<void> | void }
+export interface Server { api: OpencodeApi; close(): Promise<void> | void; onExit?(cb: () => void): void }
 
 export class OpencodeHost {
   private started?: Promise<Server>
-  private running?: Server
   constructor(private start: () => Promise<Server>) {}
 
   async api(): Promise<OpencodeApi> {
-    this.started ??= this.start()
+    if (!this.started) {
+      const started = this.start()
+      this.started = started
+      // Servidor que morreu é esquecido: o próximo pedido sobe outro.
+      void started.then(s => s.onExit?.(() => { if (this.started === started) this.started = undefined }), () => {})
+    }
     try {
-      this.running = await this.started
-      return this.running.api
+      return (await this.started).api
     } catch (e) {
       this.started = undefined
       throw e
@@ -101,7 +118,6 @@ export class OpencodeHost {
   /** Resolve quando o servidor saiu de fato; o app espera isso antes de fechar para não deixar órfão. */
   close(): Promise<void> {
     const started = this.started
-    this.running = undefined
     this.started = undefined
     return started ? started.then(s => s.close(), () => {}) : Promise.resolve()
   }
@@ -115,6 +131,7 @@ export class OpencodeAdapter implements AgentAdapter {
   constructor(private host: OpencodeHost) {}
 
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
+    if (opts.signal.aborted) return
     let api: OpencodeApi
     try {
       api = await this.host.api()
@@ -122,40 +139,76 @@ export class OpencodeAdapter implements AgentAdapter {
       yield { type: 'error', message: `Não consegui iniciar o opencode: ${e instanceof Error ? e.message : String(e)}` }
       return
     }
+    if (opts.signal.aborted) return
     const [providerID, id] = (opts.model ?? opts.agent.defaultModel ?? DEFAULT_MODEL).split(/\/(.*)/s)
-    const sessionId = opts.resumeSessionId
-      ?? await api.createSession({ directory: opts.cwd, model: { providerID, id }, title: opts.prompt.slice(0, 40) })
+    let sessionId: string
+    try {
+      sessionId = opts.resumeSessionId ?? await api.createSession({ directory: opts.cwd, model: { providerID, id }, title: opts.prompt.slice(0, 40) })
+    } catch (e) {
+      yield { type: 'error', message: e instanceof Error ? e.message : String(e) }
+      return
+    }
     const ctl = new AbortController()
-    const onAbort = () => { void api.interrupt(sessionId).catch(() => {}) }
-    if (opts.signal.aborted) onAbort()
-    else opts.signal.addEventListener('abort', onAbort, { once: true })
+    const aborted = new Promise<'abort'>(resolve => {
+      const onAbort = () => { void api.interrupt(sessionId).catch(() => {}); resolve('abort') }
+      if (opts.signal.aborted) onAbort()
+      else opts.signal.addEventListener('abort', onAbort, { once: true })
+    })
+    const toolInputs = new Map<string, Record<string, unknown>>()
 
     // Assina os eventos antes de mandar o prompt para não perder o começo.
     const it = api.events(ctl.signal)[Symbol.asyncIterator]()
     const first = it.next()
+    first.catch(() => {})
     try {
-      await api.prompt(sessionId, [systemAppend(opts.agent, opts.instructions), opts.prompt].join('\n\n'))
-      for (let r = await first; !r.done; r = await it.next()) {
+      if (opts.signal.aborted) return
+      try {
+        await api.prompt(sessionId, [systemAppend(opts.agent, opts.instructions), opts.prompt].join('\n\n'))
+      } catch (e) {
+        // Ex.: sessão retomada que o servidor não conhece mais (404) — o RunService tenta de novo sem retomar.
+        yield { type: 'error', message: e instanceof Error ? e.message : String(e) }
+        return
+      }
+      let next: Promise<IteratorResult<OcEvent>> = first
+      for (;;) {
+        // Cancelar não depende do servidor mandar algo depois do interrupt.
+        const r = await Promise.race([next, aborted])
+        if (r === 'abort' || opts.signal.aborted) return
+        if (r.done) break
+        next = it.next()
         const ev = r.value
-        if (ev.type === 'permission.asked' && ev.data?.sessionID === sessionId) {
-          const call = permissionToToolCall(ev.data)
-          const allowed = classifyToolCall(call, opts.cwd) === 'allow'
-            || await opts.requestApproval({ toolName: call.toolName, summary: summarizeToolCall(call, opts.cwd) })
-          try {
-            await api.replyPermission(sessionId, String(ev.data.id), allowed ? 'once' : 'reject', allowed ? undefined : 'Natan negou este comando.')
-          } catch (e) {
-            // Pedido já resolvido pelo próprio opencode (404): segue; qualquer outra falha derruba o pedido.
-            if (!/PermissionNotFound|→ 404/.test(String(e))) throw e
-          }
+        const d = ev.data ?? {}
+        if (ev.type === 'session.tool.called' && d.sessionID === sessionId && typeof d.id === 'string') toolInputs.set(d.id, (d.input ?? {}) as Record<string, unknown>)
+        if (ev.type === 'permission.asked' && d.sessionID === sessionId) {
+          await this.answerPermission(api, sessionId, d, toolInputs, opts)
           continue
         }
         const out = mapOpencodeEvent(ev, sessionId, opts.cwd)
         yield* out
         if (out.some(e => e.type === 'done' || e.type === 'error')) return
       }
+      if (!opts.signal.aborted) yield { type: 'error', message: 'A conexão com o opencode caiu no meio do pedido.' }
     } finally {
-      opts.signal.removeEventListener('abort', onAbort)
       ctl.abort()
+    }
+  }
+
+  private async answerPermission(api: OpencodeApi, sessionId: string, d: Record<string, unknown>, toolInputs: Map<string, Record<string, unknown>>, opts: AdapterRunOptions) {
+    const source = d.source as { id?: string } | undefined
+    const calls = permissionToToolCalls(d, opts.cwd, source?.id ? toolInputs.get(source.id) : undefined)
+    let allowed = false
+    if (!opts.signal.aborted) {
+      allowed = calls.every(c => classifyToolCall(c, opts.cwd) === 'allow')
+      if (!allowed) {
+        const call = calls.find(c => classifyToolCall(c, opts.cwd) === 'ask') ?? calls[0]
+        allowed = await opts.requestApproval({ toolName: call.toolName, summary: calls.map(c => summarizeToolCall(c, opts.cwd)).join(', ') })
+      }
+    }
+    try {
+      await api.replyPermission(sessionId, String(d.id), allowed && !opts.signal.aborted ? 'once' : 'reject', allowed ? undefined : 'Natan negou este comando.')
+    } catch (e) {
+      // Pedido já resolvido pelo próprio opencode (404): segue; qualquer outra falha derruba o pedido.
+      if (!/PermissionNotFound|→ 404/.test(String(e))) throw e
     }
   }
 }
@@ -204,11 +257,22 @@ export class HttpOpencodeApi implements OpencodeApi {
 }
 
 /** Sobe `opencode serve` com senha aleatória e sem MCP do usuário; fecha matando o processo. */
-export async function startOpencodeServer(spawnFn: typeof spawn = spawn): Promise<{ api: OpencodeApi; close(): Promise<void> }> {
+export async function startOpencodeServer(spawnFn: typeof spawn = spawn): Promise<{ api: OpencodeApi; close(): Promise<void>; onExit(cb: () => void): void }> {
   const password = randomBytes(18).toString('base64url')
+  // Só instruções do Natan (spec §7): sem config/plugins do projeto nem do usuário, sem MCP.
   const proc: ChildProcess = spawnFn('opencode', ['serve', '--hostname=127.0.0.1', '--port=0'], {
-    env: { ...safeEnv(), OPENCODE_SERVER_PASSWORD: password, OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: {} }) },
+    env: {
+      ...safeEnv(),
+      OPENCODE_SERVER_PASSWORD: password,
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: {}, plugin: [] }),
+      OPENCODE_DISABLE_PROJECT_CONFIG: '1',
+      OPENCODE_CONFIG_PROJECT_DISABLE: '1',
+      OPENCODE_CONFIG_DIR: mkdtempSync(join(tmpdir(), 'tutti-opencode-config-')),
+      OPENCODE_DISABLE_CLAUDE_CODE: '1',
+      OPENCODE_DISABLE_AUTOUPDATE: '1',
+    },
   })
+  proc.stderr?.resume()
   const url = await new Promise<string>((resolve, reject) => {
     let out = ''
     const timer = setTimeout(() => { proc.kill('SIGTERM'); reject(new Error('o servidor não respondeu em 20 s')) }, 20_000)
@@ -228,5 +292,5 @@ export async function startOpencodeServer(spawnFn: typeof spawn = spawn): Promis
     await exited
     clearTimeout(force)
   }
-  return { api: new HttpOpencodeApi(url, password), close }
+  return { api: new HttpOpencodeApi(url, password), close, onExit: cb => { void exited.then(cb) } }
 }

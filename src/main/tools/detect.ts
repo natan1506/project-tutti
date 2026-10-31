@@ -47,9 +47,9 @@ export function cachedDetector(exec: Exec, ttlMs = 60_000, now = Date.now, home 
   }
 }
 
-/** `Exec` real: roda o CLI com o PATH ampliado e desiste em 5 s. */
+/** `Exec` real: roda o CLI com o PATH ampliado; 15 s cobre a primeira execução fria de um CLI. */
 export const realExec: Exec = (cmd, args) => new Promise(resolve => {
-  execFile(cmd, args, { env: safeEnv(), timeout: 5000 }, (err, stdout, stderr) => {
+  execFile(cmd, args, { env: safeEnv(), timeout: 15_000 }, (err, stdout, stderr) => {
     const code = err ? (typeof err.code === 'number' ? err.code : 127) : 0
     resolve({ code, stdout: String(stdout), stderr: String(stderr) })
   })

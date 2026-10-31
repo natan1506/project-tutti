@@ -7,7 +7,7 @@
   {
     "step": "2 Radar pesquisa",
     "ok": true,
-    "detail": "poses=idle,thinking,working,done resposta=\"A versão Active LTS atual do Node.js é a **v26 (\"Lithium\", iniciada na v26.13.0)** — com a v24 (\"Krypton\") e a v22 (\"Jod\") em Maintenance LT\" git inalterado=true"
+    "detail": "poses=idle,thinking,working,done resposta=\"A versão Active LTS mais recente do Node.js é a **26.x (v26.13.0, codinome *Lithium*)** — seguida pela linha LTS anterior **24.x (v24.22.2, \" git inalterado=true"
   },
   {
     "step": "3 Curinga com aprovação",

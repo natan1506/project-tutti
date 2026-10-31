@@ -40,6 +40,10 @@ describe('classifyToolCall', () => {
       // caminhos fora do projeto disfarçados (I1)
       'cat $HOME/.ssh/id_rsa', 'cat ~root/x'].map(bash),
     { toolName: 'Glob', input: { pattern: '/Users/n/.ssh/*' } },
+    // I7: mexer no .git do projeto (hooks, fsmonitor, filtros) executa código no snapshot do app
+    { toolName: 'Edit', input: { file_path: P + '/.git/config' } },
+    { toolName: 'Write', input: { file_path: '.git/hooks/pre-commit' } },
+    { toolName: 'Write', input: { file_path: 'vendor/lib/.git/config' } },
     { toolName: 'Grep', input: { pattern: 'x', glob: '/etc/*' } },
   ])('pede aprovação para %o', call => {
     expect(classifyToolCall(call, P)).toBe('ask')

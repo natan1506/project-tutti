@@ -108,4 +108,12 @@ describe('AntigravityAdapter', () => {
     child.finish(137)
     await run
   })
+  it('M2: agy que sumiu (ENOENT) vira erro em vez de derrubar o app ou travar', async () => {
+    const child = new FakeChild()
+    const run = collect(new AntigravityAdapter((() => child) as never).run(opts()))
+    child.emit('error', Object.assign(new Error('spawn agy ENOENT'), { code: 'ENOENT' }))
+    child.stdout.end(); child.stderr.end()
+    const evs = await Promise.race([run, new Promise<AgentEvent[]>(r => setTimeout(() => r([{ type: 'error', message: 'TRAVOU' }]), 500))])
+    expect(evs).toEqual([{ type: 'error', message: expect.stringContaining('ENOENT') }])
+  })
 })

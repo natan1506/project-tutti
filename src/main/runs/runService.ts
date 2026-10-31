@@ -18,6 +18,9 @@ interface Deps {
   toolReady?: (tool: ToolKind) => Promise<boolean>
 }
 
+/** Só erros que falam de sessão/conversa inexistente justificam recomeçar sem contexto (limite e rede não). */
+const looksLikeStaleSession = (msg: string) => /session|conversation|thread|not found|no such|unknown id|404/i.test(msg)
+
 const refs = (runId: string) => ({ before: `refs/time/runs/${runId}/before`, after: `refs/time/runs/${runId}/after` })
 
 /** Ciclo de vida de um pedido a um agente: ponto de restauração → agente → diff → fim. */
@@ -163,12 +166,17 @@ export class RunService {
           agent, prompt: input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
         })
-        for await (const ev of events) {
-          if (!started && resume && ev.type === 'error') { staleSession = true; break }
-          started = true
-          if (ev.type === 'done') sessionId = ev.sessionId
-          if (ev.type === 'error') status = 'error'
-          this.record(runId, ev)
+        try {
+          for await (const ev of events) {
+            if (!started && resume && ev.type === 'error' && looksLikeStaleSession(ev.message)) { staleSession = true; break }
+            started = true
+            if (ev.type === 'done') sessionId = ev.sessionId
+            if (ev.type === 'error') status = 'error'
+            this.record(runId, ev)
+          }
+        } catch (e) {
+          if (started || !resume || !looksLikeStaleSession(String(e))) throw e
+          staleSession = true
         }
         if (!staleSession || signal.aborted) break
         this.record(runId, { type: 'notice', text: `Não consegui retomar a conversa anterior do ${agent.nome}; comecei uma nova.` })

@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { BLOCKED_ENV, safeEnv } from '../../../src/main/adapters/env'
 
 const SET = ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_USE_VERTEXAI', 'GOOGLE_CLOUD_PROJECT', 'ANTHROPIC_API_KEY',
-  'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL']
+  'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL',
+  'GOOGLE_APPLICATION_CREDENTIALS', 'GOOGLE_GEMINI_BASE_URL', 'OPENCODE_API_KEY', 'OPENCODE_CONFIG', 'OPENROUTER_API_KEY']
 
 describe('safeEnv', () => {
   afterEach(() => { for (const k of SET) delete process.env[k]; delete process.env.EXTRA_X })

@@ -33,6 +33,7 @@ export function classifyToolCall(call: ToolCall, projectDir: string): Decision {
     // Padrões de Glob/Grep também podem apontar para fora do projeto.
     const patterns = [toolName === 'Glob' ? input.pattern : undefined, toolName === 'Grep' ? input.glob : undefined]
       .filter((v): v is string => typeof v === 'string' && looksLikePath(v))
+    if (WRITE_TOOLS.has(toolName) && paths.some(touchesGitDir)) return 'ask'
     return [...paths, ...patterns].every(p => isInside(projectDir, p)) ? 'allow' : 'ask'
   }
   if (toolName === 'Bash') {
@@ -119,6 +120,11 @@ function classifySegment(tokens: string[], projectDir: string): Decision {
     return 'ask'
   }
   return 'ask'
+}
+
+/** Escrever em `.git/` (config, hooks, filtros) executaria código no próximo snapshot do app. */
+function touchesGitDir(p: string): boolean {
+  return p.split(/[\\/]/).includes('.git')
 }
 
 function looksLikePath(a: string): boolean {

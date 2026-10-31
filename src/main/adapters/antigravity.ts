@@ -80,7 +80,12 @@ export class AntigravityAdapter implements AgentAdapter {
 
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
     const child = this.spawnFn('agy', buildAgyArgs(opts), { cwd: opts.cwd, env: safeEnv() })
-    const closed = new Promise<number>(resolve => child.on('close', code => resolve(code ?? 1)))
+    let spawnError: Error | undefined
+    const closed = new Promise<number>(resolve => {
+      child.on('close', code => resolve(code ?? 1))
+      // Sem este listener, um `agy` que sumiu (ENOENT) derruba o processo principal.
+      child.on('error', e => { spawnError = e; resolve(-1) })
+    })
     const stderr: string[] = []
     child.stderr?.on('data', d => stderr.push(...String(d).split('\n').filter(Boolean)))
     let killTimer: NodeJS.Timeout | undefined
@@ -101,7 +106,8 @@ export class AntigravityAdapter implements AgentAdapter {
         }
       }
       const code = await closed
-      if (!finished && !opts.signal.aborted) {
+      if (spawnError) yield { type: 'error', message: `Não consegui rodar o Antigravity: ${spawnError.message}` }
+      else if (!finished && !opts.signal.aborted) {
         yield { type: 'error', message: `O Antigravity saiu com código ${code}: ${stderr.slice(-5).join(' | ') || 'sem detalhes'}` }
       }
     } finally {

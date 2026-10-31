@@ -5,7 +5,7 @@ import { getAgent } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
 import type { AdapterRunOptions } from '../../../src/main/adapters/types'
 import {
-  mapOpencodeEvent, OpencodeAdapter, OpencodeHost, parseSse, permissionToToolCall, startOpencodeServer, type OcEvent, type OpencodeApi,
+  HttpOpencodeApi, mapOpencodeEvent, OpencodeAdapter, OpencodeHost, parseSse, permissionToToolCalls, startOpencodeServer, type OcEvent, type OpencodeApi,
 } from '../../../src/main/adapters/opencode'
 
 const FIX = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'opencode-events.json'), 'utf8')) as OcEvent[]
@@ -56,17 +56,16 @@ describe('parseSse', () => {
 
 describe('permissionToToolCall', () => {
   it('shell vira Bash com o comando', () => {
-    expect(permissionToToolCall({ action: 'shell', resources: ['npm install left-pad'] })).toEqual({ toolName: 'Bash', input: { command: 'npm install left-pad' } })
+    expect(permissionToToolCalls({ action: 'shell', resources: ['npm install left-pad'] }, '/p')).toEqual([{ toolName: 'Bash', input: { command: 'npm install left-pad' } }])
   })
   it('edit vira Edit com o caminho', () => {
-    expect(permissionToToolCall({ action: 'edit', resources: ['/x/a.ts'] })).toEqual({ toolName: 'Edit', input: { file_path: '/x/a.ts' } })
+    expect(permissionToToolCalls({ action: 'edit', resources: ['/x/a.ts'] }, '/p')).toEqual([{ toolName: 'Edit', input: { file_path: '/x/a.ts' } }])
   })
   it('pipe chega como vários recursos e todos entram no comando avaliado', () => {
-    const call = permissionToToolCall({ action: 'shell', resources: ['ls', 'rm -rf src'] })
-    expect(call).toEqual({ toolName: 'Bash', input: { command: 'ls | rm -rf src' } })
+    expect(permissionToToolCalls({ action: 'shell', resources: ['ls', 'rm -rf src'] }, '/p')).toEqual([{ toolName: 'Bash', input: { command: 'ls | rm -rf src' } }])
   })
   it('ação desconhecida mantém o nome (cai em pedir aprovação)', () => {
-    expect(permissionToToolCall({ action: 'external_directory', resources: ['/etc'] })).toEqual({ toolName: 'external_directory', input: {} })
+    expect(permissionToToolCalls({ action: 'external_directory', resources: ['/etc'] }, '/p')).toEqual([{ toolName: 'external_directory', input: { resource: '/etc' } }])
   })
 })
 
@@ -170,5 +169,111 @@ describe('startOpencodeServer', () => {
     await closing
     expect(closed).toBe(true)
     vi.useRealTimers()
+  })
+})
+
+describe('revisão final — Curinga', () => {
+  const host = (api: OpencodeApi) => new OpencodeHost(async () => ({ api, close() {} }))
+
+  it('C1: cancelar encerra o pedido mesmo se o servidor não mandar nada depois do interrupt', async () => {
+    const api = fakeApi([])
+    api.prompt = async () => {}
+    api.interrupt = async sid => { api.interrupted.push(sid) } // não fecha o stream
+    const ctl = new AbortController()
+    const run = collect(new OpencodeAdapter(host(api)).run(opts({ signal: ctl.signal })))
+    await new Promise(r => setTimeout(r, 10))
+    ctl.abort()
+    const done = await Promise.race([run.then(() => 'terminou'), new Promise(r => setTimeout(() => r('travou'), 500))])
+    expect(done).toBe('terminou')
+    expect(api.interrupted).toEqual([SID])
+  })
+
+  it('C1: cancelado antes de começar não manda o prompt', async () => {
+    const api = fakeApi()
+    const ctl = new AbortController()
+    ctl.abort()
+    await collect(new OpencodeAdapter(host(api)).run(opts({ signal: ctl.signal })))
+    expect(api.prompts).toEqual([])
+  })
+
+  it('C1: permissão que chega depois do cancelamento nunca é aprovada nem perguntada', async () => {
+    const ctl = new AbortController()
+    const ask: OcEvent = { type: 'permission.asked', data: { id: 'per_late', sessionID: SID, action: 'edit', resources: ['src/a.ts'] } }
+    const api = fakeApi([ask, { type: 'session.execution.succeeded', data: { sessionID: SID } }])
+    const realPrompt = api.prompt.bind(api)
+    api.prompt = async (s, t) => { ctl.abort(); await realPrompt(s, t) }
+    const o = opts({ signal: ctl.signal })
+    await collect(new OpencodeAdapter(host(api)).run(o))
+    expect(o.requestApproval).not.toHaveBeenCalled()
+    expect(api.replies.filter(r => (r as { decision: string }).decision === 'once')).toEqual([])
+    expect(api.interrupted).toEqual([SID])
+  })
+
+  it('I1: sub-agentes (task) são negados nas regras da sessão', async () => {
+    const calls: { url: string; body: unknown }[] = []
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+      return new Response(JSON.stringify({ data: { id: 'ses_1' } }), { status: 200 })
+    }) as unknown as typeof fetch
+    await new HttpOpencodeApi('http://x', 'pw', fetchFn).createSession({ directory: '/p', model: { providerID: 'opencode', id: 'm' }, title: 't' })
+    const rules = (calls[0].body as { permissions: { action: string; effect: string }[] }).permissions
+    expect(rules).toContainEqual({ action: 'task', resource: '*', effect: 'deny' })
+    expect(rules).toContainEqual({ action: 'shell', resource: '*', effect: 'ask' })
+  })
+
+  it('I2: todos os recursos são avaliados (um arquivo fora do projeto pede aprovação)', () => {
+    expect(permissionToToolCalls({ action: 'edit', resources: ['src/a.ts', '/Users/n/.zshrc'] }, '/proj'))
+      .toEqual([{ toolName: 'Edit', input: { file_path: 'src/a.ts' } }, { toolName: 'Edit', input: { file_path: '/Users/n/.zshrc' } }])
+  })
+
+  it('I2: comando com workdir fora do projeto é avaliado lá', async () => {
+    const called: OcEvent = { type: 'session.tool.called', data: { sessionID: SID, id: 'call_1', input: { command: 'cat .ssh/id_rsa', workdir: '/Users/n' } } }
+    const ask: OcEvent = { type: 'permission.asked', data: { id: 'per_2', sessionID: SID, action: 'shell', resources: ['cat .ssh/id_rsa'], source: { type: 'tool', id: 'call_1' } } }
+    const api = fakeApi([called, ask, { type: 'session.execution.succeeded', data: { sessionID: SID } }])
+    const o = opts()
+    await collect(new OpencodeAdapter(host(api)).run(o))
+    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'cd /Users/n && cat .ssh/id_rsa' })
+  })
+
+  it('I4: retomar sessão que o servidor não conhece (prompt falha) vira erro emitido, não exceção', async () => {
+    const api = fakeApi()
+    api.prompt = async () => { throw new Error('POST /api/session/x/prompt → 404 {"_tag":"SessionNotFoundError"}') }
+    const evs = await collect(new OpencodeAdapter(host(api)).run(opts({ resumeSessionId: 'sumiu' })))
+    expect(evs).toEqual([{ type: 'error', message: expect.stringContaining('SessionNotFound') }])
+  })
+
+  it('I5: stream que cai no meio vira erro, não sucesso falso', async () => {
+    const api = fakeApi([{ type: 'session.text.ended', data: { sessionID: SID, text: 'meio' } }])
+    const evs = await collect(new OpencodeAdapter(host(api)).run(opts()))
+    expect(evs.at(-1)).toEqual({ type: 'error', message: 'A conexão com o opencode caiu no meio do pedido.' })
+  })
+
+  it('I5: servidor que morreu é reiniciado no próximo pedido', async () => {
+    let starts = 0
+    let onExit!: () => void
+    const h = new OpencodeHost(async () => { starts++; return { api: fakeApi(), close() {}, onExit: (cb: () => void) => { onExit = cb } } })
+    await h.api()
+    onExit()
+    await h.api()
+    expect(starts).toBe(2)
+  })
+})
+
+describe('I3: servidor isolado da configuração do usuário e do projeto', () => {
+  it('sobe sem config de projeto, com pasta de config vazia e sem chaves', async () => {
+    const { EventEmitter } = await import('node:events')
+    const { PassThrough } = await import('node:stream')
+    process.env.OPENCODE_API_KEY = 'k'
+    let env: Record<string, string> = {}
+    const proc = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null, kill: () => true })
+    const p = startOpencodeServer(((_c: string, _a: string[], o: { env: Record<string, string> }) => { env = o.env; return proc }) as never)
+    proc.stdout.write('Server listening on http://127.0.0.1:1\n')
+    await p
+    delete process.env.OPENCODE_API_KEY
+    expect(env.OPENCODE_DISABLE_PROJECT_CONFIG).toBe('1')
+    expect(env.OPENCODE_CONFIG_PROJECT_DISABLE).toBe('1')
+    expect(env.OPENCODE_CONFIG_DIR).toMatch(/tutti-opencode-config/)
+    expect(env).not.toHaveProperty('OPENCODE_API_KEY')
+    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT)).toMatchObject({ mcp: {}, plugin: [] })
   })
 })

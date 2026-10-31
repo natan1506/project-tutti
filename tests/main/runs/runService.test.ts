@@ -256,4 +256,26 @@ describe('RunService', () => {
     expect(emitted.some(e => e.type === 'question_answered' && e.answer === null)).toBe(true)
     expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
   })
+  it('I4: adaptador que lança exceção ao retomar sessão sumida também começa de novo', async () => {
+    const { fake, emitted, svc, start, store, conv } = await setup(async function* (o) {
+      if (o.resumeSessionId) throw new Error('No conversation found with session ID: sumiu')
+      yield { type: 'done', sessionId: 'nova' }
+    })
+    store.createRun({ id: 'antigo', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    store.finishRun('antigo', 'done', 'sumiu')
+    await svc.whenFinished(await start())
+    expect(fake.calls.map(c => c.resumeSessionId)).toEqual(['sumiu', undefined])
+    expect(emitted.some(e => e.type === 'notice')).toBe(true)
+    expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'done' })
+  })
+
+  it('M3: erro que não é de sessão (limite, rede) não descarta a conversa', async () => {
+    const { fake, emitted, svc, start, store, conv } = await setup(async function* () { yield { type: 'error', message: 'rate limit exceeded' } })
+    store.createRun({ id: 'antigo', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    store.finishRun('antigo', 'done', 's1')
+    await svc.whenFinished(await start())
+    expect(fake.calls).toHaveLength(1)
+    expect(emitted.some(e => e.type === 'notice')).toBe(false)
+    expect(emitted).toContainEqual({ type: 'error', message: 'rate limit exceeded' })
+  })
 })

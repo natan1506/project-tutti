@@ -1,6 +1,6 @@
 // Integração real com o opencode instalado. Só roda com OPENCODE_IT=1 (gasta uma chamada de modelo gratuito).
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -24,8 +24,11 @@ describe.runIf(process.env.OPENCODE_IT === '1')('opencode real', () => {
     } finally { await host.close() }
     const alive = () => { try { return execFileSync('pgrep', ['-f', 'opencode serve --hostname=127.0.0.1 --port=0'], { encoding: 'utf8' }).trim() } catch { return '' } }
     for (let i = 0; i < 50 && alive(); i++) await new Promise(r => setTimeout(r, 100))
-    expect(existsSync(join(cwd, 'a.txt'))).toBe(true)
+    // Edição dentro do projeto nunca pede aprovação; o comando pede. Se o modelo pediu os dois no mesmo passo,
+    // o opencode cancela os irmãos quando um é negado — então o a.txt pode não existir, e tudo bem.
     expect(asked.some(s => s.includes('npm install left-pad'))).toBe(true)
+    expect(asked.some(s => s.includes('a.txt'))).toBe(false)
+    expect(evs.some(e => e.type === 'tool' && e.name === 'Write')).toBe(true)
     expect(readFileSync(join(cwd, 'package.json'), 'utf8')).not.toContain('left-pad')
     expect(evs.at(-1)?.type).toBe('done')
     expect(alive()).toBe('')

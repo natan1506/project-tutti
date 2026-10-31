@@ -5,13 +5,14 @@ import { Composer } from './components/Composer'
 import { ProjectPicker } from './components/ProjectPicker'
 import { Stage } from './stage/Stage'
 import { useRunStore } from './state/runStore'
+import { startToolRefresh } from './state/toolRefresh'
 import icon from './assets/icon.png'
 import './styles.css'
 
 export function App() {
   const { chat, receive, loadTools } = useRunStore()
   useEffect(() => window.time.onRunEvent(receive), [receive])
-  useEffect(() => { void loadTools() }, [loadTools])
+  useEffect(() => startToolRefresh(loadTools), [loadTools])
   const busy = Object.values(chat.agentStatus).filter(s => s === 'trabalhando' || s === 'esperando').length
 
   return (
