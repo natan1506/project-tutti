@@ -1,10 +1,11 @@
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { AgentEvent, RunEvent } from '@shared/events'
 import type { AdapterRunOptions, AgentAdapter } from '../../../src/main/adapters/types'
 import { runGit } from '../../../src/main/git/git'
+import { snapshot } from '../../../src/main/git/checkpoint'
 import { openStore } from '../../../src/main/store/db'
 import { RunService } from '../../../src/main/runs/runService'
 
@@ -137,8 +138,50 @@ describe('RunService', () => {
   it('recover marca interrompido; sem ponto final, desfazer fica indisponível', async () => {
     const { store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
     store.createRun({ id: 'orfao', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
-    svc.recover()
+    await svc.recover()
     expect(store.getRun('orfao')!.status).toBe('interrupted')
     expect(await svc.undo('orfao')).toEqual({ ok: false, conflicts: [] })
+  })
+  it('recover grava o ponto final do run interrompido e permite desfazer', async () => {
+    const { dir, store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
+    store.createRun({ id: 'caiu', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    await snapshot(dir, 'refs/time/runs/caiu/before')
+    writeFileSync(join(dir, 'do-agente.ts'), 'a\n')
+    await svc.recover()
+    expect(store.listEvents('caiu')).toContainEqual({ type: 'diff', files: [{ path: 'do-agente.ts', status: 'A', added: 1, removed: 0 }] })
+    expect(await svc.undo('caiu')).toEqual({ ok: true })
+    expect(existsSync(join(dir, 'do-agente.ts'))).toBe(false)
+  })
+
+  it('não começa um segundo pedido no mesmo projeto enquanto o primeiro roda', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const first = await start()
+    await expect(start()).rejects.toThrow('PROJECT_BUSY')
+    release()
+    await svc.whenFinished(first)
+    await svc.whenFinished(await start())
+  })
+
+  it('falha no ponto final ainda fecha o run como error', async () => {
+    const { dir, store, conv, emitted, svc, start } = await setup(async function* () {
+      yield { type: 'text', text: 'apagando .git' }
+      rmSync(join(dir, '.git'), { recursive: true, force: true })
+    })
+    const runId = await start()
+    await svc.whenFinished(runId)
+    expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'error' })
+    expect(emitted.some(e => e.type === 'error')).toBe(true)
+    expect(store.listRuns(conv.id)[0].status).toBe('error')
+  })
+
+  it('cancelar logo após começar não chama o agente', async () => {
+    const { fake, emitted, svc, start } = await setup(async function* () { yield { type: 'done' } })
+    const runId = await start()
+    svc.cancel(runId)
+    await svc.whenFinished(runId)
+    expect(fake.seen).toBeUndefined()
+    expect(emitted.at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
   })
 })

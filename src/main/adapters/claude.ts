@@ -4,7 +4,9 @@ import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
 import { childEnv, systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
-const dropEnv = (k: string) => k === 'ANTHROPIC_API_KEY' || k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_')
+// Sem chave, token ou endpoint alternativo: só a assinatura do Natan (spec §2).
+const DROP = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDECODE'])
+const dropEnv = (k: string) => DROP.has(k) || k.startsWith('CLAUDE_CODE_')
 
 export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTool): Options {
   return {
@@ -54,6 +56,7 @@ export class ClaudeAdapter implements AgentAdapter {
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
     const abortController = new AbortController()
     const onAbort = () => abortController.abort()
+    if (opts.signal.aborted) onAbort()
     opts.signal.addEventListener('abort', onAbort, { once: true })
     try {
       const q = query({ prompt: opts.prompt, options: { ...buildClaudeOptions(opts, makeCanUseTool(opts)), abortController } })

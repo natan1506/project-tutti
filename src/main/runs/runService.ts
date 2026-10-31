@@ -23,6 +23,7 @@ export class RunService {
   private controllers = new Map<string, AbortController>()
   private approvals = new Map<string, (allowed: boolean) => void>()
   private finished = new Map<string, Promise<void>>()
+  private busyProjects = new Set<string>()
 
   constructor(private deps: Deps) {}
 
@@ -31,9 +32,17 @@ export class RunService {
     const adapter = this.deps.adapters[agent.tool]
     if (agent.availableInPhase !== 1 || !adapter) throw new Error('AGENT_NOT_AVAILABLE')
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
+    // Spec §6.2: um pedido por vez por projeto (a fila chega na Fase 3).
+    if (this.busyProjects.has(input.projectPath)) throw new Error('PROJECT_BUSY')
+    this.busyProjects.add(input.projectPath)
 
     const runId = randomUUID()
-    await snapshot(input.projectPath, refs(runId).before)
+    try {
+      await snapshot(input.projectPath, refs(runId).before)
+    } catch (e) {
+      this.busyProjects.delete(input.projectPath)
+      throw e
+    }
     this.deps.store.createRun({ id: runId, conversationId: input.conversationId, agentId: agent.id, prompt: input.prompt, startedAt: Date.now(), hasCheckpoint: true })
     this.record(runId, { type: 'run_started', runId, agentId: agent.id })
 
@@ -78,8 +87,22 @@ export class RunService {
     }
   }
 
-  recover(): void {
+  /** Na inicialização: pedidos que ficaram rodando viram 'interrupted' e ganham ponto final para poderem ser desfeitos. */
+  async recover(): Promise<void> {
+    const orphans = this.deps.store.listRunsByStatus('running')
     this.deps.store.markInterruptedRuns()
+    for (const run of orphans) {
+      const dir = this.deps.store.projectPathForRun(run.id)
+      const { before, after } = refs(run.id)
+      if (!dir) continue
+      try {
+        await runGit(dir, ['rev-parse', '--verify', '-q', before])
+        await snapshot(dir, after)
+        this.deps.store.appendEvent(run.id, { type: 'diff', files: await diffBetween(dir, before, after) })
+      } catch {
+        // Sem ponto inicial ou pasta inacessível: desfazer fica indisponível para esse pedido.
+      }
+    }
   }
 
   private record(runId: string, ev: RunEvent): void {
@@ -107,6 +130,7 @@ export class RunService {
     let sessionId: string | undefined
     try {
       const instructions = await loadInstructions(input.projectPath, this.deps.homeDir)
+      if (signal.aborted) return
       const events = adapter.run({
         agent: getAgent(input.agentId), prompt: input.prompt, cwd: input.projectPath, instructions, signal,
         requestApproval: this.requestApproval(runId, signal),
@@ -124,11 +148,17 @@ export class RunService {
     } finally {
       if (signal.aborted) status = 'cancelled'
       const { before, after } = refs(runId)
-      await snapshot(input.projectPath, after)
-      this.record(runId, { type: 'diff', files: await diffBetween(input.projectPath, before, after) })
+      try {
+        await snapshot(input.projectPath, after)
+        this.record(runId, { type: 'diff', files: await diffBetween(input.projectPath, before, after) })
+      } catch (e) {
+        status = 'error'
+        this.record(runId, { type: 'error', message: `Não consegui gravar o ponto final: ${e instanceof Error ? e.message : String(e)}` })
+      }
       this.record(runId, { type: 'run_finished', status })
       this.deps.store.finishRun(runId, status, sessionId)
       this.controllers.delete(runId)
+      this.busyProjects.delete(input.projectPath)
     }
   }
 }

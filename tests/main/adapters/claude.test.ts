@@ -14,10 +14,10 @@ const signal = new AbortController().signal
 
 describe('buildClaudeOptions', () => {
   beforeEach(() => {
-    process.env.ANTHROPIC_API_KEY = 'sk-x'; process.env.CLAUDECODE = '1'; process.env.CLAUDE_CODE_ENTRYPOINT = 'desktop'
+    process.env.ANTHROPIC_API_KEY = 'sk-x'; process.env.ANTHROPIC_AUTH_TOKEN = 't'; process.env.ANTHROPIC_BASE_URL = 'http://x'; process.env.CLAUDECODE = '1'; process.env.CLAUDE_CODE_ENTRYPOINT = 'desktop'
   })
   afterEach(() => {
-    delete process.env.ANTHROPIC_API_KEY; delete process.env.CLAUDECODE; delete process.env.CLAUDE_CODE_ENTRYPOINT
+    delete process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_AUTH_TOKEN; delete process.env.ANTHROPIC_BASE_URL; delete process.env.CLAUDECODE; delete process.env.CLAUDE_CODE_ENTRYPOINT
   })
 
   it('isola a configuração pessoal e usa a assinatura', () => {
@@ -31,6 +31,8 @@ describe('buildClaudeOptions', () => {
     expect(sp.append).toContain(getAgent('forja').persona)
     expect(sp.append).toContain('REGRAS DO NATAN')
     expect(o.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+    expect(o.env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN')
+    expect(o.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
     expect(o.env).not.toHaveProperty('CLAUDECODE')
     expect(o.env).not.toHaveProperty('CLAUDE_CODE_ENTRYPOINT')
     expect(o.env).toHaveProperty('PATH')

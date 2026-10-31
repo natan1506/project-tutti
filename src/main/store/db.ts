@@ -18,6 +18,7 @@ export interface Store {
   appendEvent(runId: string, ev: RunEvent): void
   listRuns(conversationId: string): RunRow[]
   listEvents(runId: string): RunEvent[]
+  listRunsByStatus(status: RunStatus): RunRow[]
   markInterruptedRuns(): number
   projectPathForRun(runId: string): string | undefined
   close(): void
@@ -87,6 +88,9 @@ export function openStore(file: string): Store {
     },
     listEvents(runId) {
       return (db.prepare('SELECT json FROM events WHERE run_id = ? ORDER BY seq').all(runId) as Row[]).map(r => JSON.parse(r.json as string) as RunEvent)
+    },
+    listRunsByStatus(status) {
+      return (db.prepare('SELECT * FROM runs WHERE status = ?').all(status) as Row[]).map(toRun)
     },
     markInterruptedRuns() {
       return Number(db.prepare("UPDATE runs SET status = 'interrupted', finished_at = ? WHERE status = 'running'").run(now()).changes)

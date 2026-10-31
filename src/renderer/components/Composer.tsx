@@ -3,6 +3,11 @@ import { AGENTS } from '@shared/agents'
 import { useRunStore } from '../state/runStore'
 
 const LATER = 'chega na Fase 3'
+const ERRORS: Record<string, string> = {
+  PROJECT_BUSY: 'Já tem um pedido rodando neste projeto. Espere terminar ou cancele.',
+  NOT_A_GIT_REPO: 'Esta pasta não usa git; abra o projeto de novo para iniciar um repositório.',
+  AGENT_NOT_AVAILABLE: 'Este agente chega na Fase 3.',
+}
 
 export function Composer() {
   const { project, selectedAgent, selectAgent, send } = useRunStore()
@@ -17,7 +22,8 @@ export function Composer() {
       await send(prompt)
       setText('')
     } catch (e) {
-      setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '\w+': (Error: )?/, '') : String(e))
+      const code = (e instanceof Error ? e.message : String(e)).replace(/^Error invoking remote method '\w+': (Error: )?/, '')
+      setError(ERRORS[code] ?? code)
     }
   }
 

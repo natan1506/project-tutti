@@ -20,7 +20,7 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
   const runs = new RunService({
@@ -28,7 +28,7 @@ app.whenReady().then(() => {
     adapters: { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: undefined, opencode: undefined },
     emit: (runId, ev) => send(runId, ev),
   })
-  runs.recover()
+  await runs.recover()
   send = registerIpc(createWindow(), store, runs)
 })
 app.on('window-all-closed', () => app.quit())

@@ -45,9 +45,15 @@ export function mapCodexEvent(ev: ThreadEvent, cwd: string, state: { threadId?: 
   }
 }
 
+const DROP = new Set(['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL'])
+
+export function codexEnv(): Record<string, string> {
+  return childEnv(k => DROP.has(k))
+}
+
 export class CodexAdapter implements AgentAdapter {
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
-    const codex = new Codex({ env: childEnv(k => k === 'OPENAI_API_KEY'), config: { mcp_servers: {} } })
+    const codex = new Codex({ env: codexEnv(), config: { mcp_servers: {} } })
     const threadOptions = buildCodexThreadOptions(opts)
     const thread = opts.resumeSessionId ? codex.resumeThread(opts.resumeSessionId, threadOptions) : codex.startThread(threadOptions)
     const state: { threadId?: string } = { threadId: opts.resumeSessionId }

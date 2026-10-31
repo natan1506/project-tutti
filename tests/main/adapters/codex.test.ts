@@ -2,7 +2,7 @@ import type { ThreadEvent } from '@openai/codex-sdk'
 import { describe, expect, it, vi } from 'vitest'
 import { getAgent } from '@shared/agents'
 import type { AdapterRunOptions } from '../../../src/main/adapters/types'
-import { buildCodexPrompt, buildCodexThreadOptions, mapCodexEvent, unwrapShell } from '../../../src/main/adapters/codex'
+import { buildCodexPrompt, buildCodexThreadOptions, codexEnv, mapCodexEvent, unwrapShell } from '../../../src/main/adapters/codex'
 
 const cwd = '/tmp/proj'
 const opts = (o: Partial<AdapterRunOptions> = {}): AdapterRunOptions => ({
@@ -66,5 +66,14 @@ describe('mapCodexEvent', () => {
   })
   it('ignora o resto', () => {
     expect(mapCodexEvent(ev({ type: 'turn.started' }), cwd, {})).toEqual([])
+  })
+})
+
+describe('codexEnv', () => {
+  it('remove chaves de API e endpoints alternativos', () => {
+    Object.assign(process.env, { OPENAI_API_KEY: 'k', CODEX_API_KEY: 'k', OPENAI_BASE_URL: 'http://x' })
+    const env = codexEnv()
+    for (const k of ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL']) { expect(env).not.toHaveProperty(k); delete process.env[k] }
+    expect(env).toHaveProperty('PATH')
   })
 })
