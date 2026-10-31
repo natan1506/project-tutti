@@ -38,12 +38,34 @@ function viewFor(run: RunBlock | undefined, now: number): MascotView {
   return { ...IDLE, bubble: 'Cancelado.', bubbleKind: 'text' }
 }
 
+const DOTS = (label = 'Pensando'): MascotView => ({ pose: 'thinking', label, bubbleKind: 'dots' })
+
+/** Fases do pedido de time antes das ondas (spec §5.2–5.3): triagem, confirmação, plano. */
+function teamView(team: RunBlock, id: AgentId): MascotView | undefined {
+  if (!team.triage) return DOTS()
+  if (!team.lineup) {
+    const own = team.confirmations.find(c => c.agentId === id)
+    if (own) return { pose: 'idle', label: 'Disponível', ...(own.line ? { bubble: bubbleText(own.line), bubbleKind: 'text' as const } : {}) }
+    if (team.triage.candidates.includes(id)) return DOTS()
+    const line = team.triage.scores.find(s => s.agentId === id)?.line
+    return { pose: 'idle', label: 'Disponível', ...(line ? { bubble: bubbleText(line), bubbleKind: 'text' as const } : {}) }
+  }
+  if (id === 'bussola' && team.plan && team.plan.approved === undefined) {
+    return { pose: 'waiting', label: 'Esperando você', bubble: 'Aprova o plano?', bubbleKind: 'alert' }
+  }
+  return undefined
+}
+
 /** `tools` ausente = ainda carregando: ninguém fica travado. */
 export function deriveStage(chat: ChatState, now: number, tools?: Record<ToolKind, ToolStatus>): Record<AgentId, MascotView> {
+  const team = chat.runs.filter(r => r.team && r.status === 'running').at(-1)
   return Object.fromEntries(AGENTS.map(a => {
     const t = tools?.[a.tool]
     if (t && !(t.installed && t.loggedIn)) return [a.id, { pose: 'locked', label: t.hint ?? 'Indisponível' }]
-    const last = chat.runs.filter(r => r.agentId === a.id).at(-1)
+    const fromTeam = team && teamView(team, a.id)
+    if (fromTeam) return [a.id, fromTeam]
+    // O run-pai do time não é "trabalho do Bússola": o palco usa o último run comum de cada agente.
+    const last = chat.runs.filter(r => r.agentId === a.id && !r.team).at(-1)
     return [a.id, viewFor(last, now)]
   })) as Record<AgentId, MascotView>
 }

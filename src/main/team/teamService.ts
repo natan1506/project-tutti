@@ -49,6 +49,7 @@ export class TeamService {
     if (!(await this.deps.toolReady('claude'))) throw new Error('TOOL_UNAVAILABLE')
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
     const parentId = this.deps.runs.open({ projectPath: input.projectPath, conversationId: input.conversationId, agentId: 'bussola', prompt: input.prompt }, true)
+    this.say(parentId, { type: 'team_started' })
     this.finished.set(parentId, this.lifecycle(parentId, input, this.deps.runs.signalOf(parentId)!))
     return parentId
   }

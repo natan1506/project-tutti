@@ -91,7 +91,7 @@ describe('TeamService', () => {
     const id = await t.start()
     await t.team.whenFinished(id)
     const evs = t.parentEvents(id)
-    expect(evs.map(e => e.type)).toEqual(['run_started', 'triage', 'confirmation', 'confirmation', 'lineup', 'child_started', 'child_started', 'diff', 'run_finished'])
+    expect(evs.map(e => e.type)).toEqual(['run_started', 'team_started', 'triage', 'confirmation', 'confirmation', 'lineup', 'child_started', 'child_started', 'diff', 'run_finished'])
     expect(evs.find(e => e.type === 'lineup')).toMatchObject({ waves: [[0, 1]], big: false })
     expect(evs.find(e => e.type === 'diff')).toMatchObject({ files: [{ path: 'server/health.js' }, { path: 'web/status.html' }] })
     expect(evs.at(-1)).toEqual({ type: 'run_finished', status: 'done' })

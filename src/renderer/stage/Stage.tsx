@@ -42,7 +42,7 @@ function CameraRig() {
 
 /** `headless` desliga rótulos HTML e o reflexo de ambiente, que exigem DOM e WebGL reais (usado nos testes). */
 export function StageScene({ views, selected, onSelect, headless = false, portal }: {
-  views: Record<AgentId, MascotView>; selected: AgentId; onSelect(id: AgentId): void; headless?: boolean
+  views: Record<AgentId, MascotView>; selected: AgentId | 'time'; onSelect(id: AgentId): void; headless?: boolean
   portal?: RefObject<HTMLElement | null>
 }) {
   return (

@@ -81,3 +81,19 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 
 .question .q { margin: 2px 0 4px; }
 .question .answer { flex: 1; background: #120f2e; border: 1px solid #3a3478; border-radius: 7px; color: var(--text); padding: 4px 8px; font: inherit; outline: 0; }
+
+.round { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.round .t { font-size: 10px; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+.prop { margin-bottom: 7px; } .prop .r { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.prop .r b { width: 62px; } .prop .bar { flex: 1; height: 4px; background: #24214a; border-radius: 4px; overflow: hidden; }
+.prop .bar s { display: block; height: 100%; background: var(--grad); text-decoration: none; transition: width .6s; }
+.prop .pct { width: 32px; text-align: right; color: var(--muted); font-size: 11px; }
+.prop .why { color: #b4b1d8; font-size: 11.5px; margin-left: 70px; } .prop .mark { color: var(--muted); font-style: normal; }
+.c-bussola { color: var(--bussola); } .c-forja { color: var(--forja); } .c-pincel { color: var(--pincel); }
+.c-radar { color: var(--radar); } .c-lupa { color: #6f95ff; } .c-curinga { color: var(--curinga); }
+.msg .tags { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; } .msg .wave { display: inline-flex; gap: 4px; }
+.chip-agent { font-size: 11px; padding: 2px 7px; border-radius: 6px; background: #241f52; color: var(--accent-soft); }
+.plan ol { margin: 4px 0 0 18px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.children { border-left: 2px solid #2f2b63; padding-left: 10px; display: flex; flex-direction: column; gap: 8px; }
+.note.call { color: #b4b1d8; }
+.hint .opt { margin-left: 10px; display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }

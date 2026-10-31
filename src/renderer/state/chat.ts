@@ -1,10 +1,12 @@
 import { AGENTS, type AgentId } from '@shared/agents'
 import type { DiffFile, RunEvent, RunStatus } from '@shared/events'
 import type { RunRow } from '@shared/models'
+import type { Confirmation, Lineup, TriageScore } from '@shared/team'
 
 export type AgentStatus = 'disponivel' | 'trabalhando' | 'esperando' | 'concluido'
 
 export interface Approval { id: string; toolName: string; summary: string; allowed?: boolean }
+export interface AgentCall { to: AgentId; question: string; answer?: string }
 export interface Question { id: string; text: string; options?: string[]; answer?: string | null }
 export interface RunBlock {
   runId: string
@@ -18,7 +20,19 @@ export interface RunBlock {
   status: RunStatus
   error?: string
   notices: string[]
+  calls: AgentCall[]
   startedAt: number
+  /** Pedido de time (run-pai do Bússola). */
+  team?: boolean
+  parentRunId?: string
+  children: string[]
+  queued?: number
+  triage?: { scores: TriageScore[]; candidates: AgentId[] }
+  confirmations: Confirmation[]
+  lineup?: Lineup
+  waves?: number[][]
+  big?: boolean
+  plan?: { id: string; approved?: boolean }
   finishedAt?: number
 }
 export interface ChatState { runs: RunBlock[]; agentStatus: Record<AgentId, AgentStatus> }
@@ -30,13 +44,15 @@ export function emptyChat(): ChatState {
 /** Reducer puro: aplica um evento do processo principal ao estado do chat. */
 export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatState {
   if (ev.type === 'run_started') {
-    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], questions: [], notices: [], status: 'running', startedAt: Date.now() }
+    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], questions: [], notices: [], calls: [], children: [], confirmations: [], status: 'running', startedAt: Date.now() }
     return { runs: [...state.runs, block], agentStatus: { ...state.agentStatus, [ev.agentId]: 'trabalhando' } }
   }
   const run = state.runs.find(r => r.runId === runId)
   if (!run) return state
+  // Qualquer evento além de `queued` significa que o pedido saiu da fila.
+  const base = ev.type !== 'queued' && run.queued !== undefined ? { ...run, queued: undefined } : run
   const set = (patch: Partial<RunBlock>, status?: AgentStatus): ChatState => ({
-    runs: state.runs.map(r => (r === run ? { ...r, ...patch } : r)),
+    runs: state.runs.map(r => (r === run ? { ...base, ...patch } : r)),
     agentStatus: status ? { ...state.agentStatus, [run.agentId]: status } : state.agentStatus,
   })
   switch (ev.type) {
@@ -52,6 +68,20 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
       return set({ questions: run.questions.map(q => (q.id === ev.id ? { ...q, answer: ev.answer } : q)) }, 'trabalhando')
     case 'error': return set({ error: ev.message })
     case 'notice': return set({ notices: [...run.notices, ev.text] })
+    case 'queued': return set({ queued: ev.position })
+    case 'team_started': return set({ team: true })
+    case 'triage': return set({ triage: { scores: ev.scores, candidates: ev.candidates } })
+    case 'confirmation': return set({ confirmations: [...run.confirmations, ev.confirmation] })
+    case 'lineup': return set({ lineup: ev.lineup, waves: ev.waves, big: ev.big })
+    case 'plan_request': return set({ plan: { id: ev.id } }, 'esperando')
+    case 'plan_resolved': return set({ plan: { id: ev.id, approved: ev.approved } }, 'trabalhando')
+    case 'child_started': {
+      const next = set({ children: [...run.children, ev.runId] })
+      return { ...next, runs: next.runs.map(r => (r.runId === ev.runId ? { ...r, parentRunId: runId } : r)) }
+    }
+    case 'agent_call': return set({ calls: [...run.calls, { to: ev.to, question: ev.question }] })
+    case 'agent_call_answer':
+      return set({ calls: run.calls.map(c => (c.to === ev.to && c.answer === undefined ? { ...c, answer: ev.answer } : c)) })
     case 'diff': return set({ files: ev.files })
     case 'run_finished':
       return set({ status: ev.status, finishedAt: Date.now() }, ev.status === 'done' ? 'concluido' : 'disponivel')
@@ -69,7 +99,7 @@ export function chatFromHistory(runs: RunRow[], events: Record<string, RunEvent[
     agentStatus: emptyChat().agentStatus,
     runs: chat.runs.map(b => {
       const r = rows.get(b.runId)!
-      return { ...b, prompt: r.prompt, status: r.status, startedAt: r.startedAt, finishedAt: r.finishedAt ?? undefined }
+      return { ...b, prompt: r.prompt, status: r.status, startedAt: r.startedAt, finishedAt: r.finishedAt ?? undefined, ...(r.parentRunId ? { parentRunId: r.parentRunId } : {}) }
     }),
   }
 }

@@ -26,6 +26,7 @@ export type RunEvent =
   | { type: 'run_started'; runId: string; agentId: AgentId }
   | { type: 'diff'; files: DiffFile[] }
   | { type: 'notice'; text: string }
+  | { type: 'team_started' }
   | { type: 'triage'; scores: TriageScore[]; candidates: AgentId[] }
   | { type: 'confirmation'; confirmation: Confirmation }
   | { type: 'lineup'; lineup: Lineup; waves: number[][]; big: boolean }

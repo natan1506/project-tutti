@@ -8,11 +8,14 @@ interface UiState {
   project?: Project
   conversation?: Conversation
   chat: ChatState
-  selectedAgent: AgentId
+  selectedAgent: AgentId | 'time'
+  fullRound: boolean
+  forcePlan: boolean
+  setTeamOptions(o: Partial<{ fullRound: boolean; forcePlan: boolean }>): void
   tools?: Record<ToolKind, ToolStatus>
   loadTools(): Promise<void>
   setProject(p: Project): Promise<void>
-  selectAgent(id: AgentId): void
+  selectAgent(id: AgentId | 'time'): void
   newConversation(): void
   openConversation(c: Conversation): Promise<void>
   send(prompt: string): Promise<void>
@@ -21,7 +24,10 @@ interface UiState {
 
 export const useRunStore = create<UiState>((set, get) => ({
   chat: emptyChat(),
-  selectedAgent: 'forja',
+  selectedAgent: 'time',
+  fullRound: false,
+  forcePlan: false,
+  setTeamOptions: o => set(o),
 
   async setProject(project) {
     set({ project, conversation: undefined, chat: emptyChat() })
@@ -43,14 +49,17 @@ export const useRunStore = create<UiState>((set, get) => ({
   },
 
   async send(prompt) {
-    const { project, selectedAgent } = get()
+    const { project, selectedAgent, fullRound, forcePlan } = get()
     if (!project) return
     let { conversation } = get()
     if (!conversation) {
       conversation = await window.time.newConversation(project.id, prompt.slice(0, 40))
       set({ conversation })
     }
-    const runId = await window.time.startRun({ projectPath: project.path, conversationId: conversation.id, agentId: selectedAgent, prompt })
+    const base = { projectPath: project.path, conversationId: conversation.id, prompt }
+    const runId = selectedAgent === 'time'
+      ? await window.time.startTeam({ ...base, fullRound, forcePlan })
+      : await window.time.startRun({ ...base, agentId: selectedAgent })
     set(s => ({ chat: withPrompt(s.chat, runId, prompt) }))
   },
 

@@ -5,10 +5,13 @@ import type { RunBlock } from '../state/chat'
 import { ApprovalCard } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
 import { DiffCard } from './DiffCard'
+import { LineupCard } from './LineupCard'
+import { PlanCard } from './PlanCard'
+import { TeamRound } from './TeamRound'
 
 const FINISHED: Record<string, string> = { cancelled: 'cancelado', error: 'parou com erro', interrupted: 'interrompido (app fechado)' }
 
-function RunView({ run }: { run: RunBlock }) {
+function RunView({ run, nested = false }: { run: RunBlock; nested?: boolean }) {
   const [open, setOpen] = useState(false)
   const nome = getAgent(run.agentId).nome
   const secs = run.finishedAt ? Math.max(1, Math.round((run.finishedAt - run.startedAt) / 1000)) : undefined
@@ -16,7 +19,8 @@ function RunView({ run }: { run: RunBlock }) {
   const passos = `${n} ${n === 1 ? 'passo' : 'passos'}`
   return (
     <>
-      {run.prompt && <><div className="me-l">Para {nome}</div><div className="me">{run.prompt}</div></>}
+      {run.prompt && !nested && <><div className="me-l">Para {nome}</div><div className="me">{run.prompt}</div></>}
+      {run.queued !== undefined && <Queued run={run} />}
       <div className="step" onClick={() => setOpen(o => !o)}>
         <span>
           {run.status === 'running' ? `⟳ ${nome} está trabalhando`
@@ -30,8 +34,40 @@ function RunView({ run }: { run: RunBlock }) {
       {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar</button>}
       {run.approvals.map(a => <ApprovalCard key={a.id} approval={a} />)}
       {run.questions.map(q => <QuestionCard key={q.id} question={q} />)}
+      {run.calls.map((c, i) => (
+        <div key={i} className="note call">→ perguntou ao {getAgent(c.to).nome}: {c.question}{c.answer !== undefined && <><br />← {c.answer}</>}</div>
+      ))}
       {run.text && <div className={`msg msg-${run.agentId}`}><div className="who">{nome}</div><div className="tx">{run.text}</div></div>}
       {run.error && <div className="note err">{run.error}</div>}
+      {run.status !== 'running' && !nested && <DiffCard run={run} />}
+    </>
+  )
+}
+
+function Queued({ run }: { run: RunBlock }) {
+  return (
+    <div className="note">
+      Na fila (posição {run.queued}) — começa quando o pedido atual terminar.{' '}
+      <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Tirar da fila</button>
+    </div>
+  )
+}
+
+/** Pedido de time: rodada, escalação, plano, passos dos agentes (aninhados) e o diff do pedido inteiro. */
+function TeamView({ run, all }: { run: RunBlock; all: RunBlock[] }) {
+  const children = run.children.map(id => all.find(r => r.runId === id)).filter((r): r is RunBlock => !!r)
+  return (
+    <>
+      <div className="me-l">Para o time</div>
+      <div className="me">{run.prompt}</div>
+      {run.queued !== undefined && <Queued run={run} />}
+      <TeamRound run={run} />
+      <LineupCard run={run} />
+      <PlanCard run={run} />
+      {children.length > 0 && <div className="children">{children.map(c => <RunView key={c.runId} run={c} nested />)}</div>}
+      {run.text && <div className="msg msg-bussola"><div className="who">Bússola</div><div className="tx">{run.text}</div></div>}
+      {run.error && <div className="note err">{run.error}</div>}
+      {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar pedido</button>}
       {run.status !== 'running' && <DiffCard run={run} />}
     </>
   )
@@ -52,10 +88,10 @@ export function ChatPanel() {
         {chat.runs.length === 0 && (
           <div className="empty">
             <h3>Fale com o time</h3>
-            <p>{project ? 'Escolha um agente embaixo e peça algo. Você acompanha cada passo e decide o que fica.' : 'Abra um projeto no topo para começar.'}</p>
+            <p>{project ? 'Peça algo para o time ou escolha um agente embaixo. Você acompanha cada passo e decide o que fica.' : 'Abra um projeto no topo para começar.'}</p>
           </div>
         )}
-        {chat.runs.map(r => <RunView key={r.runId} run={r} />)}
+        {chat.runs.filter(r => !r.parentRunId).map(r => (r.team ? <TeamView key={r.runId} run={r} all={chat.runs} /> : <RunView key={r.runId} run={r} />))}
       </div>
     </aside>
   )
