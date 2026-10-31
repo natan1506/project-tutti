@@ -1,4 +1,5 @@
 import type { AgentId } from './agents'
+import type { Confirmation, Lineup, TriageScore } from './team'
 
 export type RunStatus = 'running' | 'done' | 'error' | 'cancelled' | 'interrupted'
 
@@ -25,4 +26,13 @@ export type RunEvent =
   | { type: 'run_started'; runId: string; agentId: AgentId }
   | { type: 'diff'; files: DiffFile[] }
   | { type: 'notice'; text: string }
+  | { type: 'triage'; scores: TriageScore[]; candidates: AgentId[] }
+  | { type: 'confirmation'; confirmation: Confirmation }
+  | { type: 'lineup'; lineup: Lineup; waves: number[][]; big: boolean }
+  | { type: 'plan_request'; id: string }
+  | { type: 'plan_resolved'; id: string; approved: boolean }
+  | { type: 'child_started'; runId: string; agentId: AgentId; task: string }
+  | { type: 'queued'; position: number }
+  | { type: 'agent_call'; from: AgentId; to: AgentId; question: string }
+  | { type: 'agent_call_answer'; from: AgentId; to: AgentId; answer: string }
   | { type: 'run_finished'; status: RunStatus }
