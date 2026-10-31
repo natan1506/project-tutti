@@ -5,6 +5,8 @@ import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+const CONSULT_BLOCKED = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task']
+const CONSULT_ALLOWED = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead', 'TodoWrite'])
 // Além das chaves de API (env.ts), tira as variáveis herdadas de uma sessão do Claude Code que esteja rodando o app.
 const dropEnv = (k: string) => k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_')
 
@@ -18,6 +20,7 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     permissionMode: 'default',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },
     canUseTool,
+    ...(opts.mode === 'consult' ? { disallowedTools: CONSULT_BLOCKED } : {}),
   }
 }
 
@@ -48,6 +51,12 @@ const NO_ANSWER = 'O Natan não respondeu; siga com a opção mais sensata e reg
 
 export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
   return async (toolName, input) => {
+    if (opts.mode === 'consult') {
+      // Consulta nunca altera nada nem pergunta ao Natan: só leitura dentro do projeto.
+      return CONSULT_ALLOWED.has(toolName) && classifyToolCall({ toolName, input }, opts.cwd) === 'allow'
+        ? { behavior: 'allow', updatedInput: input }
+        : { behavior: 'deny', message: 'Modo consulta: só leitura.' }
+    }
     if (toolName === 'AskUserQuestion') {
       const answers: Record<string, string> = {}
       for (const q of (input as AskInput).questions ?? []) {

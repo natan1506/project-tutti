@@ -277,3 +277,30 @@ describe('I3: servidor isolado da configuração do usuário e do projeto', () =
     expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT)).toMatchObject({ mcp: {}, plugin: [] })
   })
 })
+
+describe('modo consulta no opencode', () => {
+  it('sessão de consulta nega comando, edição, rede, pasta externa e sub-agentes', async () => {
+    const calls: { body: unknown }[] = []
+    const fetchFn = (async (_u: string, init?: RequestInit) => {
+      calls.push({ body: init?.body ? JSON.parse(String(init.body)) : undefined })
+      return new Response(JSON.stringify({ data: { id: 'ses_1' } }), { status: 200 })
+    }) as unknown as typeof fetch
+    await new HttpOpencodeApi('http://x', 'pw', fetchFn).createSession({ directory: '/p', model: { providerID: 'opencode', id: 'm' }, title: 't', consult: true })
+    const rules = (calls[0].body as { permissions: { action: string; effect: string }[] }).permissions
+    for (const action of ['shell', 'edit', 'webfetch', 'external_directory', 'task']) expect(rules).toContainEqual({ action, resource: '*', effect: 'deny' })
+  })
+
+  it('o adaptador cria a sessão em consulta quando mode é consult', async () => {
+    const api = fakeApi()
+    await collect(new OpencodeAdapter(new OpencodeHost(async () => ({ api, close() {} }))).run(opts({ mode: 'consult' })))
+    expect(api.created).toEqual([expect.objectContaining({ consult: true })])
+  })
+  it('permissão que chegue numa consulta é negada sem perguntar', async () => {
+    const ask: OcEvent = { type: 'permission.asked', data: { id: 'per_c', sessionID: SID, action: 'shell', resources: ['ls'] } }
+    const api = fakeApi([ask, { type: 'session.execution.succeeded', data: { sessionID: SID } }])
+    const o = opts({ mode: 'consult' })
+    await collect(new OpencodeAdapter(new OpencodeHost(async () => ({ api, close() {} }))).run(o))
+    expect(o.requestApproval).not.toHaveBeenCalled()
+    expect(api.replies).toEqual([expect.objectContaining({ requestId: 'per_c', decision: 'reject' })])
+  })
+})

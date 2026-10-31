@@ -105,4 +105,18 @@ describe('makeCanUseTool', () => {
     const r = await makeCanUseTool(opts({ askUser: async () => null }))('AskUserQuestion', { questions: [{ question: 'Q?', header: 'h', multiSelect: false, options: [] }] }, { signal, toolUseID: 't' } as never)
     expect(r).toEqual({ behavior: 'deny', message: 'O Natan não respondeu; siga com a opção mais sensata e registre a suposição.' })
   })
+  it('modo consulta: nada de escrita, comando ou rede, sem perguntar ao Natan', async () => {
+    const o = opts({ mode: 'consult' })
+    const options = buildClaudeOptions(o, async () => ({ behavior: 'allow' }))
+    for (const t of ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task']) expect(options.disallowedTools).toContain(t)
+    const can = makeCanUseTool(o)
+    expect(await can('Edit', { file_path: cwd + '/a.ts' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'deny' })
+    expect(await can('Bash', { command: 'ls' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'deny' })
+    expect(await can('Read', { file_path: cwd + '/a.ts' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
+    expect(o.requestApproval).not.toHaveBeenCalled()
+  })
+
+  it('modo trabalho não muda', () => {
+    expect(buildClaudeOptions(opts(), async () => ({ behavior: 'allow' })).disallowedTools).toBeUndefined()
+  })
 })

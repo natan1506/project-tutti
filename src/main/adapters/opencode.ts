@@ -12,7 +12,7 @@ import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types
 // então o app sobe o próprio `opencode serve` e usa a API HTTP /api/... direto.
 
 export interface OcEvent { type?: string; data?: Record<string, unknown> }
-export interface CreateSessionInput { directory: string; model: { providerID: string; id: string }; title: string }
+export interface CreateSessionInput { directory: string; model: { providerID: string; id: string }; title: string; consult?: boolean }
 
 export interface OpencodeApi {
   createSession(input: CreateSessionInput): Promise<string>
@@ -31,6 +31,8 @@ const RULES = [
   // Sub-agentes criam sessões filhas cujas permissões o app não acompanha: proibidos.
   { action: 'task', resource: '*', effect: 'deny' },
 ]
+/** Consulta: nada de comando, edição, rede, pasta externa ou sub-agente. */
+const CONSULT_RULES = ['shell', 'edit', 'webfetch', 'external_directory', 'task'].map(action => ({ action, resource: '*', effect: 'deny' }))
 const DEFAULT_MODEL = 'opencode/big-pickle'
 
 export function parseSse(buffer: string): { events: OcEvent[]; rest: string } {
@@ -143,7 +145,7 @@ export class OpencodeAdapter implements AgentAdapter {
     const [providerID, id] = (opts.model ?? opts.agent.defaultModel ?? DEFAULT_MODEL).split(/\/(.*)/s)
     let sessionId: string
     try {
-      sessionId = opts.resumeSessionId ?? await api.createSession({ directory: opts.cwd, model: { providerID, id }, title: opts.prompt.slice(0, 40) })
+      sessionId = opts.resumeSessionId ?? await api.createSession({ directory: opts.cwd, model: { providerID, id }, title: opts.prompt.slice(0, 40), ...(opts.mode === 'consult' ? { consult: true } : {}) })
     } catch (e) {
       yield { type: 'error', message: e instanceof Error ? e.message : String(e) }
       return
@@ -197,7 +199,7 @@ export class OpencodeAdapter implements AgentAdapter {
     const source = d.source as { id?: string } | undefined
     const calls = permissionToToolCalls(d, opts.cwd, source?.id ? toolInputs.get(source.id) : undefined)
     let allowed = false
-    if (!opts.signal.aborted) {
+    if (!opts.signal.aborted && opts.mode !== 'consult') {
       allowed = calls.every(c => classifyToolCall(c, opts.cwd) === 'allow')
       if (!allowed) {
         const call = calls.find(c => classifyToolCall(c, opts.cwd) === 'ask') ?? calls[0]
@@ -230,7 +232,7 @@ export class HttpOpencodeApi implements OpencodeApi {
   }
 
   async createSession(input: CreateSessionInput): Promise<string> {
-    const res = await this.call('POST', '/api/session', { title: input.title, location: { directory: input.directory }, model: input.model, permissions: RULES })
+    const res = await this.call('POST', '/api/session', { title: input.title, location: { directory: input.directory }, model: input.model, permissions: input.consult ? CONSULT_RULES : RULES })
     return (res.data as { id: string }).id
   }
   async prompt(sessionId: string, text: string) { await this.call('POST', `/api/session/${sessionId}/prompt`, { text }) }

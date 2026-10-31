@@ -17,6 +17,9 @@ describe('buildCodexThreadOptions', () => {
       sandboxMode: 'read-only', approvalPolicy: 'never', workingDirectory: cwd, skipGitRepoCheck: true,
     })
   })
+  it('consulta e trabalho têm as mesmas opções (já é só leitura)', () => {
+    expect(buildCodexThreadOptions(opts({ mode: 'consult' }))).toEqual(buildCodexThreadOptions(opts()))
+  })
   it('repassa o modelo quando definido', () => {
     expect(buildCodexThreadOptions(opts({ model: 'gpt-x' })).model).toBe('gpt-x')
   })

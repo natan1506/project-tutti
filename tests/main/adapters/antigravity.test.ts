@@ -26,6 +26,9 @@ describe('buildAgyArgs', () => {
     expect(a).toEqual(expect.arrayContaining(['--output-format', 'stream-json', '--mode', 'plan', '--disable-slash-commands']))
     expect(a.join(' ')).not.toMatch(/dangerously-skip-permissions|--mode (auto|accept-edits)/)
   })
+  it('consulta e trabalho têm os mesmos argumentos (modo plan)', () => {
+    expect(buildAgyArgs(opts({ mode: 'consult' }))).toEqual(buildAgyArgs(opts()))
+  })
   it('modelo e retomada', () => {
     const a = buildAgyArgs(opts({ model: 'gemini-x', resumeSessionId: 'c1' }))
     expect(a.join(' ')).toContain('--model gemini-x')

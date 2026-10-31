@@ -8,6 +8,8 @@ export interface AdapterRunOptions {
   model?: string
   instructions: string
   resumeSessionId?: string
+  /** `consult` = só leitura em qualquer ferramenta (triagem, confirmação, chamadas entre agentes). Padrão: `work`. */
+  mode?: 'work' | 'consult'
   signal: AbortSignal
   requestApproval(req: { toolName: string; summary: string }): Promise<boolean>
   /** Pergunta em texto livre ao Natan (spec §5.7.2); `null` = sem resposta (cancelado). */
