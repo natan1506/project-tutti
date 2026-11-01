@@ -7,7 +7,7 @@ import { initRepo, isGitRepo } from './git/git'
 import type { RunService } from './runs/runService'
 import type { TeamService } from './team/teamService'
 import type { UsageService } from './usage/usageService'
-import type { UsageSettings } from '@shared/usage'
+import type { UsageSettingsPatch } from '@shared/usage'
 import type { Store } from './store/db'
 
 const absolutePath = (p: unknown): string => {
@@ -23,10 +23,10 @@ const agentId = (id: unknown): AgentId => {
   return id as AgentId
 }
 /** Só números de 1 a 100 (porcentagem) e tetos positivos; o resto é ignorado. */
-function sanitizeUsageSettings(raw: unknown): Partial<UsageSettings> {
+function sanitizeUsageSettings(raw: unknown): UsageSettingsPatch {
   const r = (raw ?? {}) as Record<string, unknown>
   const pct = (v: unknown) => (typeof v === 'number' && v >= 1 && v <= 100 ? Math.round(v) : undefined)
-  const out: Partial<UsageSettings> = {}
+  const out: UsageSettingsPatch = {}
   if (pct(r.alertAt) !== undefined) out.alertAt = pct(r.alertAt)
   if (r.perTool && typeof r.perTool === 'object') {
     out.perTool = {}
@@ -34,7 +34,10 @@ function sanitizeUsageSettings(raw: unknown): Partial<UsageSettings> {
       const v = (r.perTool as Record<string, Record<string, unknown> | undefined>)[t]
       if (!v) continue
       const ceiling = typeof v.estimateCeilingTokens === 'number' && v.estimateCeilingTokens > 0 ? Math.round(v.estimateCeilingTokens) : undefined
-      out.perTool[t] = { ...(pct(v.alertAt) !== undefined ? { alertAt: pct(v.alertAt) } : {}), ...(ceiling ? { estimateCeilingTokens: ceiling } : {}) }
+      out.perTool[t] = {
+        ...(v.alertAt === null ? { alertAt: null } : pct(v.alertAt) !== undefined ? { alertAt: pct(v.alertAt) } : {}),
+        ...(v.estimateCeilingTokens === null ? { estimateCeilingTokens: null } : ceiling ? { estimateCeilingTokens: ceiling } : {}),
+      }
     }
   }
   return out

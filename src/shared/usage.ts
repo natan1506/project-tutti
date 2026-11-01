@@ -17,6 +17,8 @@ export interface ToolUsageRow {
 }
 export interface UsageSnapshot { rows: ToolUsageRow[]; at: number }
 export interface UsageSettings { alertAt: number; perTool: Partial<Record<ToolKind, { alertAt?: number; estimateCeilingTokens?: number }>> }
+/** Mudança nas configurações; null apaga o ajuste da ferramenta (volta ao geral). */
+export interface UsageSettingsPatch { alertAt?: number; perTool?: Partial<Record<ToolKind, { alertAt?: number | null; estimateCeilingTokens?: number | null }>> }
 export const DEFAULT_USAGE_SETTINGS: UsageSettings = { alertAt: 90, perTool: {} }
 export interface UsageDetail {
   byRun: { runId: string; agentId: import('./agents').AgentId; tool: ToolKind; tokens: TokenUsage }[]

@@ -348,6 +348,12 @@ export class RunService {
       }
     } finally {
       this.executing.delete(runId)
+      // Pedido acabou antes da resposta ao aviso: não há mais o que passar.
+      for (const [id, w] of this.warnings) {
+        if (w.runId !== runId) continue
+        this.warnings.delete(id)
+        this.record(runId, { type: 'limit_resolved', id, pass: false })
+      }
       if (signal.aborted) status = 'cancelled'
       if (withCheckpoint && !(await this.finalDiff(runId, input.projectPath))) status = 'error'
       this.close(runId, status, sessionId)

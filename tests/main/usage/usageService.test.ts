@@ -65,6 +65,14 @@ describe('UsageService', () => {
     expect(new UsageService({ store, emit: () => {} }).settings().perTool.claude?.alertAt).toBe(60)
   })
 
+  it('null apaga o ajuste da ferramenta e volta ao geral', () => {
+    const { svc } = setup()
+    svc.updateSettings({ perTool: { claude: { alertAt: 1, estimateCeilingTokens: 500 } } })
+    svc.updateSettings({ perTool: { claude: { alertAt: null } } })
+    expect(svc.alertAt('claude')).toBe(90)
+    expect(svc.settings().perTool.claude).toEqual({ estimateCeilingTokens: 500 })
+  })
+
   it('emite no máximo um snapshot por segundo', async () => {
     vi.useFakeTimers()
     const { svc, snaps } = setup()

@@ -1,7 +1,7 @@
 import type { AgentId, ToolKind } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
 import {
-  DEFAULT_USAGE_SETTINGS, zeroTokens, type LimitWindow, type ToolUsageRow, type UsageSettings, type UsageSnapshot,
+  DEFAULT_USAGE_SETTINGS, zeroTokens, type LimitWindow, type ToolUsageRow, type UsageSettings, type UsageSettingsPatch, type UsageSnapshot,
 } from '@shared/usage'
 import type { Store } from '../store/db'
 
@@ -34,11 +34,15 @@ export class UsageService {
     return { ...DEFAULT_USAGE_SETTINGS, ...(this.deps.store.getSetting<UsageSettings>('usage') ?? {}) }
   }
 
-  updateSettings(s: Partial<UsageSettings>): void {
+  updateSettings(s: UsageSettingsPatch): void {
     const cur = this.settings()
     const perTool = { ...cur.perTool }
-    for (const [k, v] of Object.entries(s.perTool ?? {})) perTool[k as ToolKind] = { ...perTool[k as ToolKind], ...v }
-    this.deps.store.setSetting('usage', { ...cur, ...s, perTool })
+    for (const [k, v] of Object.entries(s.perTool ?? {})) {
+      const next: Record<string, number | null | undefined> = { ...perTool[k as ToolKind], ...v }
+      for (const key of Object.keys(next)) if (next[key] === null || next[key] === undefined) delete next[key]
+      perTool[k as ToolKind] = next
+    }
+    this.deps.store.setSetting('usage', { ...cur, ...(s.alertAt !== undefined ? { alertAt: s.alertAt } : {}), perTool })
     this.push()
   }
 

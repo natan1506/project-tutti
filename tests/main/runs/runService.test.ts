@@ -391,6 +391,19 @@ describe('RunService', () => {
     await svc.whenFinished(id)
   })
 
+  it('pedido que termina com aviso pendente fecha o aviso sem passar', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    await svc.warnLimit('claude', 'five_hour', 92, async () => 'curinga')
+    const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    release()
+    await svc.whenFinished(id)
+    expect(emitted).toContainEqual({ type: 'limit_resolved', id: w.id, pass: false })
+  })
+
   it('sem substituto: aviso sem destino; Passar não faz nada além de fechar o aviso', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })

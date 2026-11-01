@@ -1,5 +1,5 @@
 import type { AgentId, ToolKind } from './agents'
-import type { UsageDetail, UsageSettings, UsageSnapshot } from './usage'
+import type { UsageDetail, UsageSettings, UsageSettingsPatch, UsageSnapshot } from './usage'
 import type { RunEvent, RunStatus } from './events'
 
 export interface Project { id: string; path: string; name: string; lastOpenedAt: number }
@@ -39,7 +39,7 @@ export interface TimeApi {
   usageSnapshot(): Promise<UsageSnapshot>
   usageDetail(conversationId: string | null): Promise<UsageDetail>
   usageSettings(): Promise<UsageSettings>
-  updateUsageSettings(s: Partial<UsageSettings>): Promise<void>
+  updateUsageSettings(s: UsageSettingsPatch): Promise<void>
   onUsage(cb: (s: UsageSnapshot) => void): () => void
   onRunEvent(cb: (runId: string, ev: RunEvent) => void): () => void
 }

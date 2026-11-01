@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAgent, type ToolKind } from '@shared/agents'
-import type { UsageDetail as Detail, UsageSettings } from '@shared/usage'
+import type { UsageDetail as Detail, UsageSettings, UsageSettingsPatch } from '@shared/usage'
 import { formatTokens } from '../state/format'
 import { useRunStore } from '../state/runStore'
 import { TOOL_NAME } from './UsagePanel'
@@ -16,11 +16,12 @@ export function UsageDetail({ onClose }: { onClose(): void }) {
     void window.time.usageDetail(conversation?.id ?? null).then(setDetail)
     void window.time.usageSettings().then(setSettings)
   }, [conversation?.id])
-  const save = async (s: Partial<UsageSettings>) => {
+  const save = async (s: UsageSettingsPatch) => {
     await window.time.updateUsageSettings(s)
     setSettings(await window.time.usageSettings())
   }
-  const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
+  // Campo vazio apaga o ajuste da ferramenta; o geral vazio fica como estava.
+  const num = (v: string) => (v.trim() === '' ? null : Number(v))
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal usage-detail" onClick={e => e.stopPropagation()}>
@@ -41,7 +42,7 @@ export function UsageDetail({ onClose }: { onClose(): void }) {
           <>
             <h4>Avisos</h4>
             <label className="opt-line">Avisar em <input type="number" min={1} max={100} defaultValue={settings.alertAt}
-              onBlur={e => void save({ alertAt: num(e.target.value) })} />% (geral)</label>
+              onBlur={e => void save({ alertAt: num(e.target.value) ?? undefined })} />% (geral)</label>
             {TOOLS.map(t => (
               <div key={t} className="opt-line">
                 <span>{TOOL_NAME[t]}</span>

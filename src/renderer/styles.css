@@ -18,7 +18,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 14px 0; }
 .rail .logo { width: 28px; height: 28px; border-radius: 7px; }
 
-.stage { position: relative; overflow: hidden; min-height: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse 80% 60% at 50% 20%, #2b2575 0%, #15133a 55%, #0c0b1f 100%); min-width: 0; }
+.stage { container-type: inline-size; position: relative; overflow: hidden; min-height: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse 80% 60% at 50% 20%, #2b2575 0%, #15133a 55%, #0c0b1f 100%); min-width: 0; }
 .head { padding: 18px 22px 0; }
 .head h1 { font-size: 19px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .head h1 img { width: 22px; height: 22px; border-radius: 6px; }
@@ -98,7 +98,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .note.call { color: #b4b1d8; }
 .hint .opt { margin-left: 10px; display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
 
-.usage-panel { position: absolute; right: 16px; bottom: 150px; z-index: 4; width: 220px; background: #110f29e6; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 11px; }
+.usage-panel { position: absolute; right: 16px; bottom: 20px; z-index: 30; width: 220px; background: #110f29e6; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 11px; }
 .usage-panel.has-alert { border-color: #f8717188; }
 .usage-head { display: flex; justify-content: space-between; margin-bottom: 4px; } .usage-head .link { text-decoration: none; color: var(--muted); font-size: 11px; }
 .usage-row { padding: 4px 0; cursor: pointer; } .usage-row + .usage-row { border-top: 1px solid #1d1a42; }
@@ -111,3 +111,5 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .usage-detail table { width: 100%; font-size: 12px; border-collapse: collapse; } .usage-detail td { padding: 3px 6px; border-bottom: 1px solid #1d1a42; }
 .opt-line { display: flex; gap: 10px; align-items: center; font-size: 12px; margin: 4px 0; } .opt-line span { width: 100px; }
 .opt-line input { width: 80px; background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 2px 6px; font: inherit; }
+/* Sem espaço para o compositor centrado e o painel de uso lado a lado: o compositor encosta à esquerda. */
+@container (max-width: 1104px) { .composer { margin-left: 16px; width: calc(100% - 268px); } }

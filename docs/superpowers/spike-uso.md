@@ -15,3 +15,22 @@
 
 ## opencode — tokens apenas
 - `session.step.ended.tokens {input, output, reasoning, cache: {read, write}}` e `cost: 0` (modelos gratuitos). Sem limite.
+
+## Verificação no app (2026-11-01)
+`scripts/e2e/verify-uso.mjs` dirigindo o app real na pasta descartável `time-teste-fase1`; prints em `docs/superpowers/verificacao-uso/`.
+
+| Passo | Resultado |
+|---|---|
+| 1 Painel | 4 linhas no canto inferior direito; Claude com % real desde a abertura (consulta sem pedido), demais "—" |
+| 2 Tokens | Claude e Antigravity sobem ao fim de cada pedido; opencode sobe com o Curinga |
+| 3 Contexto | Forja: "Azul" → Radar, perguntado depois, respondeu "Azul" |
+| 4 Gatilho | Aviso no meio do pedido com destino Curinga; [Passar] → Forja "cancelado", nota "Trabalho passado para o Curinga", Curinga refez o `sleep 45` e terminou. Confirmado por print (`passo4c-passado.png`) e pelo banco; a asserção do script lia o lugar errado e foi corrigida depois, sem nova rodada para poupar cota |
+| Console | sem erros |
+
+Achados que viraram correção:
+- O painel a `bottom: 150px` cobria os nomes da Lupa e do Curinga e a camada dos nomes roubava o clique. Agora fica na altura do compositor, acima da camada; em palco estreito o compositor encosta à esquerda.
+- Campo "avisar em" da ferramenta apagado não voltava ao geral (o valor vazio era descartado e o antigo ficava). Agora `null` apaga o ajuste.
+- Aviso de um pedido que terminou antes da resposta ficava com os botões abertos. Agora o fim do pedido fecha o aviso como "Seguiu como estava".
+- Um pedido que pede aprovação de comando (o Curinga quis rodar `find` com `-prune`) fica parado esperando o Natan, como manda a política; não é falha da passagem.
+
+Observação real: o Claude do Natan está em ~90% do limite **semanal**, então com o "avisar em" padrão (90%) os avisos já aparecem de verdade.

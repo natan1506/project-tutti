@@ -1,0 +1,42 @@
+[
+  {
+    "step": "1 painel no canto",
+    "ok": true,
+    "detail": "linhas=4 claude=\"52%\""
+  },
+  {
+    "step": "2a tokens do Claude sobem",
+    "ok": true,
+    "detail": "9199 → 9206"
+  },
+  {
+    "step": "2b tokens do Antigravity sobem",
+    "ok": true,
+    "detail": "41914 → 48916"
+  },
+  {
+    "step": "3 contexto compartilhado",
+    "ok": true,
+    "detail": "forja=\"Azul\" radar=\"Azul\""
+  },
+  {
+    "step": "4a aviso de limite no chat",
+    "ok": true,
+    "detail": "Limite quase no fimO Claude Code está em 89% do limite semanal. Posso passar o trabalho do Forja para o Curinga?PassarContinuar"
+  },
+  {
+    "step": "4b trabalho passado",
+    "ok": false,
+    "detail": "antigo=\"■ Forja: cancelado2 passos ›\" novo=\"✓ Curinga concluiu em 51 s1 passo ›\""
+  },
+  {
+    "step": "4c ajuste voltou",
+    "ok": true,
+    "detail": "{\"alertAt\":90,\"perTool\":{\"claude\":{}}}"
+  },
+  {
+    "step": "erros no console",
+    "ok": true,
+    "detail": "nenhum"
+  }
+]
