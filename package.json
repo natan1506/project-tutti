@@ -4,9 +4,11 @@
   "description": "",
   "scripts": {
     "test": "vitest run",
+    "predev": "node scripts/dev-app-name.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "postinstall": "node scripts/dev-app-name.mjs"
   },
   "keywords": [],
   "author": "",
