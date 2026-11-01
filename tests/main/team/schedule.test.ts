@@ -1,3 +1,5 @@
+import { registerAgents } from '@shared/agents'
+import { resolveAgentDefs } from '@shared/profiles'
 import { describe, expect, it } from 'vitest'
 import type { AgentId } from '@shared/agents'
 import type { Lineup, TeamStep } from '@shared/team'
@@ -67,3 +69,17 @@ describe('normalizeAreas (I-3)', () => {
     expect(normalizeAreas(['.'], cwd)).toEqual(['*'])
   })
 })
+
+describe('papéis do perfil', () => {
+  it('quem "revisa o trabalho" no perfil entra depois de quem escreve', () => {
+    registerAgents(resolveAgentDefs({
+      id: 'sch', nome: 'S', builtin: false, defaults: { transport: { kind: 'cli', tool: 'claude' } },
+      agents: [
+        { id: 'w1', nome: 'W', prompt: '', funcao: '', readOnly: false, reviewer: false, consultable: false },
+        { id: 'r1', nome: 'R', prompt: '', funcao: '', readOnly: true, reviewer: true, consultable: true },
+      ],
+    }))
+    expect(buildWaves([{ agentId: 'w1', task: 'a', areas: ['web'] }, { agentId: 'r1', task: 'b', areas: [] }])).toEqual([[0], [1]])
+  })
+})
+

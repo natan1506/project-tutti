@@ -41,9 +41,9 @@ export function buildWaves(steps: TeamStep[]): number[][] {
       && !last.some(j => steps[j].agentId === s.agentId)
       && (writes(s)
         // Quem escreve não entra na onda em que o Lupa revisa (ele revisaria trabalho pela metade).
-        ? !last.some(j => steps[j].agentId === 'lupa' || (writes(steps[j]) && areasOverlap(steps[j].areas, s.areas)))
+        ? !last.some(j => getAgent(steps[j].agentId).reviewer || (writes(steps[j]) && areasOverlap(steps[j].areas, s.areas)))
         // Revisão só depois de quem escreveu; pesquisa pode correr junto.
-        : s.agentId !== 'lupa' || !last.some(j => writes(steps[j])))
+        : !getAgent(s.agentId).reviewer || !last.some(j => writes(steps[j])))
     if (fits) last.push(i)
     else waves.push([i])
   })

@@ -88,4 +88,15 @@ describe('buildContext', () => {
     expect(out).toContain('y'.repeat(4000) + '…')
     expect(out).not.toContain('y'.repeat(4001))
   })
+
+  it('resumo do time sai em nome do coordenador do perfil', () => {
+    const store = openStore(':memory:')
+    const conv = store.createConversation(store.upsertProject('/p').id, 't')
+    store.createRun({ id: 'pai', conversationId: conv.id, agentId: 'chefe', prompt: 'Faça', startedAt: 1, hasCheckpoint: true })
+    store.appendEvent('pai', { type: 'team_started' })
+    store.appendEvent('pai', { type: 'lineup', lineup: { summary: 'Kimi faz.', big: false, steps: [] }, waves: [], big: false })
+    store.finishRun('pai', 'done')
+    expect(collectEntries(store, conv.id).map(e => [e.kind, e.who])).toContainEqual(['time', 'chefe'])
+  })
 })
+

@@ -20,7 +20,7 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     resume: opts.resumeSessionId,
     env: safeEnv(dropEnv),
     settingSources: [], strictMcpConfig: true, plugins: [], skills: [],
-    mcpServers: opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent) } : {},
+    mcpServers: opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent, opts.consultable) } : {},
     permissionMode: 'default',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },
     canUseTool,

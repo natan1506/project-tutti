@@ -43,6 +43,9 @@ export function unregisterProfile(profileId: string): void {
 
 export const knownAgent = (id: AgentId): boolean => registry.has(id)
 
+/** Agentes de um perfil, na ordem do perfil. */
+export const agentsOfProfile = (profileId: string): AgentDef[] => [...registry.values()].filter(a => a.profileId === profileId)
+
 export function getAgent(id: AgentId): AgentDef {
   return registry.get(id) ?? {
     id, nome: 'Agente (removido)', tool: 'opencode', funcao: '', persona: '', readOnly: true,

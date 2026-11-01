@@ -7,8 +7,9 @@ import { lineupPrompt, triagePrompt } from './prompts'
 // O "cérebro" do Bússola: duas chamadas por pedido de time, saída JSON validada por esquema (spike da Fase 3B).
 
 export interface Brain {
-  triage(input: { cwd: string; prompt: string; available: AgentId[]; signal: AbortSignal }): Promise<unknown>
-  lineup(input: { cwd: string; prompt: string; triage: Triage; confirmations: Confirmation[]; available: AgentId[]; signal: AbortSignal }): Promise<unknown>
+  /** `coordinator`: quem coordena no perfil (padrão: Bússola). */
+  triage(input: { cwd: string; prompt: string; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal }): Promise<unknown>
+  lineup(input: { cwd: string; prompt: string; triage: Triage; confirmations: Confirmation[]; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal }): Promise<unknown>
 }
 
 const obj = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', additionalProperties: false, required, properties })
@@ -56,10 +57,10 @@ export class ClaudeBrain implements Brain {
   }
 
   triage(i: Parameters<Brain['triage']>[0]) {
-    return this.ask(triagePrompt(i.prompt, i.available), this.options(i.cwd, TRIAGE_SCHEMA, i.signal))
+    return this.ask(triagePrompt(i.prompt, i.available, i.coordinator), this.options(i.cwd, TRIAGE_SCHEMA, i.signal))
   }
 
   lineup(i: Parameters<Brain['lineup']>[0]) {
-    return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available), this.options(i.cwd, LINEUP_SCHEMA, i.signal))
+    return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, i.coordinator), this.options(i.cwd, LINEUP_SCHEMA, i.signal))
   }
 }

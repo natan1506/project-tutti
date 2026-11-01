@@ -17,6 +17,8 @@ export interface AdapterRunOptions {
   askUser?(q: { text: string; options?: string[] }): Promise<string | null>
   /** Pergunta ao Radar ou ao Lupa no meio do trabalho (spec §5.4); só o adaptador Claude usa. */
   askAgent?: AskAgent
+  /** Quem pode ser consultado (perfil do agente); vazio = sem ferramenta de consulta. */
+  consultable?: AgentDef[]
 }
 
 export interface AgentAdapter {

@@ -1,10 +1,11 @@
 import { app, BrowserWindow, safeStorage } from 'electron'
 import { KeyStore } from './keys/keyStore'
 import { ProfileService } from './profiles/profileService'
+import { TextBrain } from './team/textBrain'
 import { join } from 'node:path'
-import { AGENTS, type ToolKind } from '@shared/agents'
+import { agentsOfProfile, getAgent, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
-import type { Profile } from '@shared/profiles'
+import { PADRAO, type Profile } from '@shared/profiles'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
@@ -69,11 +70,17 @@ app.whenReady().then(async () => {
   // Spec custos-e-perfis §5: ferramenta passou do limite → aviso nos runs dela, com substituto sugerido.
   usage.onCross((tool, _row, window, utilization) => {
     void runs.warnLimit(tool, window, utilization, async from => {
-      const ready = await Promise.all(AGENTS.map(async a => ((await toolReady(a.tool)) ? a.id : null)))
+      const ready = await Promise.all(agentsOfProfile(getAgent(from).profileId).map(async a => ((await runs.availability(a.id)).ok ? a.id : null)))
       return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
     })
   })
-  const team = new TeamService({ runs, store, brain: new ClaudeBrain(), adapters, toolReady, emit: (runId, ev) => send(runId, ev) })
+  const claudeBrain = new ClaudeBrain()
+  const team = new TeamService({
+    runs, store, brain: claudeBrain, adapters, toolReady, emit: (runId, ev) => send(runId, ev),
+    profileOf: id => (id && profiles.get(id)) || PADRAO,
+    // Coordenador Claude por CLI usa a saída estruturada; qualquer outro responde JSON em texto.
+    brainFor: c => (c.transport.kind === 'cli' && c.tool === 'claude' ? claudeBrain : new TextBrain(adapters[c.tool], c)),
+  })
   await runs.recover()
   const win = createWindow()
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }

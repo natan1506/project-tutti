@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { describe, expect, it, vi } from 'vitest'
-import { AGENT_CALL_SHAPE, AGENT_CALL_TOOL, agentCallHandler, makeAgentCallTool } from '../../../src/main/team/agentCalls'
+import { AGENT_CALL_SHAPE, AGENT_CALL_TOOL, agentCallHandler, agentCallShape, makeAgentCallTool } from '../../../src/main/team/agentCalls'
 
 describe('perguntar_ao_time', () => {
   it('repassa agente e pergunta e devolve a resposta como texto', async () => {
@@ -19,3 +19,12 @@ describe('perguntar_ao_time', () => {
     expect(AGENT_CALL_TOOL).toBe('mcp__tutti__perguntar_ao_time')
   })
 })
+
+describe('consulta pelo perfil', () => {
+  it('só os agentes "pode ser consultado" entram na ferramenta', () => {
+    const shape = agentCallShape(['pesquisa', 'rev'])
+    expect(z.object(shape).safeParse({ agente: 'pesquisa', pergunta: 'x' }).success).toBe(true)
+    expect(z.object(shape).safeParse({ agente: 'radar', pergunta: 'x' }).success).toBe(false)
+  })
+})
+

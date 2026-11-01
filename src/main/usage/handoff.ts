@@ -1,4 +1,4 @@
-import { AGENTS, getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { agentsOfProfile, getAgent, type AgentId, type ToolKind } from '@shared/agents'
 import type { UsageSnapshot } from '@shared/usage'
 
 // Quem assume quando uma ferramenta chega no limite (spec custos-e-perfis §5).
@@ -13,7 +13,7 @@ export function pickReplacement(from: AgentId, available: AgentId[], snapshot: U
   const alerting = (t: ToolKind) => snapshot.rows.find(r => r.tool === t)?.alert ?? false
   const mine = words(src.funcao)
   const overlap = (id: AgentId) => [...words(getAgent(id).funcao)].filter(w => mine.has(w)).length
-  return AGENTS.map(a => a.id)
+  return agentsOfProfile(src.profileId).map(a => a.id)
     .filter(id => id !== from && available.includes(id))
     .filter(id => { const a = getAgent(id); return a.readOnly === src.readOnly && a.tool !== src.tool && !alerting(a.tool) && use(a.tool) < alertAt(a.tool) })
     .sort((a, b) => use(getAgent(a).tool) - use(getAgent(b).tool) || overlap(b) - overlap(a))[0]

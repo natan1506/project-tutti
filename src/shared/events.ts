@@ -39,7 +39,7 @@ export type RunEvent =
   | { type: 'queued'; position: number }
   | { type: 'agent_call'; from: AgentId; to: AgentId; question: string }
   | { type: 'agent_call_answer'; from: AgentId; to: AgentId; answer: string }
-  | { type: 'limit_warning'; id: string; tool: ToolKind; window: WindowKind; utilization: number; to?: AgentId }
+  | { type: 'limit_warning'; id: string; tool: ToolKind; window: WindowKind; utilization: number; to?: AgentId; paid?: { provider: string } }
   | { type: 'limit_resolved'; id: string; pass: boolean }
   | { type: 'handoff'; to: AgentId; newRunId: string }
   | { type: 'run_finished'; status: RunStatus }

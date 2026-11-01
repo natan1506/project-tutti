@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { AGENTS, getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { getAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
+import { PADRAO, type Profile } from '@shared/profiles'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { Confirmation, Lineup, Triage } from '@shared/team'
 import type { AgentAdapter } from '../adapters/types'
 import { isGitRepo } from '../git/git'
-import type { RunService } from '../runs/runService'
+import { effectiveModel, type RunService } from '../runs/runService'
 import type { Store } from '../store/db'
 import type { Brain } from './brain'
 import { parseConfirmation, parseLineup, parseTriage } from './parse'
@@ -14,7 +15,7 @@ import { buildWaves, isBig, normalizeAreas } from './schedule'
 // Spec §5.2–5.4: um pedido de time é um run-pai do Bússola (ponto de restauração e diff do pedido inteiro)
 // com um run-filho por passo da escalação.
 
-export interface TeamStartInput { projectPath: string; conversationId: string; prompt: string; fullRound?: boolean; forcePlan?: boolean }
+export interface TeamStartInput { projectPath: string; conversationId: string; prompt: string; fullRound?: boolean; forcePlan?: boolean; profileId?: string }
 
 interface Deps {
   runs: RunService
@@ -24,6 +25,10 @@ interface Deps {
   toolReady(tool: ToolKind): Promise<boolean>
   emit(runId: string, ev: RunEvent): void
   confirmTimeoutMs?: number
+  /** Perfil do pedido (padrão: o Padrão). */
+  profileOf?(profileId?: string): Profile
+  /** Cérebro do coordenador do perfil (padrão: `brain`). */
+  brainFor?(coordinator: AgentDef): Brain
 }
 
 export const ALLOWED_MODELS: Record<ToolKind, string[]> = {
@@ -31,7 +36,7 @@ export const ALLOWED_MODELS: Record<ToolKind, string[]> = {
 }
 /** Confirmação é uma frase: modelo barato onde há escolha. */
 const CHEAP_MODEL: Partial<Record<ToolKind, string>> = { claude: 'claude-haiku-5-5' }
-const BRAIN_FAILED = 'O Bússola não conseguiu organizar o time. Tente de novo ou fale direto com um agente.'
+const brainFailed = (coord: AgentId) => `O ${getAgent(coord).nome} não conseguiu organizar o time. Tente de novo ou fale direto com um agente.`
 
 /** Espera `p` ou o cancelamento, o que vier primeiro. */
 function untilAbort<T>(p: Promise<T>, signal: AbortSignal): Promise<T | 'abort'> {
@@ -68,10 +73,17 @@ export class TeamService {
     return this.settle(next, active, signal)
   }
 
+  private profile(id?: string): Profile {
+    return this.deps.profileOf?.(id) ?? PADRAO
+  }
+
   async start(input: TeamStartInput): Promise<string> {
-    if (!(await this.deps.toolReady('claude'))) throw new Error('TOOL_UNAVAILABLE')
+    // Spec custos-e-perfis §6: sem coordenador no perfil, não há pedido de time.
+    const coordinator = this.profile(input.profileId).coordinatorId
+    if (!coordinator) throw new Error('NO_COORDINATOR')
+    if (!(await this.deps.runs.availability(coordinator)).ok) throw new Error('TOOL_UNAVAILABLE')
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
-    const parentId = this.deps.runs.open({ projectPath: input.projectPath, conversationId: input.conversationId, agentId: 'bussola', prompt: input.prompt }, true)
+    const parentId = this.deps.runs.open({ projectPath: input.projectPath, conversationId: input.conversationId, agentId: coordinator, prompt: input.prompt }, true)
     this.say(parentId, { type: 'team_started' })
     this.finished.set(parentId, this.lifecycle(parentId, input, this.deps.runs.signalOf(parentId)!))
     return parentId
@@ -119,8 +131,9 @@ export class TeamService {
     }
   }
 
-  private async available(): Promise<AgentId[]> {
-    const ready = await Promise.all(AGENTS.map(async a => ((await this.deps.toolReady(a.tool)) && this.deps.adapters[a.tool] ? a.id : null)))
+  /** Agentes do perfil prontos agora (CLI pronta; por API, com chave). */
+  private async available(profile: Profile): Promise<AgentId[]> {
+    const ready = await Promise.all(profile.agents.map(async a => ((await this.deps.runs.availability(a.id)).ok ? a.id : null)))
     return ready.filter((x): x is AgentId => !!x)
   }
 
@@ -138,18 +151,21 @@ export class TeamService {
   }
 
   private async orchestrate(parentId: string, input: TeamStartInput, signal: AbortSignal, active: Set<string>): Promise<RunStatus> {
-    const { brain, runs, store } = this.deps
+    const { runs, store } = this.deps
     const cwd = input.projectPath
-    const available = await this.available()
+    const profile = this.profile(input.profileId)
+    const coordinator = profile.coordinatorId!
+    const brain = this.deps.brainFor?.(getAgent(coordinator)) ?? this.deps.brain
+    const available = await this.available(profile)
 
-    const triage = await this.ask<Triage>(() => brain.triage({ cwd, prompt: input.prompt, available, signal }), raw => parseTriage(raw, available), signal)
+    const triage = await this.ask<Triage>(() => brain.triage({ cwd, prompt: input.prompt, available, coordinator, signal }), raw => parseTriage(raw, available), signal)
     if (triage === 'abort') return 'cancelled'
-    if (!triage) { this.say(parentId, { type: 'error', message: BRAIN_FAILED }); return 'error' }
+    if (!triage) { this.say(parentId, { type: 'error', message: brainFailed(coordinator) }); return 'error' }
     this.say(parentId, { type: 'triage', scores: triage.scores, candidates: triage.candidates })
 
     const targets = input.fullRound ? available : triage.candidates
     const confirmations = await Promise.all(targets.map(id =>
-      this.confirm(id, input.prompt, cwd, triage.scores.find(s => s.agentId === id)?.line ?? '', signal)
+      this.confirm(id, input.prompt, cwd, triage.scores.find(s => s.agentId === id)?.line ?? '', signal, coordinator, available)
         .then(c => { if (!signal.aborted) this.say(parentId, { type: 'confirmation', confirmation: c }); return c })))
     if (signal.aborted) return 'cancelled'
     if (!confirmations.some(c => c.decision === 'assumo' || c.decision === 'assumo_com_ajuda')) {
@@ -157,13 +173,14 @@ export class TeamService {
       return 'done'
     }
 
-    const lineup = await this.ask<Lineup>(() => brain.lineup({ cwd, prompt: input.prompt, triage, confirmations, available, signal }),
+    const lineup = await this.ask<Lineup>(() => brain.lineup({ cwd, prompt: input.prompt, triage, confirmations, available, coordinator, signal }),
       raw => parseLineup(raw, available, ALLOWED_MODELS), signal)
     if (lineup === 'abort') return 'cancelled'
-    if (!lineup) { this.say(parentId, { type: 'error', message: BRAIN_FAILED }); return 'error' }
+    if (!lineup) { this.say(parentId, { type: 'error', message: brainFailed(coordinator) }); return 'error' }
     // Ondas calculadas com áreas normalizadas; o texto original das áreas segue para os agentes.
     const waves = buildWaves(lineup.steps.map(st => ({ ...st, areas: normalizeAreas(st.areas, cwd) })))
-    const big = isBig(lineup, !!input.forcePlan)
+    // Passo por API paga: o plano exige aprovação, como pedido grande (spec custos-e-perfis §6).
+    const big = isBig(lineup, !!input.forcePlan) || lineup.steps.some(st => st.paid)
     this.say(parentId, { type: 'lineup', lineup, waves, big })
 
     if (big) {
@@ -233,11 +250,12 @@ export class TeamService {
   }
 
   /** Confirmação real do candidato na própria ferramenta, em modo consulta, com prazo. */
-  private async confirm(agentId: AgentId, prompt: string, cwd: string, line: string, parent: AbortSignal): Promise<Confirmation> {
+  private async confirm(agentId: AgentId, prompt: string, cwd: string, line: string, parent: AbortSignal, coordinator: AgentId, ids: AgentId[]): Promise<Confirmation> {
     const agent = getAgent(agentId)
     const adapter = this.deps.adapters[agent.tool]
     const silent: Confirmation = { agentId, decision: 'sem_resposta', line: '' }
-    if (!adapter || !(await this.deps.toolReady(agent.tool))) return silent
+    if (!adapter || !(await this.deps.runs.availability(agentId)).ok) return silent
+    const model = effectiveModel(agent, CHEAP_MODEL[agent.tool])
     const ctl = new AbortController()
     const onParent = () => ctl.abort()
     parent.addEventListener('abort', onParent, { once: true })
@@ -245,8 +263,8 @@ export class TeamService {
     let text = ''
     try {
       for await (const ev of adapter.run({
-        agent, cwd, instructions: '', prompt: confirmPrompt(agentId, prompt, line), signal: ctl.signal, mode: 'consult',
-        ...(CHEAP_MODEL[agent.tool] ? { model: CHEAP_MODEL[agent.tool] } : {}), requestApproval: async () => false,
+        agent, cwd, instructions: '', prompt: confirmPrompt(agentId, prompt, line, coordinator, ids), signal: ctl.signal, mode: 'consult',
+        ...(model ? { model } : {}), requestApproval: async () => false,
       })) {
         if (ev.type === 'text') text += (text ? '\n' : '') + ev.text
         if (ctl.signal.aborted) break
@@ -257,6 +275,6 @@ export class TeamService {
       clearTimeout(timer)
       parent.removeEventListener('abort', onParent)
     }
-    return ctl.signal.aborted && !text ? silent : parseConfirmation(agentId, text)
+    return ctl.signal.aborted && !text ? silent : parseConfirmation(agentId, text, ids)
   }
 }

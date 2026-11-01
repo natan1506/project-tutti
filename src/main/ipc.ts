@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { isAbsolute } from 'node:path'
-import { AGENTS, type AgentId, type ToolKind } from '@shared/agents'
+import { knownAgent, type AgentId, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import type { StartRunInput, ToolStatus } from '@shared/models'
 import { initRepo, isGitRepo } from './git/git'
@@ -22,7 +22,7 @@ const text = (s: unknown): string => {
   return s
 }
 const agentId = (id: unknown): AgentId => {
-  if (!AGENTS.some(a => a.id === id)) throw new Error('Agente inválido')
+  if (typeof id !== 'string' || !knownAgent(id)) throw new Error('Agente inválido')
   return id as AgentId
 }
 /** Só números de 1 a 100 (porcentagem) e tetos positivos; o resto é ignorado. */
@@ -110,6 +110,8 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
   ipcMain.handle('startTeam', (_e, input) => team.start({
     projectPath: absolutePath(input?.projectPath), conversationId: text(input?.conversationId), prompt: text(input?.prompt),
     fullRound: input?.fullRound === true, forcePlan: input?.forcePlan === true,
+    // O perfil do pedido de time é o ativo no projeto.
+    profileId: pd.profiles.activeFor(store.upsertProject(absolutePath(input?.projectPath)).id).id,
   }))
   ipcMain.handle('respondLimit', (_e, id, pass) => runs.respondLimit(text(id), pass === true))
   ipcMain.handle('respondPlan', (_e, id, approved) => team.respondPlan(text(id), approved === true))

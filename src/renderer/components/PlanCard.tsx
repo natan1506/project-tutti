@@ -10,7 +10,10 @@ export function PlanCard({ run }: { run: RunBlock }) {
       <div className="label">{answered ? (run.plan.approved ? 'Plano aprovado' : 'Plano recusado') : 'Plano para aprovar'}</div>
       <ol>
         {run.lineup.steps.map((s, i) => (
-          <li key={i}><b>{getAgent(s.agentId).nome}</b>: {s.task}{s.areas.length ? <code> {s.areas.join(', ')}</code> : null}</li>
+          <li key={i}>
+            <b>{getAgent(s.agentId).nome}</b>: {s.task}{s.areas.length ? <code> {s.areas.join(', ')}</code> : null}
+            {s.paid && <span className="paid">API paga — {s.paid.provider}</span>}
+          </li>
         ))}
       </ol>
       {!answered && (

@@ -113,3 +113,4 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .opt-line input { width: 80px; background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 2px 6px; font: inherit; }
 /* Sem espaço para o compositor centrado e o painel de uso lado a lado: o compositor encosta à esquerda. */
 @container (max-width: 1104px) { .composer { margin-left: 16px; width: calc(100% - 268px); } }
+.paid { margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: #f5a52422; color: #f5a524; font-size: 11px; white-space: nowrap; }

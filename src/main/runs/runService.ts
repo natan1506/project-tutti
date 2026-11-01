@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { getAgent, knownAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
+import { agentsOfProfile, getAgent, knownAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
 import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { WindowKind } from '@shared/usage'
@@ -28,6 +28,13 @@ interface Deps {
 /** Assinatura do agente para retomar sessão: trocar transporte ou modelo começa sessão nova (spec custos-e-perfis §6). */
 export const agentSignature = (a: AgentDef): string =>
   `${a.transport.kind}:${a.transport.kind === 'cli' ? a.transport.tool : a.transport.provider}:${a.defaultModel ?? ''}`
+
+/** Modelo que o agente usa: por API sempre o do perfil, como `<provedor>/<modelo>`; por CLI o pedido pode escolher. */
+export const effectiveModel = (a: AgentDef, requested?: string): string | undefined =>
+  a.transport.kind === 'api' ? `${a.transport.provider}/${a.defaultModel ?? ''}` : requested
+
+/** Quem o agente pode consultar no meio do trabalho: os "pode ser consultado" do mesmo perfil, menos ele mesmo. */
+export const consultableFor = (a: AgentDef): AgentDef[] => agentsOfProfile(a.profileId).filter(x => x.consultable && x.id !== a.id)
 
 /** Só erros que falam de sessão/conversa inexistente justificam recomeçar sem contexto (limite e rede não). */
 const looksLikeStaleSession = (msg: string) => /session|conversation|thread|not found|no such|unknown id|404/i.test(msg)
@@ -103,7 +110,7 @@ export class RunService {
   /** O agente pode trabalhar agora? CLI: ferramenta instalada e logada. API: opencode pronto e chave do provedor salva. */
   async availability(agentId: AgentId): Promise<{ ok: true } | { ok: false; hint: string }> {
     const agent = getAgent(agentId)
-    if (!knownAgent(agentId)) return { ok: false, hint: 'Agente removido' }
+    if (!knownAgent(agentId) || agent.profileId.startsWith('removido:')) return { ok: false, hint: 'Agente removido' }
     if (!this.deps.adapters[agent.tool] || !(await (this.deps.toolReady?.(agent.tool) ?? true))) return { ok: false, hint: 'Ferramenta indisponível' }
     if (agent.transport.kind === 'api' && !(this.deps.keyReady?.(agent.transport.provider) ?? true)) {
       return { ok: false, hint: `Sem chave da ${providerName(agent.transport.provider)}` }
@@ -244,7 +251,10 @@ export class RunService {
       if (!this.executing.has(runId) || this.delivered.has(runId)) continue
       const id = randomUUID()
       this.warnings.set(id, { runId, ...(to ? { to } : {}) })
-      this.record(runId, { type: 'limit_warning', id, tool, window, utilization, ...(to ? { to } : {}) })
+      // Destino por API paga: o aviso diz isso antes do [Passar] (spec custos-e-perfis §10).
+      const target = to ? getAgent(to) : undefined
+      const paid = target?.transport.kind === 'api' ? { provider: providerName(target.transport.provider) } : undefined
+      this.record(runId, { type: 'limit_warning', id, tool, window, utilization, ...(to ? { to } : {}), ...(paid ? { paid } : {}) })
     }
   }
 
@@ -291,6 +301,8 @@ export class RunService {
   private askAgent(runId: string, from: StartRunInput['agentId'], cwd: string, signal: AbortSignal): NonNullable<AdapterRunOptions['askAgent']> {
     return async (to, question) => {
       const agent = getAgent(to)
+      // Só quem o perfil marca como "pode ser consultado" (o modelo pode inventar um id).
+      if (!consultableFor(getAgent(from)).some(a => a.id === to)) return `Não há ninguém com o id ${to} para consultar.`
       this.record(runId, { type: 'agent_call', from, to, question })
       const adapter = this.deps.adapters[agent.tool]
       let answer: string
@@ -329,7 +341,8 @@ export class RunService {
       // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
       let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id, agentSignature(agent)) ?? undefined
       // Agente por API usa sempre o modelo do perfil (o modelo escolhido no pedido é da lista das CLIs).
-      const model = agent.transport.kind === 'api' ? `${agent.transport.provider}/${agent.defaultModel ?? ''}` : input.model
+      const model = effectiveModel(agent, input.model)
+      const consultable = consultableFor(agent)
       // Contexto compartilhado: o que o Natan e os outros já disseram nesta conversa (consulta não recebe, por economia).
       const shared = (resumed: boolean) => {
         if (input.mode === 'consult') return ''
@@ -345,7 +358,7 @@ export class RunService {
           agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
-          ...(input.mode !== 'consult' ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal) } : {}),
+          ...(input.mode !== 'consult' && consultable.length ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal), consultable } : {}),
         })
         try {
           for await (let ev of events) {

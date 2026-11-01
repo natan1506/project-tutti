@@ -6,7 +6,7 @@ import type { Confirmation, Lineup, TriageScore } from '@shared/team'
 export type AgentStatus = 'disponivel' | 'trabalhando' | 'esperando' | 'concluido'
 
 export interface Approval { id: string; toolName: string; summary: string; allowed?: boolean }
-export interface LimitWarning { id: string; tool: import('@shared/agents').ToolKind; window: import('@shared/usage').WindowKind; utilization: number; to?: AgentId; pass?: boolean }
+export interface LimitWarning { id: string; tool: import('@shared/agents').ToolKind; window: import('@shared/usage').WindowKind; utilization: number; to?: AgentId; paid?: { provider: string }; pass?: boolean }
 export interface AgentCall { to: AgentId; question: string; answer?: string }
 export interface Question { id: string; text: string; options?: string[]; answer?: string | null }
 export interface RunBlock {
@@ -73,7 +73,7 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'notice': return set({ notices: [...run.notices, ev.text] })
     case 'queued': return set({ queued: ev.position > 0 ? ev.position : undefined })
     case 'limit_warning':
-      return set({ limitWarnings: [...run.limitWarnings, { id: ev.id, tool: ev.tool, window: ev.window, utilization: ev.utilization, ...(ev.to ? { to: ev.to } : {}) }] }, 'esperando')
+      return set({ limitWarnings: [...run.limitWarnings, { id: ev.id, tool: ev.tool, window: ev.window, utilization: ev.utilization, ...(ev.to ? { to: ev.to } : {}), ...(ev.paid ? { paid: ev.paid } : {}) }] }, 'esperando')
     case 'limit_resolved':
       return set({ limitWarnings: run.limitWarnings.map(w => (w.id === ev.id ? { ...w, pass: ev.pass } : w)) }, 'trabalhando')
     case 'handoff': return set({ handoff: { to: ev.to, newRunId: ev.newRunId } })

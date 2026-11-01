@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { AgentId, ToolKind } from '@shared/agents'
+import { registerAgents, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
+import { resolveAgentDefs, type Profile } from '@shared/profiles'
 import type { AgentEvent, RunEvent } from '@shared/events'
 import type { AdapterRunOptions, AgentAdapter } from '../../../src/main/adapters/types'
 import { runGit } from '../../../src/main/git/git'
@@ -56,6 +57,7 @@ function fakeBrain(triages: unknown[], lineups: unknown[] = [LINEUP]): Brain & {
 
 async function setup(opts: {
   brain?: Brain; confirm?: (id: AgentId) => string | null; work?: Behaviour; ready?: (t: ToolKind) => boolean; confirmTimeoutMs?: number
+  profile?: Profile; brainFor?: (coord: AgentDef) => Brain
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'team-'))
   await runGit(dir, ['init', '-q'])
@@ -78,9 +80,13 @@ async function setup(opts: {
   const toolReady = async (t: ToolKind) => opts.ready?.(t) ?? true
   const runs = new RunService({ store, adapters, emit, homeDir: mkdtempSync(join(tmpdir(), 'h-')), toolReady })
   const brain = opts.brain ?? fakeBrain([TRIAGE])
-  const team = new TeamService({ runs, store, brain, adapters, toolReady, emit, confirmTimeoutMs: opts.confirmTimeoutMs ?? 2000 })
+  if (opts.profile) registerAgents(resolveAgentDefs(opts.profile))
+  const team = new TeamService({
+    runs, store, brain, adapters, toolReady, emit, confirmTimeoutMs: opts.confirmTimeoutMs ?? 2000,
+    ...(opts.profile ? { profileOf: () => opts.profile! } : {}), ...(opts.brainFor ? { brainFor: opts.brainFor } : {}),
+  })
   const start = (o: Partial<{ fullRound: boolean; forcePlan: boolean; prompt: string }> = {}) =>
-    team.start({ projectPath: dir, conversationId: conv.id, prompt: o.prompt ?? 'Crie /health e a página de status', ...o })
+    team.start({ projectPath: dir, conversationId: conv.id, prompt: o.prompt ?? 'Crie /health e a página de status', ...(opts.profile ? { profileId: opts.profile.id } : {}), ...o })
   const parentEvents = (id: string) => emitted.filter(e => e.runId === id).map(e => e.ev)
   return { dir, store, conv, emitted, fake, runs, team, start, parentEvents, working, brain }
 }
@@ -328,5 +334,49 @@ describe('TeamService', () => {
     expect(t.store.listChildren(id).map(c => [c.agentId, c.status])).toEqual([['forja', 'cancelled'], ['curinga', 'done']])
     expect(t.parentEvents(id).at(-1)).toEqual({ type: 'run_finished', status: 'done' })
     expect(t.parentEvents(id).find(e => e.type === 'diff')).toMatchObject({ files: [{ path: 'server/x.js' }] })
+  })
+
+  describe('perfil próprio', () => {
+    const DUO: Profile = {
+      id: 'duo', nome: 'Duo', builtin: false, coordinatorId: 'chefe', defaults: { transport: { kind: 'cli', tool: 'claude' } },
+      agents: [
+        { id: 'chefe', nome: 'Chefe', prompt: 'Coordena.', funcao: 'Coordena', readOnly: false, reviewer: false, consultable: false },
+        { id: 'kimi', nome: 'Kimi', prompt: 'Escreve.', funcao: 'Back-end', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'api', provider: 'openrouter' }, model: 'moonshotai/kimi-k3.1-pro' },
+      ],
+    }
+    const T2 = { scores: [{ agentId: 'kimi', score: 90, line: 'Comigo.' }, { agentId: 'chefe', score: 20, line: '' }], candidates: ['kimi'], big: false }
+    const L2 = { summary: 'Kimi faz.', big: false, steps: [{ agentId: 'kimi', task: 'Criar web/a.html', areas: ['web'], model: 'opencode/big-pickle' }] }
+
+    it('sem coordenador: Time recusado', async () => {
+      const semCoord: Profile = { ...DUO, id: 'solo', coordinatorId: undefined, agents: DUO.agents.map(a => ({ ...a, id: `${a.id}2` })) }
+      const t = await setup({ profile: semCoord })
+      await expect(t.start()).rejects.toThrow('NO_COORDINATOR')
+    })
+
+    it('pai do time é o coordenador do perfil e o cérebro vem dele', async () => {
+      const seen: string[] = []
+      const brain = fakeBrain([T2], [L2])
+      const t = await setup({ profile: DUO, brainFor: c => { seen.push(c.id); return brain } })
+      const id = await t.start()
+      await waitFor(() => t.parentEvents(id).some(e => e.type === 'plan_request' || e.type === 'run_finished'))
+      expect(t.store.getRun(id)?.agentId).toBe('chefe')
+      expect(seen).toEqual(['chefe'])
+      t.team.cancel(id)
+      await t.team.whenFinished(id)
+    })
+
+    it('escalação com agente por API paga exige aprovação e marca o passo; recusar não roda nada', async () => {
+      const t = await setup({ profile: DUO, brainFor: () => fakeBrain([T2], [L2]) })
+      const id = await t.start()
+      await waitFor(() => t.parentEvents(id).some(e => e.type === 'plan_request'))
+      const lineup = t.parentEvents(id).find(e => e.type === 'lineup') as Extract<RunEvent, { type: 'lineup' }>
+      expect(lineup.big).toBe(true)
+      expect(lineup.lineup.steps[0]).toMatchObject({ agentId: 'kimi', paid: { provider: 'OpenRouter' } })
+      expect(lineup.lineup.steps[0].model).toBeUndefined()
+      const req = t.parentEvents(id).find(e => e.type === 'plan_request') as Extract<RunEvent, { type: 'plan_request' }>
+      t.team.respondPlan(req.id, false)
+      await t.team.whenFinished(id)
+      expect(t.store.listChildren(id)).toEqual([])
+    })
   })
 })

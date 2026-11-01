@@ -27,7 +27,7 @@ export function collectEntries(store: Store, conversationId: string, excludeRunI
       const diff = evs.filter(e => e.type === 'diff').at(-1)
       const summary = lineup?.type === 'lineup' ? lineup.lineup.summary : ''
       const files = diff?.type === 'diff' && diff.files.length ? `Arquivos alterados: ${diff.files.map(f => f.path).join(', ')}` : ''
-      push('bussola', 'time', [summary, files].filter(Boolean).join('\n'))
+      push(run.agentId, 'time', [summary, files].filter(Boolean).join('\n'))
       continue
     }
     push(run.agentId, 'resposta', evs.flatMap(e => (e.type === 'text' ? [e.text] : [])).join('\n\n'))

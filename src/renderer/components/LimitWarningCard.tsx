@@ -13,7 +13,9 @@ export function LimitWarningCard({ warning, agentName }: { warning: LimitWarning
       <div className="label">{answered ? (warning.pass ? 'Trabalho passado' : 'Seguiu como estava') : 'Limite quase no fim'}</div>
       <div className="q">
         {head}{' '}
-        {warning.to ? `Posso passar o trabalho do ${agentName} para o ${getAgent(warning.to).nome}?` : 'Nenhum outro agente tem folga agora.'}
+        {warning.to
+          ? `Posso passar o trabalho do ${agentName} para o ${getAgent(warning.to).nome}${warning.paid ? ` (API paga — ${warning.paid.provider})` : ''}?`
+          : 'Nenhum outro agente tem folga agora.'}
       </div>
       {!answered && (
         <div className="row">

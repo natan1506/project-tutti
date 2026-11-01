@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { registerAgents } from '@shared/agents'
+import { getAgent, registerAgents } from '@shared/agents'
 import { resolveAgentDefs, type Profile, type ProviderId } from '@shared/profiles'
 import { describe, expect, it } from 'vitest'
 import type { ToolKind } from '@shared/agents'
@@ -536,4 +536,25 @@ describe('RunService', () => {
       expect(emitted).toContainEqual({ type: 'usage', tool: 'api', tokens })
     })
   })
+
+  it('substituto pago aparece marcado no aviso', async () => {
+    registerAgents(resolveAgentDefs({ id: 'tp2', nome: 'T', builtin: false, defaults: { transport: { kind: 'api', provider: 'openrouter' }, model: 'moonshotai/kimi-k3.1-pro' },
+      agents: [{ id: 'kimi2', nome: 'Kimi', prompt: 'x', funcao: 'x', readOnly: false, reviewer: false, consultable: false }] }))
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    await svc.warnLimit('claude', 'five_hour', 95, async () => 'kimi2')
+    expect(emitted.find(e => e.type === 'limit_warning')).toMatchObject({ to: 'kimi2', paid: { provider: 'OpenRouter' } })
+    release()
+    await svc.whenFinished(id)
+  })
+
+  it('agente de perfil apagado não recebe pedido', async () => {
+    registerAgents([{ ...getAgent('forja'), id: 'velho', nome: 'Velho (removido)', profileId: 'removido:p9' }])
+    const { svc } = await setup(async function* () { yield { type: 'done' } })
+    expect(await svc.availability('velho')).toEqual({ ok: false, hint: 'Agente removido' })
+  })
 })
+

@@ -1,4 +1,5 @@
 import { AGENTS, getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { providerName } from '@shared/profiles'
 import type { Confirmation, Decision, Lineup, TeamStep, Triage, TriageScore } from '@shared/team'
 
 // Tudo que vem de modelo passa por aqui antes de virar decisão: nada inventado chega ao orquestrador.
@@ -40,14 +41,14 @@ export function parseTriage(raw: unknown, available: AgentId[]): Triage | null {
     given.set(o.agentId, { agentId: o.agentId, score: Math.round(Math.min(100, Math.max(0, o.score))), line: line(o.line) })
   }
   if (!given.size) return null
-  const scores = AGENTS.filter(a => available.includes(a.id)).map(a => given.get(a.id) ?? { agentId: a.id, score: 0, line: '' })
+  const scores = available.map(id => given.get(id) ?? { agentId: id, score: 0, line: '' })
   let candidates = [...new Set((Array.isArray(r.candidates) ? r.candidates : []).filter((c): c is AgentId => isAgent(c, available)))].slice(0, 3)
   if (!candidates.length) candidates = [...scores].sort((a, b) => b.score - a.score).filter(s => s.score >= 40).slice(0, 2).map(s => s.agentId)
   return { scores, candidates, big: r.big === true }
 }
 
-export function parseConfirmation(agentId: AgentId, text: string): Confirmation {
-  const all = AGENTS.map(a => a.id)
+export function parseConfirmation(agentId: AgentId, text: string, ids: AgentId[] = AGENTS.map(a => a.id)): Confirmation {
+  const all = ids
   const j = record(extractJson(text))
   if (j && 'decision' in j) {
     const decision = DECISIONS.includes(j.decision as Decision) ? (j.decision as Decision) : 'sem_resposta'
@@ -73,8 +74,11 @@ export function parseLineup(raw: unknown, available: AgentId[], allowedModels: R
     const o = record(s)
     if (!o || !isAgent(o.agentId, available) || typeof o.task !== 'string' || !o.task.trim()) continue
     const areas = [...new Set((Array.isArray(o.areas) ? o.areas : []).filter((a): a is string => typeof a === 'string').map(normArea).filter(Boolean))]
-    const model = typeof o.model === 'string' && allowedModels[getAgent(o.agentId).tool].includes(o.model) ? o.model : undefined
-    steps.push({ agentId: o.agentId, task: o.task.trim(), ...(model ? { model } : {}), areas })
+    const agent = getAgent(o.agentId)
+    // Agente por API usa o modelo do perfil; o passo só marca que é pago.
+    const paid = agent.transport.kind === 'api' ? { provider: providerName(agent.transport.provider) } : undefined
+    const model = !paid && typeof o.model === 'string' && allowedModels[agent.tool].includes(o.model) ? o.model : undefined
+    steps.push({ agentId: o.agentId, task: o.task.trim(), ...(model ? { model } : {}), areas, ...(paid ? { paid } : {}) })
   }
   if (!steps.length) return null
   return { steps, big: r.big === true, summary: typeof r.summary === 'string' ? r.summary.trim() : '' }

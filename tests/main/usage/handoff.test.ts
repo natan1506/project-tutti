@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentId, ToolKind } from '@shared/agents'
 import type { ToolUsageRow, UsageSnapshot } from '@shared/usage'
+import { registerAgents } from '@shared/agents'
+import { resolveAgentDefs } from '@shared/profiles'
 import { pickReplacement } from '../../../src/main/usage/handoff'
 
 const ALL: AgentId[] = ['bussola', 'forja', 'pincel', 'radar', 'lupa', 'curinga']
@@ -32,4 +34,13 @@ describe('pickReplacement', () => {
   it('entre vários com folga, a ferramenta menos usada vence', () => {
     expect(pickReplacement('radar', ['radar', 'lupa'], snap({ gemini: 95, codex: 80 }), at90)).toBe('lupa')
   })
+
+  it('substituto vem do mesmo perfil de quem parou', () => {
+    registerAgents(resolveAgentDefs({ id: 'hp', nome: 'H', builtin: false, defaults: { transport: { kind: 'cli', tool: 'claude' } }, agents: [
+      { id: 'h1', nome: 'H1', prompt: '', funcao: 'Back-end', readOnly: false, reviewer: false, consultable: false },
+      { id: 'h2', nome: 'H2', prompt: '', funcao: 'Back-end', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'cli', tool: 'opencode' } },
+    ] }))
+    expect(pickReplacement('h1', [...ALL, 'h1', 'h2'], snap({ claude: 95 }), at90)).toBe('h2')
+  })
 })
+
