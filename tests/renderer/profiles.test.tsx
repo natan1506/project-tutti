@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import ReactThreeTestRenderer from '@react-three/test-renderer'
-import { act, fireEvent, render } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAgent } from '@shared/agents'
 import { PADRAO, type Profile } from '@shared/profiles'
 import { Composer } from '../../src/renderer/components/Composer'
@@ -11,6 +11,8 @@ import { useRunStore } from '../../src/renderer/state/runStore'
 import { agentColor, shadeColor } from '../../src/renderer/stage/colors'
 import { MascotBody } from '../../src/renderer/stage/mascots'
 import { motionFrame } from '../../src/renderer/stage/motion'
+
+afterEach(cleanup)
 
 const DUO: Profile = {
   id: 'duo', nome: 'Duo', builtin: false, defaults: { transport: { kind: 'cli', tool: 'claude' } },

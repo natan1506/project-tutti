@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { ChatPanel } from './components/ChatPanel'
 import { Composer } from './components/Composer'
 import { ProfilePicker } from './components/ProfilePicker'
+import { ProfilesScreen } from './components/ProfilesScreen'
 import { ProjectPicker } from './components/ProjectPicker'
 import { useProfileStore } from './state/profileStore'
 import { Stage } from './stage/Stage'
@@ -16,7 +17,7 @@ export function App() {
   useEffect(() => window.time.onRunEvent(receive), [receive])
   useEffect(() => startToolRefresh(loadTools), [loadTools])
   const project = useRunStore(s => s.project)
-  const { active, load, setProfiles } = useProfileStore()
+  const { active, load, setProfiles, configOpen } = useProfileStore()
   // Perfil do projeto: carrega ao abrir o projeto e acompanha mudanças feitas na tela de perfis.
   useEffect(() => { if (project) void load(project.id) }, [project, load])
   useEffect(() => window.time.onProfiles(ps => { setProfiles(ps); if (project) void load(project.id) }), [project, load, setProfiles])
@@ -38,6 +39,7 @@ export function App() {
         <Composer />
       </main>
       <ChatPanel />
+      {configOpen && <ProfilesScreen />}
     </div>
   )
 }

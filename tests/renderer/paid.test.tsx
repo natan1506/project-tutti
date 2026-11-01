@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { registerAgents } from '@shared/agents'
 import { resolveAgentDefs } from '@shared/profiles'
 import { LimitWarningCard } from '../../src/renderer/components/LimitWarningCard'
 import { PlanCard } from '../../src/renderer/components/PlanCard'
 import type { RunBlock } from '../../src/renderer/state/chat'
+
+afterEach(cleanup)
 
 registerAgents(resolveAgentDefs({ id: 'pp', nome: 'P', builtin: false, defaults: { transport: { kind: 'api', provider: 'openrouter' }, model: 'moonshotai/kimi-k3.1-pro' },
   agents: [{ id: 'kimi', nome: 'Kimi', prompt: 'x', funcao: 'x', readOnly: false, reviewer: false, consultable: false }] }))
