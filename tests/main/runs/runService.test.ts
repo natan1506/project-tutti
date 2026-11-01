@@ -166,7 +166,7 @@ describe('RunService', () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
     const order: string[] = []
-    const { svc, start, emitted } = await setup(async function* (o) { order.push(o.prompt); if (o.prompt === 'um') await gate; yield { type: 'done' } })
+    const { svc, start, emitted } = await setup(async function* (o) { const p = o.prompt.split('\n').at(-1)!; order.push(p); if (p === 'um') await gate; yield { type: 'done' } })
     const first = await start('um')
     const second = await start('dois')
     await waitFor(() => emitted.some(e => e.type === 'queued') && order.length === 1)
