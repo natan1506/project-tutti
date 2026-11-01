@@ -1,53 +1,51 @@
-export type AgentId = 'bussola' | 'forja' | 'pincel' | 'radar' | 'lupa' | 'curinga'
+import { PADRAO, resolveAgentDefs, type Family, type Transport } from './profiles'
+
+/** Id de agente de qualquer perfil; os do Padrão continuam 'bussola', 'forja'… (histórico antigo segue valendo). */
+export type AgentId = string
 export type ToolKind = 'claude' | 'codex' | 'gemini' | 'opencode'
 
 export interface AgentDef {
   id: AgentId
   nome: string
+  /** Ferramenta que roda o agente: a do CLI, ou 'opencode' para agentes por API. */
   tool: ToolKind
   funcao: string
   persona: string
   defaultModel?: string
   readOnly: boolean
+  transport: Transport
+  family: Family
+  /** Ordem do agente dentro da família no perfil (0, 1, 2…), para variar o tom da cor. */
+  shade: number
+  profileId: string
+  reviewer: boolean
+  consultable: boolean
+  coordinator: boolean
 }
 
-const PT = 'Responda sempre em português do Brasil.'
+/** Agentes do perfil Padrão (o time de sempre). */
+export const AGENTS: readonly AgentDef[] = resolveAgentDefs(PADRAO)
 
-export const AGENTS: readonly AgentDef[] = [
-  {
-    id: 'bussola', nome: 'Bússola', tool: 'claude', readOnly: false, defaultModel: 'claude-opus-5-5',
-    funcao: 'Coordena: triagem, escalação, escolha de modelo, plano, notas, consolidação de lições',
-    persona: `Você é o Bússola, coordenador de um time de agentes de programação. Você planeja, quebra tarefas e decide quem faz o quê. ${PT}`,
-  },
-  {
-    id: 'forja', nome: 'Forja', tool: 'claude', readOnly: false, defaultModel: 'claude-sonnet-5-5',
-    funcao: 'Back-end, APIs, banco, testes',
-    persona: `Você é o Forja, especialista em back-end: APIs, banco de dados e testes. Você é direto e entrega código testado, sem firula. ${PT}`,
-  },
-  {
-    id: 'pincel', nome: 'Pincel', tool: 'claude', readOnly: false, defaultModel: 'claude-sonnet-5-5',
-    funcao: 'Front-end, UI, acessibilidade',
-    persona: `Você é o Pincel, especialista em front-end: interface, responsividade e acessibilidade. Você cuida dos detalhes visuais. ${PT}`,
-  },
-  {
-    id: 'radar', nome: 'Radar', tool: 'gemini', readOnly: true,
-    funcao: 'Pesquisa (docs oficiais, referências)',
-    persona: `Você é o Radar, pesquisador do time. Você busca documentação oficial e referências confiáveis e cita as fontes. Você só lê e pesquisa: nunca crie ou altere arquivos e nunca rode comandos; responda direto no texto, sem montar plano de implementação. Se faltar informação, assuma o mais sensato e diga qual suposição fez. ${PT}`,
-  },
-  {
-    id: 'lupa', nome: 'Lupa', tool: 'codex', readOnly: true,
-    funcao: 'Code review',
-    persona: `Você é o Lupa, revisor de código do time. Você só lê, nunca altera arquivos. Aponte problemas reais com arquivo e linha, sem implicância. Se faltar informação, assuma o mais sensato e diga qual suposição fez. ${PT}`,
-  },
-  {
-    id: 'curinga', nome: 'Curinga', tool: 'opencode', readOnly: false, defaultModel: 'opencode/big-pickle',
-    funcao: 'Tarefas gerais / modelos alternativos',
-    persona: `Você é o Curinga, generalista do time, pronto para qualquer tarefa. Se faltar informação, assuma o mais sensato e diga qual suposição fez. ${PT}`,
-  },
-]
+// Registro de todos os agentes conhecidos (de todos os perfis), para conversas de qualquer perfil abrirem.
+const registry = new Map<AgentId, AgentDef>(AGENTS.map(a => [a.id, a]))
+
+/** Troca os agentes de um perfil pelos novos (os outros perfis ficam como estão). */
+export function registerAgents(defs: AgentDef[]): void {
+  const profiles = new Set(defs.map(d => d.profileId))
+  for (const [id, d] of registry) if (profiles.has(d.profileId)) registry.delete(id)
+  for (const d of defs) registry.set(d.id, d)
+}
+
+/** Tira todos os agentes de um perfil do registro. */
+export function unregisterProfile(profileId: string): void {
+  for (const [id, d] of registry) if (d.profileId === profileId) registry.delete(id)
+}
+
+export const knownAgent = (id: AgentId): boolean => registry.has(id)
 
 export function getAgent(id: AgentId): AgentDef {
-  const a = AGENTS.find(x => x.id === id)
-  if (!a) throw new Error(`Agente desconhecido: ${id}`)
-  return a
+  return registry.get(id) ?? {
+    id, nome: 'Agente (removido)', tool: 'opencode', funcao: '', persona: '', readOnly: true,
+    transport: { kind: 'cli', tool: 'opencode' }, family: 'other', shade: 0, profileId: '', reviewer: false, consultable: false, coordinator: false,
+  }
 }
