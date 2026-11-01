@@ -354,4 +354,28 @@ describe('RunService', () => {
     expect(store.tokensSince('claude', 0).input).toBe(3)
     expect(store.latestLimits()).toEqual([{ tool: 'claude', window: 'five_hour', utilization: 40, at: 1 }])
   })
+  it('contexto compartilhado: outro agente na mesma conversa recebe o que o primeiro disse; conversa nova não', async () => {
+    const { fake, svc, store, conv, dir } = await setup(async function* (o) { yield { type: 'text', text: `resposta do ${o.agent.id}` }; yield { type: 'done', sessionId: `s-${o.agent.id}` } })
+    await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt: 'Qual cor?' }))
+    await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'pincel', prompt: 'Concorda?' }))
+    const second = fake.calls[1].prompt
+    expect(second).toContain('Qual cor?')
+    expect(second).toContain('resposta do forja')
+    expect(second.endsWith('Concorda?')).toBe(true)
+    const nova = store.createConversation(store.upsertProject(dir).id, 'n')
+    await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: nova.id, agentId: 'pincel', prompt: 'Oi' }))
+    expect(fake.calls[2].prompt).toBe('Oi')
+  })
+
+  it('agente que retoma a sessão recebe só o que é novo', async () => {
+    const { fake, svc, conv, dir } = await setup(async function* (o) { yield { type: 'text', text: `resp ${o.prompt.slice(-4)}` }; yield { type: 'done', sessionId: `s-${o.agent.id}` } })
+    const go = async (agentId: 'forja' | 'pincel', prompt: string) => svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId, prompt }))
+    await go('forja', 'pedido AAAA')
+    await go('pincel', 'pedido BBBB')
+    await go('forja', 'pedido CCCC')
+    const third = fake.calls[2]
+    expect(third.resumeSessionId).toBe('s-forja')
+    expect(third.prompt).toContain('pedido BBBB')
+    expect(third.prompt).not.toContain('pedido AAAA')
+  })
 })

@@ -5,6 +5,7 @@ import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
 import { isGitRepo, runGit } from '../git/git'
+import { buildContext, collectEntries } from '../context/conversationContext'
 import { loadInstructions } from '../instructions/loadInstructions'
 import type { Store } from '../store/db'
 import { ProjectQueue } from './projectQueue'
@@ -243,11 +244,19 @@ export class RunService {
       const agent = getAgent(input.agentId)
       // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
       let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id) ?? undefined
+      // Contexto compartilhado: o que o Natan e os outros já disseram nesta conversa (consulta não recebe, por economia).
+      const shared = (resumed: boolean) => {
+        if (input.mode === 'consult') return ''
+        const entries = collectEntries(this.deps.store, input.conversationId, runId)
+        const lastOwn = resumed ? entries.filter(e => e.who === agent.id).at(-1)?.at : undefined
+        return buildContext(entries, { forAgent: agent.id, ...(lastOwn !== undefined ? { sinceAt: lastOwn } : {}) })
+      }
       for (;;) {
+        const prefix = shared(!!resume)
         let started = false
         let staleSession = false
         const events = adapter.run({
-          agent, prompt: input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
+          agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(input.model ? { model: input.model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
           ...(input.mode !== 'consult' ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal) } : {}),
