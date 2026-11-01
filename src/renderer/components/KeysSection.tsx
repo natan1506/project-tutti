@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { PROVIDERS, type ProviderId } from '@shared/profiles'
 
 /** Chaves de API por provedor (spec custos-e-perfis §8): a interface só sabe se existe; o valor nunca volta do app. */
-export function KeysSection() {
+/** `onChange`: chave salva ou removida (a disponibilidade dos agentes por API muda). */
+export function KeysSection({ onChange }: { onChange?(): void } = {}) {
   const [has, setHas] = useState<Partial<Record<ProviderId, boolean>>>({})
   const [draft, setDraft] = useState<Partial<Record<ProviderId, string>>>({})
   const [error, setError] = useState<string>()
@@ -17,6 +18,7 @@ export function KeysSection() {
       await window.time.setProviderKey(id, key)
       setDraft(d => ({ ...d, [id]: '' }))
       await reload()
+      onChange?.()
     } catch (e) {
       setError(/KEYCHAIN_UNAVAILABLE/.test(String(e)) ? 'O Keychain do macOS não está disponível; a chave não foi salva.' : 'Não consegui salvar a chave.')
     }
@@ -25,6 +27,7 @@ export function KeysSection() {
   async function remove(id: ProviderId) {
     await window.time.removeProviderKey(id)
     await reload()
+    onChange?.()
   }
 
   return (

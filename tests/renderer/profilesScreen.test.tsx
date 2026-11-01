@@ -79,6 +79,16 @@ describe('chaves', () => {
     expect(row.queryByLabelText('Chave da OpenRouter')).toBeNull()
     expect(r.getByLabelText('Chave da OpenAI')).toBeTruthy()
   })
+  it('salvar ou remover chave avisa quem precisa recarregar a disponibilidade', async () => {
+    const changed = vi.fn()
+    const r = render(<KeysSection onChange={changed} />)
+    await act(async () => {})
+    const input = r.getByLabelText('Chave da OpenAI') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'sk-teste' } })
+    await act(async () => { fireEvent.click(within(input.closest('.key-row') as HTMLElement).getByText('Salvar')) })
+    await act(async () => { fireEvent.click(within(r.getByText('OpenRouter').closest('.key-row') as HTMLElement).getByText('Remover')) })
+    expect(changed).toHaveBeenCalledTimes(2)
+  })
   it('salvar chave chama o app e limpa o campo', async () => {
     const r = render(<KeysSection />)
     await act(async () => {})

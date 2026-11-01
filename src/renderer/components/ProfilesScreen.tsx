@@ -108,7 +108,7 @@ export function ProfilesScreen() {
             )}
           </section>
         </div>
-        <KeysSection />
+        <KeysSection onChange={() => { if (project) void load(project.id) }} />
       </div>
     </div>
   )
