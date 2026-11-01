@@ -1,4 +1,5 @@
-import type { AgentId } from '@shared/agents'
+import { getAgent, type AgentId } from '@shared/agents'
+import { agentColor } from '../colors'
 import { Clawd } from './Clawd'
 import { CodexCloud } from './CodexCloud'
 import { GeminiStar } from './GeminiStar'
@@ -7,14 +8,13 @@ import type { BodyProps } from './types'
 
 export type { BodyProps } from './types'
 
-/** Mascote = identidade da ferramenta do agente; a função muda cor e acessório (spec §4). */
+/** Mascote = família do modelo do agente (spec custos-e-perfis §6); no Claude, coordenador tem bracinhos e a cor varia por tom. */
 export function MascotBody({ agentId, ...p }: BodyProps & { agentId: AgentId }) {
-  switch (agentId) {
-    case 'bussola': return <Clawd {...p} color="#d97757" variant="arms" />
-    case 'forja': return <Clawd {...p} color="#c9643f" variant="ears" />
-    case 'pincel': return <Clawd {...p} color="#e2b56f" variant="ears" />
-    case 'radar': return <GeminiStar {...p} />
-    case 'lupa': return <CodexCloud {...p} />
-    case 'curinga': return <OpencodeBlock {...p} />
+  const a = getAgent(agentId)
+  switch (a.family) {
+    case 'claude': return <Clawd {...p} color={agentColor(a)} variant={a.coordinator ? 'arms' : 'ears'} />
+    case 'gemini': return <GeminiStar {...p} />
+    case 'gpt': return <CodexCloud {...p} />
+    default: return <OpencodeBlock {...p} />
   }
 }

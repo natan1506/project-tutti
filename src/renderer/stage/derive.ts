@@ -1,4 +1,4 @@
-import { AGENTS, getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { AGENTS, getAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
 import type { ToolStatus } from '@shared/models'
 import type { ChatState, RunBlock } from '../state/chat'
 
@@ -51,19 +51,25 @@ function teamView(team: RunBlock, id: AgentId): MascotView | undefined {
     const line = team.triage.scores.find(s => s.agentId === id)?.line
     return { pose: 'idle', label: 'Disponível', ...(line ? { bubble: bubbleText(line), bubbleKind: 'text' as const } : {}) }
   }
-  if (id === 'bussola' && team.plan && team.plan.approved === undefined) {
+  if (id === team.agentId && team.plan && team.plan.approved === undefined) {
     return { pose: 'waiting', label: 'Esperando você', bubble: 'Aprova o plano?', bubbleKind: 'alert' }
   }
   return undefined
 }
 
 /** `tools` ausente = ainda carregando: ninguém fica travado. */
-export function deriveStage(chat: ChatState, now: number, tools?: Record<ToolKind, ToolStatus>): Record<AgentId, MascotView> {
+export function deriveStage(
+  chat: ChatState, now: number, tools?: Record<ToolKind, ToolStatus>,
+  agents: readonly AgentDef[] = AGENTS, status: Record<AgentId, { ok: boolean; hint?: string }> = {},
+): Record<AgentId, MascotView> {
   // Pedido de time ainda na fila não manda no palco: quem manda é o que está rodando.
   const team = chat.runs.filter(r => r.team && r.status === 'running' && r.queued === undefined).at(-1)
-  return Object.fromEntries(AGENTS.map(a => {
+  return Object.fromEntries(agents.map(a => {
     const t = tools?.[a.tool]
     if (t && !(t.installed && t.loggedIn)) return [a.id, { pose: 'locked', label: t.hint ?? 'Indisponível' }]
+    // Agente por API sem chave (e outros motivos que só o processo principal sabe).
+    const st = status[a.id]
+    if (st && !st.ok) return [a.id, { pose: 'locked', label: st.hint ?? 'Indisponível' }]
     const fromTeam = team && teamView(team, a.id)
     if (fromTeam) return [a.id, fromTeam]
     // Consulta no meio do trabalho (spec §5.4): o consultado aparece trabalhando para quem perguntou.

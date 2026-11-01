@@ -45,7 +45,7 @@ export function Mascot({ id, index, x, view, selected, onSelect, labels, portal 
     t.current = clock.elapsedTime
     if (since.current.pose !== view.pose) since.current = { pose: view.pose, at: t.current }
     frame.current = motionFrame(view.pose, t.current, phase, t.current - since.current.at, {
-      float: id === 'radar', defaultExpression: id === 'forja' ? 'squint' : undefined, reduced: reducedMotion(),
+      float: getAgent(id).family === 'gemini', defaultExpression: id === 'forja' ? 'squint' : undefined, reduced: reducedMotion(),
     })
     if (root.current) root.current.rotation.y = frame.current.rotY
   })
