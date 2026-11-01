@@ -19,6 +19,12 @@ describe('pickReplacement', () => {
   it('Radar (só lê) → Lupa (só lê, outra ferramenta)', () => {
     expect(pickReplacement('radar', ALL, snap({ gemini: 95, codex: 10 }), at90)).toBe('lupa')
   })
+  it('I-4: ferramenta em alerta por outra janela (semanal) não é substituta', () => {
+    const s = snap({ opencode: 95, claude: 20 })
+    expect(pickReplacement('curinga', ALL, s, at90)).toBeDefined()
+    s.rows.find(r => r.tool === 'claude')!.alert = true
+    expect(pickReplacement('curinga', ALL, s, at90)).toBeUndefined()
+  })
   it('ninguém de outra ferramenta com folga → undefined', () => {
     expect(pickReplacement('forja', ALL, snap({ claude: 92, opencode: 95 }), at90)).toBeUndefined()
     expect(pickReplacement('forja', ['forja', 'pincel', 'bussola'], snap({ claude: 92 }), at90)).toBeUndefined()

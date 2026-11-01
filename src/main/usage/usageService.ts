@@ -67,10 +67,16 @@ export class UsageService {
     this.push()
   }
 
-  async pollOnce(): Promise<void> {
-    const limits = await this.deps.pollClaude?.().catch(() => []) ?? []
-    for (const l of limits) this.deps.store.recordLimit(l)
-    if (limits.length) this.push()
+  private polling?: Promise<void>
+
+  /** Uma consulta por vez: se a anterior ainda não voltou, espera por ela em vez de abrir outra. */
+  pollOnce(): Promise<void> {
+    this.polling ??= (async () => {
+      const limits = await this.deps.pollClaude?.().catch(() => []) ?? []
+      for (const l of limits) this.deps.store.recordLimit(l)
+      if (limits.length) this.push()
+    })().finally(() => { this.polling = undefined })
+    return this.polling
   }
 
   startPolling(intervalMs = 5 * 60_000): () => void {

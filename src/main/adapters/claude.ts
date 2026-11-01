@@ -1,4 +1,5 @@
 import { query, type CanUseTool, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { homedir } from 'node:os'
 import type { AgentEvent } from '@shared/events'
 import type { LimitWindow, WindowKind } from '@shared/usage'
 import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
@@ -105,12 +106,18 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
  * Uso do plano sem gastar pedido: sessão com entrada em stream que nunca manda mensagem + consulta de uso
  * (experimental no SDK — qualquer falha vira "sem dado"). Spike de uso.
  */
-export async function pollClaudeUsage(queryFn: typeof query = query, now = Date.now): Promise<LimitWindow[]> {
+export async function pollClaudeUsage(queryFn: typeof query = query, now = Date.now, timeoutMs = 15_000): Promise<LimitWindow[]> {
   let release: (() => void) | undefined
   const idle = (async function* () { await new Promise<void>(r => { release = r }) })() as AsyncIterable<never>
-  const q = queryFn({ prompt: idle, options: { cwd: process.cwd(), env: safeEnv(dropEnv), settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [] } })
+  const abortController = new AbortController()
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const q = queryFn({ prompt: idle, options: { abortController, cwd: homedir(), env: safeEnv(dropEnv), settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [] } })
   try {
-    const u = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })
+    // API experimental: se não responder no prazo, desiste e encerra o processo ocioso.
+    const u = await Promise.race([
+      q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), timeoutMs) }),
+    ])
     if (!u.rate_limits_available || !u.rate_limits) return []
     const at = now()
     return (Object.entries(u.rate_limits) as [string, { utilization: number | null; resets_at: string | null } | null][])
@@ -120,8 +127,10 @@ export async function pollClaudeUsage(queryFn: typeof query = query, now = Date.
   } catch {
     return []
   } finally {
+    clearTimeout(timer)
     release?.()
     void q.interrupt?.().catch(() => {})
+    abortController.abort()
   }
 }
 

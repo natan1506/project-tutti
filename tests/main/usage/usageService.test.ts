@@ -83,6 +83,16 @@ describe('UsageService', () => {
     expect(snaps).toHaveLength(2)
   })
 
+  it('I-5: não começa outra consulta enquanto a anterior não volta', async () => {
+    const { store, now } = setup()
+    let calls = 0
+    let done!: () => void
+    const svc = new UsageService({ store, now: () => now.t, emit: () => {}, pollClaude: () => { calls++; return new Promise(r => { done = () => r([]) }) } })
+    const a = svc.pollOnce(); const b = svc.pollOnce()
+    expect(calls).toBe(1)
+    done(); await Promise.all([a, b])
+  })
+
   it('polling grava os limites que a consulta devolver', async () => {
     const { store, now } = setup()
     const svc = new UsageService({ store, now: () => now.t, emit: () => {}, pollClaude: async () => [{ tool: 'claude', window: 'five_hour', utilization: 29, at: now.t }] })
@@ -110,6 +120,12 @@ describe('pollClaudeUsage', () => {
       { tool: 'claude', window: 'seven_day', utilization: 87, resetsAt: Date.parse('2026-11-02T01:59:59Z'), at: 5 },
     ])
     expect(sentMessages).toBe(0)
+  })
+  it('I-5: consulta que não responde desiste no prazo e encerra o processo', async () => {
+    let interrupted = false
+    const hang = (() => ({ usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () => new Promise(() => {}), interrupt: async () => { interrupted = true }, close: () => {} })) as never
+    expect(await pollClaudeUsage(hang, Date.now, 50)).toEqual([])
+    expect(interrupted).toBe(true)
   })
   it('sem dados de plano devolve vazio; erro devolve vazio', async () => {
     const none = (() => ({ usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({ rate_limits_available: false, rate_limits: null }), interrupt: async () => {}, close: () => {} })) as never

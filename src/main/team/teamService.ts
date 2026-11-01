@@ -54,14 +54,18 @@ export class TeamService {
   }
 
   /** Espera o filho e, se ele foi substituído, o substituto (em cadeia). Devolve o id final. */
-  private async settle(id: string, active: Set<string>): Promise<string> {
+  private async settle(id: string, active: Set<string>, signal: AbortSignal): Promise<string> {
     await this.deps.runs.whenFinished(id)
     const pending = this.replaced.get(id)
     if (!pending) return id
     const next = await pending
+    this.replaced.delete(id)
+    if (next === id) return id
     active.delete(id)
     active.add(next)
-    return this.settle(next, active)
+    // O pai foi cancelado enquanto a troca acontecia: o substituto não chegou a ver o cancelamento.
+    if (signal.aborted) this.deps.runs.cancel(next)
+    return this.settle(next, active, signal)
   }
 
   async start(input: TeamStartInput): Promise<string> {
@@ -194,7 +198,7 @@ export class TeamService {
         this.say(parentId, { type: 'error', message: `Não consegui iniciar ${notStarted.map(a => `o ${getAgent(a).nome}`).join(' e ')}: a ferramenta não está pronta.` })
         return 'error'
       }
-      const finals = await Promise.all(ids.map(id => this.settle(id, active)))
+      const finals = await Promise.all(ids.map(id => this.settle(id, active, signal)))
       finals.forEach(id => active.delete(id))
       if (signal.aborted) return 'cancelled'
       const results = finals.map(id => store.getRun(id))

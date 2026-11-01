@@ -37,6 +37,8 @@ export class RunService {
   private executing = new Set<string>()
   /** Avisos de limite: um por run por ferramenta. */
   private warned = new Set<string>()
+  /** Runs que já entregaram o resultado (uso ou fim): avisar de limite não serve mais. */
+  private delivered = new Set<string>()
   private warnings = new Map<string, { runId: string; to?: AgentId }>()
   /** O TeamService troca o passo do time quando um filho é substituído. */
   onChildHandoff?: (parentRunId: string, oldRunId: string, newRunId: Promise<string>, to: AgentId) => void
@@ -220,9 +222,10 @@ export class RunService {
   async warnLimit(tool: ToolKind, window: WindowKind, utilization: number, pick: (from: AgentId) => Promise<AgentId | undefined>): Promise<void> {
     for (const runId of this.executing) {
       const run = this.deps.store.getRun(runId)
-      if (!run || run.status !== 'running' || getAgent(run.agentId).tool !== tool || this.warned.has(`${runId}:${tool}`)) continue
+      if (!run || run.status !== 'running' || getAgent(run.agentId).tool !== tool || this.warned.has(`${runId}:${tool}`) || this.delivered.has(runId)) continue
       this.warned.add(`${runId}:${tool}`)
       const to = await pick(run.agentId)
+      if (!this.executing.has(runId) || this.delivered.has(runId)) continue
       const id = randomUUID()
       this.warnings.set(id, { runId, ...(to ? { to } : {}) })
       this.record(runId, { type: 'limit_warning', id, tool, window, utilization, ...(to ? { to } : {}) })
@@ -254,7 +257,16 @@ export class RunService {
     this.cancel(run.id)
     await this.whenFinished(run.id)
     const base = { projectPath, conversationId: run.conversationId, agentId: w.to, prompt }
-    const newRunId = run.parentRunId ? await this.startChild({ ...base, parentRunId: run.parentRunId }) : await this.start(base)
+    let newRunId: string
+    try {
+      newRunId = run.parentRunId ? await this.startChild({ ...base, parentRunId: run.parentRunId }) : await this.start(base)
+    } catch (e) {
+      // Sem substituto o original fica cancelado; o pai do time segue com ele como resultado final.
+      resolveNew(run.id)
+      const why = e instanceof Error && e.message === 'TOOL_UNAVAILABLE' ? 'não está disponível' : 'não conseguiu começar'
+      this.record(run.id, { type: 'notice', text: `Não consegui passar o trabalho: o ${getAgent(w.to).nome} ${why}.` })
+      return
+    }
     resolveNew(newRunId)
     this.record(run.id, { type: 'handoff', to: w.to, newRunId })
   }
@@ -321,6 +333,7 @@ export class RunService {
           for await (const ev of events) {
             if (ev.type === 'usage' || ev.type === 'limit') {
               // Uso não é conversa: vai para o banco e para o painel, não para o histórico do chat.
+              if (ev.type === 'usage') this.delivered.add(runId)
               if (ev.type === 'usage') this.deps.store.recordUsage(runId, agent.id, ev.tool, ev.tokens, Date.now())
               else this.deps.store.recordLimit(ev.limit)
               this.deps.emit(runId, ev)
@@ -329,7 +342,7 @@ export class RunService {
             }
             if (!started && resume && ev.type === 'error' && looksLikeStaleSession(ev.message)) { staleSession = true; break }
             started = true
-            if (ev.type === 'done') sessionId = ev.sessionId
+            if (ev.type === 'done') { sessionId = ev.sessionId; this.delivered.add(runId) }
             if (ev.type === 'error') status = 'error'
             this.record(runId, ev)
           }
@@ -348,6 +361,8 @@ export class RunService {
       }
     } finally {
       this.executing.delete(runId)
+      this.delivered.delete(runId)
+      for (const k of this.warned) if (k.startsWith(`${runId}:`)) this.warned.delete(k)
       // Pedido acabou antes da resposta ao aviso: não há mais o que passar.
       for (const [id, w] of this.warnings) {
         if (w.runId !== runId) continue

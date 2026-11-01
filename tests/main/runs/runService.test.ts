@@ -404,6 +404,44 @@ describe('RunService', () => {
     expect(emitted).toContainEqual({ type: 'limit_resolved', id: w.id, pass: false })
   })
 
+  it('I-1: substituto que não consegue começar não deixa o pedido sem resposta', async () => {
+    let curingaOk = true
+    const { emitted, svc, start, store } = await setup(async function* (o) {
+      await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))
+    }, { all: true, toolReady: async t => t !== 'opencode' || curingaOk })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    await svc.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
+    const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    curingaOk = false
+    await expect(svc.respondLimit(w.id, true)).resolves.toBeUndefined()
+    expect(store.getRun(id)?.status).toBe('cancelled')
+    expect(emitted.some(e => e.type === 'notice' && /Curinga/.test(e.text))).toBe(true)
+    expect(emitted.some(e => e.type === 'handoff')).toBe(false)
+  })
+
+  it('I-3: sem aviso para pedido que já entregou o resultado', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { emitted, svc, start } = await setup(async function* () { yield { type: 'done' }; await gate })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    await svc.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
+    expect(emitted.some(e => e.type === 'limit_warning')).toBe(false)
+    release()
+    await svc.whenFinished(id)
+  })
+
+  it('I-3: pedido que termina enquanto escolhe o substituto não ganha aviso aberto', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    await svc.warnLimit('claude', 'five_hour', 95, async () => { release(); await svc.whenFinished(id); return 'curinga' })
+    expect(emitted.some(e => e.type === 'limit_warning')).toBe(false)
+  })
+
   it('sem substituto: aviso sem destino; Passar não faz nada além de fechar o aviso', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })

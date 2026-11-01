@@ -34,3 +34,5 @@ Achados que viraram correção:
 - Um pedido que pede aprovação de comando (o Curinga quis rodar `find` com `-prune`) fica parado esperando o Natan, como manda a política; não é falha da passagem.
 
 Observação real: o Claude do Natan está em ~90% do limite **semanal**, então com o "avisar em" padrão (90%) os avisos já aparecem de verdade.
+
+Limitação conhecida (revisão final): o Codex só informa o limite no log **depois** do turno, e um pedido que já entregou o resultado não recebe aviso. Por isso o Codex acima do limite aparece no painel (vermelho), mas não gera o cartão "Passar" no próprio pedido.

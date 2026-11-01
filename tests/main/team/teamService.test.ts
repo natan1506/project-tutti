@@ -271,6 +271,48 @@ describe('TeamService', () => {
     t.team.cancel(second)
     await t.team.whenFinished(second)
   })
+  it('I-1: substituto que não começa não trava o time nem a fila', async () => {
+    let opencodeOk = true
+    const lineup = { ...LINEUP, steps: [{ agentId: 'forja', task: 'Criar server/x.js', areas: ['server'] }] }
+    const t = await setup({ brain: fakeBrain([TRIAGE], [lineup]), ready: tool => tool !== 'opencode' || opencodeOk, work: async function* (o) {
+      await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))
+    } })
+    const id = await t.start()
+    await waitFor(() => t.store.listChildren(id).length === 1)
+    await t.runs.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
+    const w = t.emitted.map(e => e.ev).find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    opencodeOk = false
+    await t.runs.respondLimit(w.id, true)
+    await t.team.whenFinished(id)
+    expect(t.store.listChildren(id).map(c => [c.agentId, c.status])).toEqual([['forja', 'cancelled']])
+    expect(t.store.getRun(id)?.status).not.toBe('running')
+  })
+
+  it('I-2: cancelar o time durante a troca cancela o substituto', async () => {
+    const lineup = { ...LINEUP, steps: [{ agentId: 'forja', task: 'Criar server/x.js', areas: ['server'] }] }
+    const t = await setup({ brain: fakeBrain([TRIAGE], [lineup]), work: async function* (o) {
+      if (o.agent.id === 'curinga') {
+        await Promise.race([sleep(400), new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))])
+        if (o.signal.aborted) return
+        mkdirSync(join(o.cwd, 'server'), { recursive: true }); writeFileSync(join(o.cwd, 'server/x.js'), 'ok\n'); yield { type: 'done' }; return
+      }
+      await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))
+      await sleep(100)
+    } })
+    const id = await t.start()
+    await waitFor(() => t.store.listChildren(id).length === 1)
+    await t.runs.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
+    const w = t.emitted.map(e => e.ev).find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    const passing = t.runs.respondLimit(w.id, true)
+    await sleep(20)
+    t.team.cancel(id)
+    await passing
+    await t.team.whenFinished(id)
+    const curinga = t.store.listChildren(id).find(c => c.agentId === 'curinga')
+    if (curinga) expect(curinga.status).toBe('cancelled')
+    expect(existsSync(join(t.dir, 'server/x.js'))).toBe(false)
+  })
+
   it('troca por limite dentro do time: o mesmo passo vira um novo filho do mesmo pedido', async () => {
     const lineup = { ...LINEUP, steps: [{ agentId: 'forja', task: 'Criar server/x.js', areas: ['server'] }] }
     const t = await setup({ brain: fakeBrain([TRIAGE], [lineup]), work: async function* (o) {
