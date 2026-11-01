@@ -5,6 +5,7 @@ import type { RunBlock } from '../state/chat'
 import { ApprovalCard } from './ApprovalCard'
 import { QuestionCard } from './QuestionCard'
 import { DiffCard } from './DiffCard'
+import { LimitWarningCard } from './LimitWarningCard'
 import { LineupCard } from './LineupCard'
 import { PlanCard } from './PlanCard'
 import { TeamRound } from './TeamRound'
@@ -34,6 +35,8 @@ function RunView({ run, nested = false }: { run: RunBlock; nested?: boolean }) {
       {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar</button>}
       {run.approvals.map(a => <ApprovalCard key={a.id} approval={a} />)}
       {run.questions.map(q => <QuestionCard key={q.id} question={q} />)}
+      {run.limitWarnings.map(w => <LimitWarningCard key={w.id} warning={w} agentName={nome} />)}
+      {run.handoff && <div className="note">Trabalho passado para o {getAgent(run.handoff.to).nome}.</div>}
       {run.calls.map((c, i) => (
         <div key={i} className="note call">→ perguntou ao {getAgent(c.to).nome}: {c.question}{c.answer !== undefined && <><br />← {c.answer}</>}</div>
       ))}

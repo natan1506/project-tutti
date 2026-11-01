@@ -6,6 +6,7 @@ import type { Confirmation, Lineup, TriageScore } from '@shared/team'
 export type AgentStatus = 'disponivel' | 'trabalhando' | 'esperando' | 'concluido'
 
 export interface Approval { id: string; toolName: string; summary: string; allowed?: boolean }
+export interface LimitWarning { id: string; tool: import('@shared/agents').ToolKind; window: import('@shared/usage').WindowKind; utilization: number; to?: AgentId; pass?: boolean }
 export interface AgentCall { to: AgentId; question: string; answer?: string }
 export interface Question { id: string; text: string; options?: string[]; answer?: string | null }
 export interface RunBlock {
@@ -21,6 +22,8 @@ export interface RunBlock {
   error?: string
   notices: string[]
   calls: AgentCall[]
+  limitWarnings: LimitWarning[]
+  handoff?: { to: AgentId; newRunId: string }
   startedAt: number
   /** Pedido de time (run-pai do Bússola). */
   team?: boolean
@@ -44,7 +47,7 @@ export function emptyChat(): ChatState {
 /** Reducer puro: aplica um evento do processo principal ao estado do chat. */
 export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatState {
   if (ev.type === 'run_started') {
-    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], questions: [], notices: [], calls: [], children: [], confirmations: [], status: 'running', startedAt: Date.now() }
+    const block: RunBlock = { runId, agentId: ev.agentId, prompt: '', text: '', steps: [], approvals: [], questions: [], notices: [], calls: [], limitWarnings: [], children: [], confirmations: [], status: 'running', startedAt: Date.now() }
     return { runs: [...state.runs, block], agentStatus: { ...state.agentStatus, [ev.agentId]: 'trabalhando' } }
   }
   const run = state.runs.find(r => r.runId === runId)
@@ -69,6 +72,11 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'error': return set({ error: ev.message })
     case 'notice': return set({ notices: [...run.notices, ev.text] })
     case 'queued': return set({ queued: ev.position > 0 ? ev.position : undefined })
+    case 'limit_warning':
+      return set({ limitWarnings: [...run.limitWarnings, { id: ev.id, tool: ev.tool, window: ev.window, utilization: ev.utilization, ...(ev.to ? { to: ev.to } : {}) }] }, 'esperando')
+    case 'limit_resolved':
+      return set({ limitWarnings: run.limitWarnings.map(w => (w.id === ev.id ? { ...w, pass: ev.pass } : w)) }, 'trabalhando')
+    case 'handoff': return set({ handoff: { to: ev.to, newRunId: ev.newRunId } })
     case 'team_started': return set({ team: true })
     case 'triage': return set({ triage: { scores: ev.scores, candidates: ev.candidates } })
     case 'confirmation': return set({ confirmations: [...run.confirmations, ev.confirmation] })

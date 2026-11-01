@@ -4,6 +4,7 @@ import { ChatPanel } from './components/ChatPanel'
 import { Composer } from './components/Composer'
 import { ProjectPicker } from './components/ProjectPicker'
 import { Stage } from './stage/Stage'
+import { UsagePanel } from './components/UsagePanel'
 import { useRunStore } from './state/runStore'
 import { startToolRefresh } from './state/toolRefresh'
 import icon from './assets/icon.png'
@@ -25,6 +26,7 @@ export function App() {
           <ProjectPicker />
         </div>
         <Stage />
+        <UsagePanel />
         <Composer />
       </main>
       <ChatPanel />
