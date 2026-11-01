@@ -15,8 +15,12 @@ describe('fitCameraDistance', () => {
     const visible = 2 * d * Math.tan((14 * Math.PI) / 180) * aspect
     expect(visible).toBeGreaterThanOrEqual(6 * SPACING + 1.2 - 1e-9)
   })
+  it('perfil com poucos agentes fica do mesmo tamanho do Padrão (enquadra pelo menos seis lugares)', () => {
+    expect(fitCameraDistance(3, SPACING, 28, 0.9)).toBe(fitCameraDistance(6, SPACING, 28, 0.9))
+    expect(fitCameraDistance(8, SPACING, 28, 0.9)).toBeGreaterThan(fitCameraDistance(6, SPACING, 28, 0.9))
+  })
   it('nunca chega mais perto que o mínimo', () => {
-    expect(fitCameraDistance(1, SPACING, 28, 3)).toBe(10)
+    expect(fitCameraDistance(1, SPACING, 28, 5)).toBe(10)
   })
 })
 

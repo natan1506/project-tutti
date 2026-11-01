@@ -74,4 +74,11 @@ describe('ProfileService', () => {
     const p = saved(svc.save(novo()))
     expect(new ProfileService({ store, emit: () => {} }).all().map(x => x.id)).toEqual(['padrao', p.id])
   })
+  it('lista os agentes de perfis apagados, para a interface mostrar os nomes', () => {
+    const { svc } = setup()
+    const p = saved(svc.save(novo()))
+    svc.remove(p.id)
+    expect(svc.removedAgents().map(a => [a.id, a.nome])).toEqual([[p.agents[0].id, 'Claudinho (removido)']])
+  })
 })
+

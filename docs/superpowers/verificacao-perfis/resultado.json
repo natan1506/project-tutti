@@ -1,0 +1,27 @@
+[
+  {
+    "step": "1 duplicar e lembrar",
+    "ok": true,
+    "detail": "mascotes=6 projeto=Padrão (cópia) outro=Padrão"
+  },
+  {
+    "step": "2 perfil do zero",
+    "ok": true,
+    "detail": "chips=Claudinho,Kimi,Nuvem kimi=\"KimiOpenRouter · APISem chave da OpenRouter\" aviso=\"Usa a sua chave: cada pedido é cobrado pelo provedor.\""
+  },
+  {
+    "step": "3 contexto entre agentes do perfil",
+    "ok": true,
+    "detail": "Claudinho=\"Manga\" Nuvem=\"Manga\""
+  },
+  {
+    "step": "4 chave falsa",
+    "ok": true,
+    "detail": "habilitado=true passo=\"■ Kimi: parou com erro0 passos ›\" erro=\"Missing Authentication header\" travadoDepois=true"
+  },
+  {
+    "step": "erros no console",
+    "ok": true,
+    "detail": "nenhum"
+  }
+]

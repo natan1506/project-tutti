@@ -1,4 +1,4 @@
-import type { AgentId, ToolKind } from './agents'
+import type { AgentDef, AgentId, ToolKind } from './agents'
 import type { Profile, ProviderId } from './profiles'
 import type { UsageDetail, UsageSettings, UsageSettingsPatch, UsageSnapshot } from './usage'
 import type { RunEvent, RunStatus } from './events'
@@ -40,6 +40,7 @@ export interface TimeApi {
   usageSnapshot(): Promise<UsageSnapshot>
   usageDetail(conversationId: string | null): Promise<UsageDetail>
   profiles(): Promise<Profile[]>
+  removedAgents(): Promise<AgentDef[]>
   saveProfile(p: Profile): Promise<{ ok: true; profile: Profile } | { ok: false; errors: string[] }>
   deleteProfile(id: string): Promise<void>
   duplicateProfile(id: string, nome?: string): Promise<Profile>

@@ -28,6 +28,7 @@ const api = {
   activeProfile: vi.fn(async () => DUO),
   setActiveProfile: vi.fn(async () => {}),
   agentStatus: vi.fn(async () => ({ claudinho: { ok: true }, kimi: { ok: false, hint: 'Sem chave da OpenRouter' }, gepeto: { ok: true } })),
+  removedAgents: vi.fn(async () => [{ ...getAgent('forja'), id: 'velho', nome: 'Velho (removido)', profileId: 'removido:x' }]),
 }
 beforeEach(async () => {
   Object.assign(window, { time: api })
@@ -36,6 +37,10 @@ beforeEach(async () => {
 })
 
 describe('perfil ativo na interface', () => {
+  it('conversa antiga mostra o nome do agente de perfil apagado', () => {
+    expect(getAgent('velho').nome).toBe('Velho (removido)')
+  })
+
   it('cores: tom 0 é a cor base; Padrão mantém as cores de sempre', () => {
     expect(shadeColor('#d97757', 0)).toBe('#d97757')
     expect(shadeColor('#d97757', 1)).not.toBe('#d97757')

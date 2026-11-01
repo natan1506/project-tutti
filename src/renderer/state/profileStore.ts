@@ -29,9 +29,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   configOpen: false,
 
   async load(projectId) {
-    const [profiles, active, status] = await Promise.all([
-      window.time.profiles(), window.time.activeProfile(projectId), window.time.agentStatus(projectId),
+    const [profiles, active, status, removed] = await Promise.all([
+      window.time.profiles(), window.time.activeProfile(projectId), window.time.agentStatus(projectId), window.time.removedAgents(),
     ])
+    registerAgents(removed)
     register(profiles)
     set({ profiles, active, status })
   },

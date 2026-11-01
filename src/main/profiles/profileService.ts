@@ -63,6 +63,11 @@ export class ProfileService {
     this.changed()
   }
 
+  /** Agentes de perfis apagados (nome com "(removido)"), para conversas antigas na interface. */
+  removedAgents(): AgentDef[] {
+    return this.deps.store.getSetting<AgentDef[]>(REMOVED_KEY) ?? []
+  }
+
   activeFor(projectId: string): Profile {
     const id = this.deps.store.getSetting<string>(`profile:${projectId}`)
     return (id && this.get(id)) || PADRAO

@@ -62,6 +62,7 @@ const provider = (p: unknown): ProviderId => {
 
 export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, team: TeamService, usage: UsageService, tools: () => Promise<Record<ToolKind, ToolStatus>>, pd: ProfileDeps): (runId: string, ev: RunEvent) => void {
   ipcMain.handle('profiles', () => pd.profiles.all())
+  ipcMain.handle('removedAgents', () => pd.profiles.removedAgents())
   ipcMain.handle('saveProfile', (_e, p) => pd.profiles.save(p))
   ipcMain.handle('deleteProfile', (_e, id) => pd.profiles.remove(text(id)))
   ipcMain.handle('duplicateProfile', (_e, id, nome) => pd.profiles.duplicate(text(id), typeof nome === 'string' ? nome : undefined))

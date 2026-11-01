@@ -7,8 +7,11 @@ export function mascotX(index: number, count: number, spacing = SPACING): number
   return (index - (count - 1) / 2) * spacing
 }
 
+/** Enquadra pelo menos seis lugares: perfil com poucos agentes fica do tamanho do Padrão (o painel de uso não cobre os nomes). */
+export const MIN_SLOTS = 6
+
 export function fitCameraDistance(count: number, spacing: number, fovDeg: number, aspect: number, margin = 1.2, min = 10): number {
-  const need = count * spacing + margin
+  const need = Math.max(count, MIN_SLOTS) * spacing + margin
   const halfFov = (fovDeg * Math.PI) / 360
   return Math.max(need / 2 / (Math.tan(halfFov) * aspect), min)
 }

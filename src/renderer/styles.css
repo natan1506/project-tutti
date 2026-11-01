@@ -72,7 +72,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .diff .acts { display: flex; gap: 6px; margin-top: 9px; }
 .note { font-size: 12px; color: var(--muted); margin-top: 6px; }
 
-.modal-bg { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 10; }
+.modal-bg { position: fixed; inset: 0; background: #000a; display: grid; place-items: center; z-index: 50; }
 .modal { background: #15133a; border: 1px solid var(--line); border-radius: 12px; padding: 16px; max-width: 420px; }
 .diff-viewer { max-width: 80vw; width: 900px; max-height: 80vh; display: flex; flex-direction: column; }
 .diff-viewer pre { overflow: auto; font: 12px ui-monospace, Menlo, monospace; }
@@ -136,3 +136,6 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .key-row em { color: #5ad19a; font-style: normal; } .key-row input { background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 3px 6px; font: inherit; }
 ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .confirm { font-size: 12px; } button.danger { background: #f8717133; border-color: #f87171; }
+.profile-edit .opt-line input[type=checkbox] { width: auto; }
+.profile-edit .opt-line input:not([type]) { width: 150px; }
+.profile-edit .opt-line input[aria-label="Modelo"] { width: 240px; }

@@ -25,6 +25,7 @@ const api: TimeApi = {
   usageSnapshot: () => ipcRenderer.invoke('usageSnapshot'),
   usageDetail: conversationId => ipcRenderer.invoke('usageDetail', conversationId),
   profiles: () => ipcRenderer.invoke('profiles'),
+  removedAgents: () => ipcRenderer.invoke('removedAgents'),
   saveProfile: p => ipcRenderer.invoke('saveProfile', p),
   deleteProfile: id => ipcRenderer.invoke('deleteProfile', id),
   duplicateProfile: (id, nome) => ipcRenderer.invoke('duplicateProfile', id, nome),
