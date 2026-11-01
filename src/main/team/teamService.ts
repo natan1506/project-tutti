@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { getAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
-import { PADRAO, type Profile } from '@shared/profiles'
+import { isPaidApi, PADRAO, type Profile } from '@shared/profiles'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { Confirmation, Lineup, Triage } from '@shared/team'
 import type { AgentAdapter } from '../adapters/types'
 import { isGitRepo } from '../git/git'
 import { effectiveModel, type RunService } from '../runs/runService'
 import type { Store } from '../store/db'
-import type { Brain } from './brain'
+import type { Brain, UsageSink } from './brain'
 import { parseConfirmation, parseLineup, parseTriage } from './parse'
 import { childPrompt, confirmPrompt } from './prompts'
 import { buildWaves, isBig, normalizeAreas } from './schedule'
@@ -79,13 +79,15 @@ export class TeamService {
 
   async start(input: TeamStartInput): Promise<string> {
     // Spec custos-e-perfis §6: sem coordenador no perfil, não há pedido de time.
-    const coordinator = this.profile(input.profileId).coordinatorId
+    // O perfil vale como estava no envio (o pedido pode esperar na fila enquanto o Natan edita perfis).
+    const profile = this.profile(input.profileId)
+    const coordinator = profile.coordinatorId
     if (!coordinator) throw new Error('NO_COORDINATOR')
     if (!(await this.deps.runs.availability(coordinator)).ok) throw new Error('TOOL_UNAVAILABLE')
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
     const parentId = this.deps.runs.open({ projectPath: input.projectPath, conversationId: input.conversationId, agentId: coordinator, prompt: input.prompt }, true)
     this.say(parentId, { type: 'team_started' })
-    this.finished.set(parentId, this.lifecycle(parentId, input, this.deps.runs.signalOf(parentId)!))
+    this.finished.set(parentId, this.lifecycle(parentId, input, profile, this.deps.runs.signalOf(parentId)!))
     return parentId
   }
 
@@ -103,7 +105,7 @@ export class TeamService {
 
   private say(id: string, ev: RunEvent) { this.deps.runs.record(id, ev) }
 
-  private async lifecycle(parentId: string, input: TeamStartInput, signal: AbortSignal): Promise<void> {
+  private async lifecycle(parentId: string, input: TeamStartInput, profile: Profile, signal: AbortSignal): Promise<void> {
     const { runs } = this.deps
     if (!(await runs.waitTurn(parentId, input.projectPath, signal))) return
     // Cancelar o pai cancela todos os filhos ativos.
@@ -114,7 +116,7 @@ export class TeamService {
     try {
       await runs.snapshotBefore(parentId, input.projectPath)
       checkpoint = true
-      status = await this.orchestrate(parentId, input, signal, active)
+      status = await this.orchestrate(parentId, input, profile, signal, active)
     } catch (e) {
       if (!signal.aborted) {
         status = 'error'
@@ -150,22 +152,22 @@ export class TeamService {
     return null
   }
 
-  private async orchestrate(parentId: string, input: TeamStartInput, signal: AbortSignal, active: Set<string>): Promise<RunStatus> {
+  private async orchestrate(parentId: string, input: TeamStartInput, profile: Profile, signal: AbortSignal, active: Set<string>): Promise<RunStatus> {
     const { runs, store } = this.deps
     const cwd = input.projectPath
-    const profile = this.profile(input.profileId)
     const coordinator = profile.coordinatorId!
+    const onUsage: UsageSink = ev => runs.recordUsage(parentId, coordinator, ev)
     const brain = this.deps.brainFor?.(getAgent(coordinator)) ?? this.deps.brain
     const available = await this.available(profile)
 
-    const triage = await this.ask<Triage>(() => brain.triage({ cwd, prompt: input.prompt, available, coordinator, signal }), raw => parseTriage(raw, available), signal)
+    const triage = await this.ask<Triage>(() => brain.triage({ cwd, prompt: input.prompt, available, coordinator, signal, onUsage }), raw => parseTriage(raw, available), signal)
     if (triage === 'abort') return 'cancelled'
     if (!triage) { this.say(parentId, { type: 'error', message: brainFailed(coordinator) }); return 'error' }
     this.say(parentId, { type: 'triage', scores: triage.scores, candidates: triage.candidates })
 
     const targets = input.fullRound ? available : triage.candidates
     const confirmations = await Promise.all(targets.map(id =>
-      this.confirm(id, input.prompt, cwd, triage.scores.find(s => s.agentId === id)?.line ?? '', signal, coordinator, available)
+      this.confirm(id, input.prompt, cwd, triage.scores.find(s => s.agentId === id)?.line ?? '', signal, coordinator, available, parentId)
         .then(c => { if (!signal.aborted) this.say(parentId, { type: 'confirmation', confirmation: c }); return c })))
     if (signal.aborted) return 'cancelled'
     if (!confirmations.some(c => c.decision === 'assumo' || c.decision === 'assumo_com_ajuda')) {
@@ -173,7 +175,7 @@ export class TeamService {
       return 'done'
     }
 
-    const lineup = await this.ask<Lineup>(() => brain.lineup({ cwd, prompt: input.prompt, triage, confirmations, available, coordinator, signal }),
+    const lineup = await this.ask<Lineup>(() => brain.lineup({ cwd, prompt: input.prompt, triage, confirmations, available, coordinator, signal, onUsage }),
       raw => parseLineup(raw, available, ALLOWED_MODELS), signal)
     if (lineup === 'abort') return 'cancelled'
     if (!lineup) { this.say(parentId, { type: 'error', message: brainFailed(coordinator) }); return 'error' }
@@ -250,8 +252,10 @@ export class TeamService {
   }
 
   /** Confirmação real do candidato na própria ferramenta, em modo consulta, com prazo. */
-  private async confirm(agentId: AgentId, prompt: string, cwd: string, line: string, parent: AbortSignal, coordinator: AgentId, ids: AgentId[]): Promise<Confirmation> {
+  private async confirm(agentId: AgentId, prompt: string, cwd: string, line: string, parent: AbortSignal, coordinator: AgentId, ids: AgentId[], parentId: string): Promise<Confirmation> {
     const agent = getAgent(agentId)
+    // Agente por API paga não é chamado antes do plano (spec custos-e-perfis §10): entra, e o plano pede aprovação.
+    if (isPaidApi(agent)) return { agentId, decision: 'assumo', line: 'Por API paga: só trabalho se você aprovar o plano.' }
     const adapter = this.deps.adapters[agent.tool]
     const silent: Confirmation = { agentId, decision: 'sem_resposta', line: '' }
     if (!adapter || !(await this.deps.runs.availability(agentId)).ok) return silent
@@ -267,6 +271,7 @@ export class TeamService {
         ...(model ? { model } : {}), requestApproval: async () => false,
       })) {
         if (ev.type === 'text') text += (text ? '\n' : '') + ev.text
+        if (ev.type === 'usage' || ev.type === 'limit') this.deps.runs.recordUsage(parentId, agentId, ev)
         if (ctl.signal.aborted) break
       }
     } catch {

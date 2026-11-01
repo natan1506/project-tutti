@@ -71,6 +71,13 @@ describe('perfil ativo na interface', () => {
     expect(container.querySelector('.tool')?.textContent).toBe('OpenRouter · API')
   })
 
+  it('R6: reconsultar as ferramentas atualiza também a disponibilidade dos agentes', async () => {
+    Object.assign(api, { toolStatus: vi.fn(async () => ({})) })
+    api.agentStatus.mockResolvedValueOnce({ claudinho: { ok: true }, kimi: { ok: true }, gepeto: { ok: true } } as never)
+    await act(() => useRunStore.getState().loadTools())
+    expect(useProfileStore.getState().status.kimi).toEqual({ ok: true })
+  })
+
   it('trocar de perfil grava no projeto', async () => {
     const { getByText } = render(<ProfilePicker />)
     fireEvent.click(getByText(/Duo/))

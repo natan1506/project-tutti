@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentEvent } from '@shared/events'
@@ -294,14 +294,17 @@ export function opencodeConfigContent(keys: Partial<Record<ProviderId, string>>)
 export async function startOpencodeServer(spawnFn: typeof spawn = spawn, keys: Partial<Record<ProviderId, string>> = {}): Promise<{ api: OpencodeApi; close(): Promise<void>; onExit(cb: () => void): void }> {
   const password = randomBytes(18).toString('base64url')
   // Só instruções do Natan (spec §7): sem config/plugins do projeto nem do usuário, sem MCP.
+  // As chaves vão num opencode.json só do Natan (0600) no diretório de config temporário, nunca no env:
+  // comandos que o opencode roda herdam o env do servidor.
+  const configDir = mkdtempSync(join(tmpdir(), 'tutti-opencode-config-'))
+  writeFileSync(join(configDir, 'opencode.json'), opencodeConfigContent(keys), { mode: 0o600 })
   const proc: ChildProcess = spawnFn('opencode', ['serve', '--hostname=127.0.0.1', '--port=0'], {
     env: {
       ...safeEnv(),
       OPENCODE_SERVER_PASSWORD: password,
-      OPENCODE_CONFIG_CONTENT: opencodeConfigContent(keys),
       OPENCODE_DISABLE_PROJECT_CONFIG: '1',
       OPENCODE_CONFIG_PROJECT_DISABLE: '1',
-      OPENCODE_CONFIG_DIR: mkdtempSync(join(tmpdir(), 'tutti-opencode-config-')),
+      OPENCODE_CONFIG_DIR: configDir,
       OPENCODE_DISABLE_CLAUDE_CODE: '1',
       OPENCODE_DISABLE_AUTOUPDATE: '1',
     },
@@ -317,7 +320,8 @@ export async function startOpencodeServer(spawnFn: typeof spawn = spawn, keys: P
       if (m) { clearTimeout(timer); resolve(m[1]) }
     })
   })
-  const exited = new Promise<void>(resolve => proc.on('exit', () => resolve()))
+  // Servidor saiu: o arquivo com as chaves sai junto.
+  const exited = new Promise<void>(resolve => proc.on('exit', () => { rmSync(configDir, { recursive: true, force: true }); resolve() }))
   const close = async () => {
     if (proc.exitCode !== null) return
     proc.kill('SIGTERM')

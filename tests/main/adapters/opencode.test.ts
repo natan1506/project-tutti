@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { getAgent } from '@shared/agents'
@@ -105,7 +105,7 @@ describe('config do servidor', () => {
     expect(c.provider.openai).toEqual({})
     expect(Object.keys(c.provider).sort()).toEqual(['anthropic', 'deepseek', 'google', 'moonshotai', 'openai', 'openrouter'])
   })
-  it('a chave vai só no OPENCODE_CONFIG_CONTENT do servidor', async () => {
+  it('R4: a chave fica num opencode.json 0600 no diretório de config, fora do env do servidor', async () => {
     let env: Record<string, string> = {}
     const spawnFn = ((_cmd: string, _args: string[], o: { env: Record<string, string> }) => {
       env = o.env
@@ -113,11 +113,13 @@ describe('config do servidor', () => {
       setTimeout(() => proc.stdout.emit('data', 'listening on http://127.0.0.1:4096\n'), 5)
       return proc
     }) as never
-    const s = await startOpencodeServer(spawnFn, { deepseek: 'sk-ds-9' })
-    expect(env.OPENCODE_CONFIG_CONTENT).toContain('sk-ds-9')
-    expect(Object.entries(env).filter(([k, v]) => k !== 'OPENCODE_CONFIG_CONTENT' && String(v).includes('sk-ds-9'))).toEqual([])
-    void s
+    await startOpencodeServer(spawnFn, { deepseek: 'sk-ds-9' })
+    expect(Object.values(env).some(v => String(v).includes('sk-ds-9'))).toBe(false)
+    const file = join(env.OPENCODE_CONFIG_DIR, 'opencode.json')
+    expect(readFileSync(file, 'utf8')).toContain('sk-ds-9')
+    expect(statSync(file).mode & 0o777).toBe(0o600)
   })
+
 })
 
 describe('OpencodeHost', () => {
@@ -328,7 +330,8 @@ describe('I3: servidor isolado da configuração do usuário e do projeto', () =
     expect(env.OPENCODE_CONFIG_PROJECT_DISABLE).toBe('1')
     expect(env.OPENCODE_CONFIG_DIR).toMatch(/tutti-opencode-config/)
     expect(env).not.toHaveProperty('OPENCODE_API_KEY')
-    expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT)).toMatchObject({ mcp: {}, plugin: [] })
+    expect(env).not.toHaveProperty('OPENCODE_CONFIG_CONTENT')
+    expect(JSON.parse(readFileSync(join(env.OPENCODE_CONFIG_DIR, 'opencode.json'), 'utf8'))).toMatchObject({ mcp: {}, plugin: [] })
   })
 })
 

@@ -1,15 +1,19 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentId } from '@shared/agents'
+import type { AgentEvent } from '@shared/events'
 import type { Confirmation, Triage } from '@shared/team'
 import { safeEnv } from '../adapters/env'
 import { lineupPrompt, triagePrompt } from './prompts'
 
 // O "cérebro" do Bússola: duas chamadas por pedido de time, saída JSON validada por esquema (spike da Fase 3B).
 
+export type UsageSink = (ev: Extract<AgentEvent, { type: 'usage' | 'limit' }>) => void
+
 export interface Brain {
   /** `coordinator`: quem coordena no perfil (padrão: Bússola). */
-  triage(input: { cwd: string; prompt: string; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal }): Promise<unknown>
-  lineup(input: { cwd: string; prompt: string; triage: Triage; confirmations: Confirmation[]; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal }): Promise<unknown>
+  /** `onUsage`: tokens gastos pelo cérebro (coordenador por outra ferramenta ou por API). */
+  triage(input: { cwd: string; prompt: string; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
+  lineup(input: { cwd: string; prompt: string; triage: Triage; confirmations: Confirmation[]; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
 }
 
 const obj = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', additionalProperties: false, required, properties })

@@ -379,4 +379,40 @@ describe('TeamService', () => {
       expect(t.store.listChildren(id)).toEqual([])
     })
   })
+  describe('revisão: API paga e perfil do pedido', () => {
+    const DUO2: Profile = {
+      id: 'duo2', nome: 'Duo2', builtin: false, coordinatorId: 'chefe2', defaults: { transport: { kind: 'cli', tool: 'claude' } },
+      agents: [
+        { id: 'chefe2', nome: 'Chefe', prompt: 'Coordena.', funcao: 'Coordena', readOnly: false, reviewer: false, consultable: false },
+        { id: 'kimi2', nome: 'Kimi', prompt: 'Escreve.', funcao: 'Back-end', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'api', provider: 'openrouter' }, model: 'moonshotai/kimi-k3.1-pro' },
+      ],
+    }
+    const T3 = { scores: [{ agentId: 'kimi2', score: 90, line: 'Comigo.' }, { agentId: 'chefe2', score: 20, line: '' }], candidates: ['kimi2'], big: false }
+    const L3 = { summary: 'Kimi faz.', big: false, steps: [{ agentId: 'kimi2', task: 'Criar web/a.html', areas: ['web'] }] }
+
+    it('R3: candidato por API paga não é chamado antes do plano; entra e o plano decide', async () => {
+      const t = await setup({ profile: DUO2, brainFor: () => fakeBrain([T3], [L3]) })
+      const id = await t.start()
+      await waitFor(() => t.parentEvents(id).some(e => e.type === 'plan_request' || e.type === 'run_finished'))
+      expect(t.fake.calls.filter(c => c.agent.id === 'kimi2')).toEqual([])
+      expect(t.parentEvents(id).find(e => e.type === 'confirmation')).toMatchObject({ confirmation: { agentId: 'kimi2', decision: 'assumo' } })
+      t.team.cancel(id)
+      await t.team.whenFinished(id)
+    })
+
+    it('R5: o pedido usa o perfil de quando foi enviado, mesmo se ele mudar na fila', async () => {
+      let calls = 0
+      const semCoord: Profile = { ...DUO2, coordinatorId: undefined }
+      const brain = fakeBrain([T3], [L3])
+      const t = await setup({ profile: DUO2, brainFor: () => brain })
+      ;(t.team as unknown as { deps: { profileOf(): Profile } }).deps.profileOf = () => (calls++ === 0 ? DUO2 : semCoord)
+      const id = await t.start()
+      await waitFor(() => t.parentEvents(id).some(e => e.type === 'plan_request' || e.type === 'run_finished' || e.type === 'error'))
+      expect(t.parentEvents(id).some(e => e.type === 'triage')).toBe(true)
+      expect(calls).toBe(1)
+      t.team.cancel(id)
+      await t.team.whenFinished(id)
+    })
+  })
 })
+

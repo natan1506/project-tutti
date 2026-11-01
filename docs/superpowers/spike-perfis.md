@@ -27,3 +27,6 @@ Scripts: `scripts/spike/opencode-api.mjs`, `scripts/spike/opencode-nokey.mjs`. N
 | Console | sem erros |
 
 Achados que viraram correção: salvar/remover chave não atualizava a disponibilidade; rótulo do agente API mostrava "opencode"; painel de uso por cima da tela de perfis; com 3 agentes a câmera aproximava e o painel cobria o nome do último; conversa antiga de perfil apagado mostrava "Agente (removido)" em vez do nome; caixas de marcar e campo de modelo espremidos pelo CSS do painel.
+
+## Revisão final: chave fora do env
+`scripts/spike/opencode-env-leak.mjs`: o opencode 2.2.5 lê `opencode.json` dentro de `OPENCODE_CONFIG_DIR` (`/api/provider` mostrou a chave falsa do arquivo). O app passou a gravar as chaves ali (arquivo 0600, apagado quando o servidor sai) em vez de `OPENCODE_CONFIG_CONTENT`, porque comandos rodados pelo opencode herdariam o env do servidor. O teste de herança em si ficou inconclusivo (o modelo gratuito não rodou o comando); a troca vale de qualquer forma.

@@ -1,7 +1,7 @@
 import type { AgentDef } from '@shared/agents'
 import type { AgentAdapter } from '../adapters/types'
 import { effectiveModel } from '../runs/runService'
-import { LINEUP_SCHEMA, TRIAGE_SCHEMA, type Brain } from './brain'
+import { LINEUP_SCHEMA, TRIAGE_SCHEMA, type Brain, type UsageSink } from './brain'
 import { extractJson } from './parse'
 import { lineupPrompt, triagePrompt } from './prompts'
 
@@ -11,7 +11,7 @@ import { lineupPrompt, triagePrompt } from './prompts'
 export class TextBrain implements Brain {
   constructor(private adapter: AgentAdapter, private coordinator: AgentDef) {}
 
-  private async ask(prompt: string, schema: object, cwd: string, signal: AbortSignal): Promise<unknown> {
+  private async ask(prompt: string, schema: object, cwd: string, signal: AbortSignal, onUsage?: UsageSink): Promise<unknown> {
     const model = effectiveModel(this.coordinator)
     let text = ''
     for await (const ev of this.adapter.run({
@@ -19,16 +19,17 @@ export class TextBrain implements Brain {
       prompt: `${prompt}\n\nResponda SOMENTE com um JSON neste formato (JSON Schema), sem mais nada:\n${JSON.stringify(schema)}`,
     })) {
       if (ev.type === 'text') text += (text ? '\n' : '') + ev.text
+      if (ev.type === 'usage' || ev.type === 'limit') onUsage?.(ev)
       if (ev.type === 'error') throw new Error(ev.message)
     }
     return extractJson(text)
   }
 
   triage(i: Parameters<Brain['triage']>[0]) {
-    return this.ask(triagePrompt(i.prompt, i.available, this.coordinator.id), TRIAGE_SCHEMA, i.cwd, i.signal)
+    return this.ask(triagePrompt(i.prompt, i.available, this.coordinator.id), TRIAGE_SCHEMA, i.cwd, i.signal, i.onUsage)
   }
 
   lineup(i: Parameters<Brain['lineup']>[0]) {
-    return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, this.coordinator.id), LINEUP_SCHEMA, i.cwd, i.signal)
+    return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, this.coordinator.id), LINEUP_SCHEMA, i.cwd, i.signal, i.onUsage)
   }
 }

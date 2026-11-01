@@ -15,6 +15,7 @@ interface ProfileState {
   setProfiles(profiles: Profile[]): void
   setActive(projectId: string, profileId: string): Promise<void>
   openConfig(open: boolean): void
+  refreshStatus(projectId: string): Promise<void>
 }
 
 /** Registra os agentes de todos os perfis, para conversas de qualquer perfil mostrarem nomes certos. */
@@ -49,6 +50,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   openConfig: configOpen => set({ configOpen }),
+
+  async refreshStatus(projectId) {
+    set({ status: await window.time.agentStatus(projectId) })
+  },
 }))
 
 /** Agentes do perfil ativo, na ordem do perfil. */

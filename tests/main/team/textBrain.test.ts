@@ -28,4 +28,11 @@ describe('TextBrain', () => {
   it('texto sem JSON devolve null', async () => {
     expect(await new TextBrain(new Reply('não sei'), getAgent('gptchefe')).lineup({ ...input, triage: { scores: [], candidates: [], big: false }, confirmations: [] })).toBeNull()
   })
+  it('R3: tokens do coordenador vão para quem pediu', async () => {
+    const seen: unknown[] = []
+    const a = { async *run() { yield { type: 'usage' as const, tool: 'opencode' as const, tokens: { input: 5, output: 1, cacheRead: 0, reasoning: 0 } }; yield { type: 'text' as const, text: '{"scores":[],"candidates":[],"big":false}' }; yield { type: 'done' as const } } }
+    await new TextBrain(a, getAgent('gptchefe')).triage({ ...input, onUsage: ev => seen.push(ev) })
+    expect(seen).toEqual([{ type: 'usage', tool: 'opencode', tokens: { input: 5, output: 1, cacheRead: 0, reasoning: 0 } }])
+  })
 })
+

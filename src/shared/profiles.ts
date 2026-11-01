@@ -135,6 +135,9 @@ const profileSchema = z.object({
   coordinatorId: z.string().optional(), agents: z.array(agentSchema),
 })
 
+/** Pela CLI do opencode o modelo só pode ser gratuito: senão a chave do Natan pagaria sem o agente estar marcado como pago. */
+const paidViaCli = (t: Transport, model?: string) => t.kind === 'cli' && t.tool === 'opencode' && !!model?.trim() && !model.trim().startsWith('opencode/')
+
 export function validateProfile(raw: unknown): { ok: true; profile: Profile } | { ok: false; errors: string[] } {
   const parsed = profileSchema.safeParse(raw)
   if (!parsed.success) return { ok: false, errors: ['Perfil inválido.'] }
@@ -142,6 +145,7 @@ export function validateProfile(raw: unknown): { ok: true; profile: Profile } | 
   const errors: string[] = []
   if (!p.nome.trim()) errors.push('O perfil precisa de um nome.')
   if (p.agents.length === 0) errors.push('O perfil precisa de pelo menos um agente.')
+  if (paidViaCli(p.defaults.transport, p.defaults.model)) errors.push('Configuração geral: pela CLI do opencode só modelos gratuitos (opencode/…).')
   if (p.agents.length > MAX_AGENTS) errors.push(`No máximo ${MAX_AGENTS} agentes por perfil.`)
   const names = new Set<string>()
   for (const a of p.agents) {
@@ -153,6 +157,7 @@ export function validateProfile(raw: unknown): { ok: true; profile: Profile } | 
     const transport = a.transport ?? p.defaults.transport
     const model = a.model ?? (a.transport ? undefined : p.defaults.model)
     if (transport.kind === 'api' && !model?.trim()) errors.push(`${nome}: escolha o modelo do provedor.`)
+    if (paidViaCli(transport, model)) errors.push(`${nome}: pela CLI do opencode só modelos gratuitos (opencode/…); modelo pago vai por API.`)
   }
   const ids = p.agents.map(a => a.id).filter(Boolean)
   if (new Set(ids).size !== ids.length) errors.push('Agentes com o mesmo id.')

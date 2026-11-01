@@ -62,6 +62,10 @@ describe('perfis', () => {
     expect(validateProfile({ ...base, agents: [{ ...agente, readOnly: true }], coordinatorId: 'a1' }).ok).toBe(false)
     expect(validateProfile({ ...base, defaults: { transport: { kind: 'api', provider: 'xpto' } } }).ok).toBe(false)
     expect(validateProfile('lixo').ok).toBe(false)
+    // R2: pela CLI do opencode só modelos gratuitos (opencode/*); modelo pago tem que ser agente por API, marcado como pago.
+    expect(validateProfile({ ...base, agents: [{ ...agente, transport: { kind: 'cli', tool: 'opencode' }, model: 'openai/gpt-6.1' }] }).ok).toBe(false)
+    expect(validateProfile({ ...base, agents: [{ ...agente, transport: { kind: 'cli', tool: 'opencode' }, model: 'opencode/big-pickle' }] }).ok).toBe(true)
+    expect(validateProfile({ ...base, defaults: { transport: { kind: 'cli', tool: 'opencode' }, model: 'anthropic/claude-x' } }).ok).toBe(false)
   })
 
   it('erro de validação vem em português', () => {

@@ -34,7 +34,9 @@ export const effectiveModel = (a: AgentDef, requested?: string): string | undefi
   a.transport.kind === 'api' ? `${a.transport.provider}/${a.defaultModel ?? ''}` : requested
 
 /** Quem o agente pode consultar no meio do trabalho: os "pode ser consultado" do mesmo perfil, menos ele mesmo. */
-export const consultableFor = (a: AgentDef): AgentDef[] => agentsOfProfile(a.profileId).filter(x => x.consultable && x.id !== a.id)
+// Agente por API paga fica de fora: consulta não tem clique de confirmação (spec custos-e-perfis §10).
+export const consultableFor = (a: AgentDef): AgentDef[] =>
+  agentsOfProfile(a.profileId).filter(x => x.consultable && x.id !== a.id && x.transport.kind !== 'api')
 
 /** Só erros que falam de sessão/conversa inexistente justificam recomeçar sem contexto (limite e rede não). */
 const looksLikeStaleSession = (msg: string) => /session|conversation|thread|not found|no such|unknown id|404/i.test(msg)
@@ -133,6 +135,18 @@ export class RunService {
     this.record(runId, { type: 'run_started', runId, agentId: input.agentId })
     this.controllers.set(runId, new AbortController())
     return runId
+  }
+
+  /**
+   * Uso não é conversa: vai para o banco e para o painel, não para o histórico do chat. Agente por API paga conta
+   * como fonte 'api'. Também usado pelo TeamService (confirmações e cérebro do coordenador).
+   */
+  recordUsage(runId: string, agentId: AgentId, ev: Extract<AgentEvent, { type: 'usage' | 'limit' }>): void {
+    if (ev.type === 'usage' && isPaidApi(getAgent(agentId))) ev = { ...ev, tool: 'api' }
+    if (ev.type === 'usage') this.deps.store.recordUsage(runId, agentId, ev.tool, ev.tokens, Date.now())
+    else this.deps.store.recordLimit(ev.limit)
+    this.deps.emit(runId, ev)
+    this.deps.onUsage?.(runId, agentId, ev)
   }
 
   /** Fecha o run: evento final, status gravado, controle liberado. */
@@ -306,7 +320,7 @@ export class RunService {
       this.record(runId, { type: 'agent_call', from, to, question })
       const adapter = this.deps.adapters[agent.tool]
       let answer: string
-      if (!adapter || !(await (this.deps.toolReady?.(agent.tool) ?? true))) answer = `O ${agent.nome} não está disponível.`
+      if (!adapter || !(await this.availability(to)).ok) answer = `O ${agent.nome} não está disponível.`
       else {
         const ctl = new AbortController()
         const onParent = () => ctl.abort()
@@ -314,8 +328,10 @@ export class RunService {
         const timer = setTimeout(() => ctl.abort(), 120_000)
         const texts: string[] = []
         try {
-          for await (const ev of adapter.run({ agent, prompt: question, cwd, instructions: '', signal: ctl.signal, mode: 'consult', requestApproval: async () => false })) {
+          const model = effectiveModel(agent)
+          for await (const ev of adapter.run({ agent, prompt: question, cwd, instructions: '', signal: ctl.signal, mode: 'consult', requestApproval: async () => false, ...(model ? { model } : {}) })) {
             if (ev.type === 'text') texts.push(ev.text)
+            if (ev.type === 'usage' || ev.type === 'limit') this.recordUsage(runId, agent.id, ev)
           }
         } catch {
           // falha do chamado vira "não respondeu" para quem perguntou
@@ -362,14 +378,9 @@ export class RunService {
         })
         try {
           for await (let ev of events) {
-            if (ev.type === 'usage' && isPaidApi(agent)) ev = { ...ev, tool: 'api' }
             if (ev.type === 'usage' || ev.type === 'limit') {
-              // Uso não é conversa: vai para o banco e para o painel, não para o histórico do chat.
               if (ev.type === 'usage') this.delivered.add(runId)
-              if (ev.type === 'usage') this.deps.store.recordUsage(runId, agent.id, ev.tool, ev.tokens, Date.now())
-              else this.deps.store.recordLimit(ev.limit)
-              this.deps.emit(runId, ev)
-              this.deps.onUsage?.(runId, agent.id, ev)
+              this.recordUsage(runId, agent.id, ev)
               continue
             }
             if (!started && resume && ev.type === 'error' && looksLikeStaleSession(ev.message)) { staleSession = true; break }

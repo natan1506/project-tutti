@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { AgentId, ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import type { Conversation, Project, ToolStatus } from '@shared/models'
+import { useProfileStore } from './profileStore'
 import { applyEvent, chatFromHistory, emptyChat, withPrompt, type ChatState } from './chat'
 
 interface UiState {
@@ -39,6 +40,9 @@ export const useRunStore = create<UiState>((set, get) => ({
 
   async loadTools() {
     set({ tools: await window.time.toolStatus() })
+    // Quem entrou ou saiu de uma CLI muda a disponibilidade dos agentes do perfil também.
+    const { project } = get()
+    if (project) await useProfileStore.getState().refreshStatus(project.id)
   },
 
   newConversation: () => set({ conversation: undefined, chat: emptyChat() }),

@@ -10,7 +10,7 @@ import type { AdapterRunOptions, AgentAdapter } from '../../../src/main/adapters
 import { runGit } from '../../../src/main/git/git'
 import { snapshot } from '../../../src/main/git/checkpoint'
 import { openStore } from '../../../src/main/store/db'
-import { RunService } from '../../../src/main/runs/runService'
+import { consultableFor, RunService } from '../../../src/main/runs/runService'
 
 type Script = (opts: AdapterRunOptions) => AsyncGenerator<AgentEvent>
 class FakeAdapter implements AgentAdapter {
@@ -555,6 +555,28 @@ describe('RunService', () => {
     registerAgents([{ ...getAgent('forja'), id: 'velho', nome: 'Velho (removido)', profileId: 'removido:p9' }])
     const { svc } = await setup(async function* () { yield { type: 'done' } })
     expect(await svc.availability('velho')).toEqual({ ok: false, hint: 'Agente removido' })
+  })
+  describe('consulta pelo perfil (revisão)', () => {
+    const P: Profile = { id: 'cp', nome: 'C', builtin: false, defaults: { transport: { kind: 'cli', tool: 'claude' } }, agents: [
+      { id: 'cw', nome: 'Escritor', prompt: 'x', funcao: 'x', readOnly: false, reviewer: false, consultable: false },
+      { id: 'cpago', nome: 'Pago', prompt: 'x', funcao: 'x', readOnly: true, reviewer: false, consultable: true, transport: { kind: 'api', provider: 'openrouter' }, model: 'moonshotai/kimi-k3.1-pro' },
+      { id: 'ccli', nome: 'Leitor', prompt: 'x', funcao: 'x', readOnly: true, reviewer: false, consultable: true, transport: { kind: 'cli', tool: 'codex' } },
+    ] }
+    it('R1: agente por API paga não é oferecido para consulta (gastaria sem clique)', () => {
+      registerAgents(resolveAgentDefs(P))
+      expect(consultableFor(getAgent('cw')).map(a => a.id)).toEqual(['ccli'])
+    })
+    it('R1: tokens gastos numa consulta entram no uso', async () => {
+      registerAgents(resolveAgentDefs(P))
+      const tokens = { input: 7, output: 3, cacheRead: 0, reasoning: 0 }
+      const { svc, dir, conv, store } = await setup(async function* (o) {
+        if (o.mode === 'consult') { yield { type: 'usage', tool: 'codex', tokens }; yield { type: 'text', text: 'resposta' }; yield { type: 'done' }; return }
+        yield { type: 'text', text: await o.askAgent!('ccli', 'pergunta') }
+        yield { type: 'done' }
+      }, { all: true })
+      await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'cw', prompt: 'faz' }))
+      expect(store.tokensSince('codex', 0)).toMatchObject({ input: 7, output: 3 })
+    })
   })
 })
 
