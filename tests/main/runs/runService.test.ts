@@ -1,6 +1,8 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { registerAgents } from '@shared/agents'
+import { resolveAgentDefs, type Profile, type ProviderId } from '@shared/profiles'
 import { describe, expect, it } from 'vitest'
 import type { ToolKind } from '@shared/agents'
 import type { AgentEvent, RunEvent } from '@shared/events'
@@ -18,7 +20,7 @@ class FakeAdapter implements AgentAdapter {
   run(opts: AdapterRunOptions) { this.seen = opts; this.calls.push(opts); return this.script(opts) }
 }
 
-async function setup(script: Script, { git = true, toolReady, radar = false, all = false }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean; all?: boolean } = {}) {
+async function setup(script: Script, { git = true, toolReady, radar = false, all = false, keyReady }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean; all?: boolean; keyReady?: (p: ProviderId) => boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'run-'))
   if (git) {
     await runGit(dir, ['init', '-q'])
@@ -31,7 +33,7 @@ async function setup(script: Script, { git = true, toolReady, radar = false, all
   const fake = new FakeAdapter(script)
   const svc = new RunService({
     store, adapters: { claude: fake, codex: all ? fake : undefined, gemini: radar || all ? fake : undefined, opencode: all ? fake : undefined },
-    emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady,
+    emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady, keyReady,
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
   return { dir, store, conv, emitted, fake, svc, start }
@@ -479,5 +481,59 @@ describe('RunService', () => {
     expect(replacement.prompt).toContain('assumindo o trabalho do Forja')
     expect(replacement.prompt).toContain('src/a.ts')
     expect(replacement.prompt).toContain('Crie a API')
+  })
+
+  describe('agentes por perfil (CLI ou API)', () => {
+    const perfil = (model: string, transport: Profile['defaults']['transport'] = { kind: 'api', provider: 'openrouter' }): Profile => ({
+      id: 'tp', nome: 'Teste', builtin: false, defaults: { transport, model },
+      agents: [{ id: 'kimi', nome: 'Kimi', prompt: 'Faz coisas.', funcao: 'Geral', readOnly: false, reviewer: false, consultable: false }],
+    })
+    const startKimi = (svc: RunService, dir: string, conv: { id: string }, prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'kimi', prompt })
+
+    it('agente API roda no opencode com provedor/modelo do perfil, ignorando modelo do pedido', async () => {
+      registerAgents(resolveAgentDefs(perfil('moonshotai/kimi-k3.1-pro')))
+      const { fake, svc, dir, conv } = await setup(async function* () { yield { type: 'done', sessionId: 's1' } }, { all: true, keyReady: () => true })
+      await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'kimi', prompt: 'faz', model: 'opencode/big-pickle' }))
+      expect(fake.calls[0].model).toBe('openrouter/moonshotai/kimi-k3.1-pro')
+    })
+
+    it('agente API sem chave: indisponível com dica e o pedido não começa', async () => {
+      registerAgents(resolveAgentDefs(perfil('moonshotai/kimi-k3.1-pro')))
+      const { svc, dir, conv, fake } = await setup(async function* () { yield { type: 'done' } }, { all: true, keyReady: () => false })
+      expect(await svc.availability('kimi')).toEqual({ ok: false, hint: 'Sem chave da OpenRouter' })
+      await expect(startKimi(svc, dir, conv)).rejects.toThrow('TOOL_UNAVAILABLE')
+      expect(fake.calls).toHaveLength(0)
+      expect(await svc.availability('forja')).toEqual({ ok: true })
+    })
+
+    it('trocar o modelo do agente começa sessão nova; mesmo modelo retoma', async () => {
+      registerAgents(resolveAgentDefs(perfil('moonshotai/kimi-k3.1-pro')))
+      const { fake, svc, dir, conv } = await setup(async function* () { yield { type: 'done', sessionId: 's-kimi' } }, { all: true, keyReady: () => true })
+      await svc.whenFinished(await startKimi(svc, dir, conv))
+      await svc.whenFinished(await startKimi(svc, dir, conv))
+      expect(fake.calls[1].resumeSessionId).toBe('s-kimi')
+      registerAgents(resolveAgentDefs(perfil('deepseek/deepseek-v4-pro')))
+      await svc.whenFinished(await startKimi(svc, dir, conv))
+      expect(fake.calls[2].resumeSessionId).toBeUndefined()
+    })
+
+    it('trocar o transporte também começa sessão nova', async () => {
+      registerAgents(resolveAgentDefs(perfil('claude-sonnet-5-5', { kind: 'cli', tool: 'claude' })))
+      const { fake, svc, dir, conv } = await setup(async function* () { yield { type: 'done', sessionId: 's-x' } }, { all: true, keyReady: () => true })
+      await svc.whenFinished(await startKimi(svc, dir, conv))
+      registerAgents(resolveAgentDefs(perfil('claude-sonnet-5-5', { kind: 'api', provider: 'anthropic' })))
+      await svc.whenFinished(await startKimi(svc, dir, conv))
+      expect(fake.calls[1].resumeSessionId).toBeUndefined()
+    })
+
+    it('uso de agente API vai como fonte "api"', async () => {
+      registerAgents(resolveAgentDefs(perfil('moonshotai/kimi-k3.1-pro')))
+      const tokens = { input: 10, output: 5, cacheRead: 0, reasoning: 0 }
+      const { svc, dir, conv, store, emitted } = await setup(async function* () { yield { type: 'usage', tool: 'opencode', tokens }; yield { type: 'done' } }, { all: true, keyReady: () => true })
+      await svc.whenFinished(await startKimi(svc, dir, conv))
+      expect(store.tokensSince('api', 0)).toMatchObject({ input: 10, output: 5 })
+      expect(store.tokensSince('opencode', 0)).toMatchObject({ input: 0 })
+      expect(emitted).toContainEqual({ type: 'usage', tool: 'api', tokens })
+    })
   })
 })

@@ -58,7 +58,8 @@ export class UsageService {
 
   onEvent(_runId: string, _agentId: AgentId, ev: AgentEvent): void {
     if (ev.type !== 'usage' && ev.type !== 'limit') return
-    const tool = ev.type === 'usage' ? ev.tool : ev.limit.tool
+    if (ev.type === 'usage' && ev.tool === 'api') { this.push(); return }
+    const tool = (ev.type === 'usage' ? ev.tool : ev.limit.tool) as ToolKind
     const row = this.row(tool)
     if (row.alert) {
       const top = this.topWindow(tool)
@@ -86,7 +87,11 @@ export class UsageService {
   }
 
   snapshot(): UsageSnapshot {
-    return { rows: TOOLS.map(t => this.row(t)), at: this.now() }
+    const rows = TOOLS.map(t => this.row(t))
+    // Agentes por API paga: só tokens, e só quando houve uso hoje.
+    const api = this.deps.store.tokensSince('api', startOfDay(this.now()))
+    if (api.input + api.output > 0) rows.push({ tool: 'api', utilization: null, estimated: false, window: null, tokens: api, alert: false })
+    return { rows, at: this.now() }
   }
 
   /** Janelas oficiais ainda válidas (não resetadas) da ferramenta. */

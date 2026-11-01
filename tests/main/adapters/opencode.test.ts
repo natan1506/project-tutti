@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import { getAgent } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
 import type { AdapterRunOptions } from '../../../src/main/adapters/types'
 import {
-  HttpOpencodeApi, mapOpencodeEvent, newOcUsage, OpencodeAdapter, OpencodeHost, parseSse, permissionToToolCalls, startOpencodeServer, type OcEvent, type OpencodeApi,
+  HttpOpencodeApi, mapOpencodeEvent, opencodeConfigContent, newOcUsage, OpencodeAdapter, OpencodeHost, parseSse, permissionToToolCalls, startOpencodeServer, type OcEvent, type OpencodeApi,
 } from '../../../src/main/adapters/opencode'
 
 const FIX = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'opencode-events.json'), 'utf8')) as OcEvent[]
@@ -95,7 +96,42 @@ describe('mapOpencodeEvent', () => {
   })
 })
 
+describe('config do servidor', () => {
+  it('declara os seis provedores e põe só as chaves salvas', () => {
+    const c = JSON.parse(opencodeConfigContent({ openrouter: 'sk-or-1' }))
+    expect(c.mcp).toEqual({})
+    expect(c.plugin).toEqual([])
+    expect(c.provider.openrouter).toEqual({ options: { apiKey: 'sk-or-1' } })
+    expect(c.provider.openai).toEqual({})
+    expect(Object.keys(c.provider).sort()).toEqual(['anthropic', 'deepseek', 'google', 'moonshotai', 'openai', 'openrouter'])
+  })
+  it('a chave vai só no OPENCODE_CONFIG_CONTENT do servidor', async () => {
+    let env: Record<string, string> = {}
+    const spawnFn = ((_cmd: string, _args: string[], o: { env: Record<string, string> }) => {
+      env = o.env
+      const proc = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: Object.assign(new EventEmitter(), { resume() {} }), exitCode: null, kill() {} })
+      setTimeout(() => proc.stdout.emit('data', 'listening on http://127.0.0.1:4096\n'), 5)
+      return proc
+    }) as never
+    const s = await startOpencodeServer(spawnFn, { deepseek: 'sk-ds-9' })
+    expect(env.OPENCODE_CONFIG_CONTENT).toContain('sk-ds-9')
+    expect(Object.entries(env).filter(([k, v]) => k !== 'OPENCODE_CONFIG_CONTENT' && String(v).includes('sk-ds-9'))).toEqual([])
+    void s
+  })
+})
+
 describe('OpencodeHost', () => {
+  it('reiniciar fecha o servidor e o próximo pedido sobe outro com a config nova', async () => {
+    const close = vi.fn()
+    const start = vi.fn(async () => ({ api: fakeApi(), close }))
+    const host = new OpencodeHost(start)
+    await host.api()
+    await host.restart()
+    expect(close).toHaveBeenCalledOnce()
+    await host.api()
+    expect(start).toHaveBeenCalledTimes(2)
+  })
+
   it('sobe o servidor uma vez e fecha', async () => {
     const close = vi.fn()
     const start = vi.fn(async () => ({ api: fakeApi(), close }))
@@ -215,6 +251,16 @@ describe('revisão final — Curinga', () => {
     expect(o.requestApproval).not.toHaveBeenCalled()
     expect(api.replies.filter(r => (r as { decision: string }).decision === 'once')).toEqual([])
     expect(api.interrupted).toEqual([SID])
+  })
+
+  it('modelos de um provedor saem sem settings (a chave nunca sai do servidor)', async () => {
+    const fetchFn = (async () => new Response(JSON.stringify({ data: [
+      { modelID: 'moonshotai/kimi-k3.1-pro', providerID: 'openrouter', name: 'Kimi K3.1 Pro', settings: { apiKey: 'sk-or-1' } },
+      { modelID: 'gpt-6.1', providerID: 'openai', name: 'GPT 6.1', settings: { apiKey: 'x' } },
+    ] }), { status: 200 })) as unknown as typeof fetch
+    const ms = await new HttpOpencodeApi('http://x', 'pw', fetchFn).models('openrouter')
+    expect(ms).toEqual([{ id: 'moonshotai/kimi-k3.1-pro', name: 'Kimi K3.1 Pro' }])
+    expect(JSON.stringify(ms)).not.toContain('sk-or-1')
   })
 
   it('I1: sub-agentes (task) são negados nas regras da sessão', async () => {

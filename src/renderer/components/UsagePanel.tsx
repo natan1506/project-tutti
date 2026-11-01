@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { ToolKind } from '@shared/agents'
+import type { UsageSource } from '@shared/usage'
 import { formatTokens } from '../state/format'
 import { useUsageStore } from '../state/usageStore'
 import { UsageDetail } from './UsageDetail'
 
-export const TOOL_NAME: Record<ToolKind, string> = { claude: 'Claude Code', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode' }
+export const TOOL_NAME: Record<UsageSource, string> = { claude: 'Claude Code', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode', api: 'API (paga)' }
 /** Cor do primeiro agente do perfil que usa a ferramenta. */
-export const TOOL_COLOR: Record<ToolKind, string> = { claude: '#d97757', codex: '#3d6df2', gemini: '#8a7cf0', opencode: '#b9b9c2' }
+export const TOOL_COLOR: Record<UsageSource, string> = { claude: '#d97757', codex: '#3d6df2', gemini: '#8a7cf0', opencode: '#b9b9c2', api: '#f5a524' }
 
 const readCollapsed = () => { try { return localStorage.getItem('usagePanel.collapsed') === '1' } catch { return false } }
 

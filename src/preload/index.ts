@@ -36,6 +36,8 @@ const api: TimeApi = {
     return () => { ipcRenderer.removeListener('profiles', listener) }
   },
   providerKeys: () => ipcRenderer.invoke('providerKeys'),
+  providerModels: provider => ipcRenderer.invoke('providerModels', provider),
+  agentStatus: projectId => ipcRenderer.invoke('agentStatus', projectId),
   setProviderKey: (provider, key) => ipcRenderer.invoke('setProviderKey', provider, key),
   removeProviderKey: provider => ipcRenderer.invoke('removeProviderKey', provider),
   usageSettings: () => ipcRenderer.invoke('usageSettings'),

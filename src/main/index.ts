@@ -44,7 +44,8 @@ app.whenReady().then(async () => {
     decrypt: b => safeStorage.decryptString(b),
   } })
   const tools = cachedDetector(realExec)
-  const opencode = new OpencodeHost(() => startOpencodeServer())
+  // Spec custos-e-perfis §8: as chaves vão só para o processo do opencode.
+  const opencode = new OpencodeHost(() => startOpencodeServer(undefined, keys.all()))
   let quitting = false
   app.on('before-quit', e => {
     if (quitting || !opencode.isRunning) return
@@ -62,6 +63,7 @@ app.whenReady().then(async () => {
     adapters,
     emit: (runId, ev) => send(runId, ev),
     toolReady,
+    keyReady: p => keys.get(p) !== undefined,
     onUsage: (runId, agentId, ev) => usage.onEvent(runId, agentId, ev),
   })
   // Spec custos-e-perfis §5: ferramenta passou do limite → aviso nos runs dela, com substituto sugerido.
@@ -76,7 +78,7 @@ app.whenReady().then(async () => {
   const win = createWindow()
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
   pushProfiles = ps => { if (!win.isDestroyed()) win.webContents.send('profiles', ps) }
-  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => {} })
+  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [] })
   const stopPolling = usage.startPolling()
   app.on('will-quit', stopPolling)
 })

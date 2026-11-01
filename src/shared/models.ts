@@ -47,6 +47,8 @@ export interface TimeApi {
   setActiveProfile(projectId: string, profileId: string): Promise<void>
   onProfiles(cb: (profiles: Profile[]) => void): () => void
   providerKeys(): Promise<Record<ProviderId, boolean>>
+  providerModels(provider: ProviderId): Promise<{ id: string; name: string }[]>
+  agentStatus(projectId: string): Promise<Record<AgentId, { ok: boolean; hint?: string }>>
   setProviderKey(provider: ProviderId, key: string): Promise<void>
   removeProviderKey(provider: ProviderId): Promise<void>
   usageSettings(): Promise<UsageSettings>

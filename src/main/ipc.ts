@@ -47,7 +47,13 @@ function sanitizeUsageSettings(raw: unknown): UsageSettingsPatch {
 }
 const paths = (p: unknown): string[] | undefined => (Array.isArray(p) ? p.map(text) : undefined)
 
-export interface ProfileDeps { profiles: ProfileService; keys: KeyStore; keysChanged(): void }
+export interface ProfileDeps {
+  profiles: ProfileService
+  keys: KeyStore
+  keysChanged(): void
+  runs: RunService
+  models(provider: ProviderId): Promise<{ id: string; name: string }[]>
+}
 
 const provider = (p: unknown): ProviderId => {
   if (!PROVIDERS.some(x => x.id === p)) throw new Error('provedor desconhecido')
@@ -69,6 +75,12 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
     pd.keysChanged()
   })
   ipcMain.handle('removeProviderKey', (_e, p) => { pd.keys.remove(provider(p)); pd.keysChanged() })
+  ipcMain.handle('providerModels', (_e, p) => pd.models(provider(p)).catch(() => []))
+  // Disponibilidade de cada agente do perfil ativo do projeto (CLI pronta, chave salva…).
+  ipcMain.handle('agentStatus', async (_e, projectId) => {
+    const p = pd.profiles.activeFor(text(projectId))
+    return Object.fromEntries(await Promise.all(p.agents.map(async a => [a.id, await pd.runs.availability(a.id)])))
+  })
   ipcMain.handle('usageSnapshot', () => usage.snapshot())
   ipcMain.handle('usageDetail', (_e, conversationId) => ({
     byRun: typeof conversationId === 'string' ? store.tokensByRun(conversationId) : [],

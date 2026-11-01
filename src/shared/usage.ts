@@ -1,5 +1,8 @@
 import type { ToolKind } from './agents'
 
+/** De onde veio o uso: uma das CLIs ou agentes por API paga (só tokens, spec custos-e-perfis §8). */
+export type UsageSource = ToolKind | 'api'
+
 // Uso das assinaturas (spec custos-e-perfis §4 e §9).
 
 export interface TokenUsage { input: number; output: number; cacheRead: number; reasoning: number }
@@ -12,7 +15,7 @@ export const addTokens = (a: TokenUsage, b: TokenUsage): TokenUsage =>
   ({ input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, reasoning: a.reasoning + b.reasoning })
 
 export interface ToolUsageRow {
-  tool: ToolKind; utilization: number | null; estimated: boolean; window: WindowKind | null
+  tool: UsageSource; utilization: number | null; estimated: boolean; window: WindowKind | null
   resetsAt?: number; tokens: TokenUsage; alert: boolean
 }
 export interface UsageSnapshot { rows: ToolUsageRow[]; at: number }
@@ -21,6 +24,6 @@ export interface UsageSettings { alertAt: number; perTool: Partial<Record<ToolKi
 export interface UsageSettingsPatch { alertAt?: number; perTool?: Partial<Record<ToolKind, { alertAt?: number | null; estimateCeilingTokens?: number | null }>> }
 export const DEFAULT_USAGE_SETTINGS: UsageSettings = { alertAt: 90, perTool: {} }
 export interface UsageDetail {
-  byRun: { runId: string; agentId: import('./agents').AgentId; tool: ToolKind; tokens: TokenUsage }[]
-  byDay: { day: string; projectPath: string; tool: ToolKind; tokens: TokenUsage }[]
+  byRun: { runId: string; agentId: import('./agents').AgentId; tool: UsageSource; tokens: TokenUsage }[]
+  byDay: { day: string; projectPath: string; tool: UsageSource; tokens: TokenUsage }[]
 }

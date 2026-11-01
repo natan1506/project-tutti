@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import type { AgentEvent } from '@shared/events'
 import { addTokens, zeroTokens, type TokenUsage } from '@shared/usage'
 import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
+import { PROVIDERS, type ProviderId } from '@shared/profiles'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
@@ -21,6 +22,8 @@ export interface OpencodeApi {
   replyPermission(sessionId: string, requestId: string, decision: 'once' | 'reject', message?: string): Promise<void>
   interrupt(sessionId: string): Promise<void>
   events(signal: AbortSignal): AsyncIterable<OcEvent>
+  /** Modelos de um provedor, só id e nome (a resposta do servidor traz a chave em `settings`). */
+  models?(provider: string): Promise<{ id: string; name: string }[]>
 }
 
 /** Comandos pedem aprovação ao app; edições são livres dentro da sessão, mas tudo passa pela política §6.4 no `permission.asked`. */
@@ -130,6 +133,11 @@ export class OpencodeHost {
     const started = this.started
     this.started = undefined
     return started ? started.then(s => s.close(), () => {}) : Promise.resolve()
+  }
+
+  /** Chaves mudaram: fecha o servidor; o próximo pedido sobe outro com a config nova. */
+  restart(): Promise<void> {
+    return this.close()
   }
 
   get isRunning(): boolean {
@@ -244,6 +252,12 @@ export class HttpOpencodeApi implements OpencodeApi {
     const res = await this.call('POST', '/api/session', { title: input.title, location: { directory: input.directory }, model: input.model, permissions: input.consult ? CONSULT_RULES : RULES })
     return (res.data as { id: string }).id
   }
+  async models(provider: string): Promise<{ id: string; name: string }[]> {
+    const r = await this.call('GET', '/api/model')
+    const data = Array.isArray(r.data) ? (r.data as Record<string, unknown>[]) : []
+    return data.filter(m => m.providerID === provider).map(m => ({ id: String(m.modelID ?? m.id), name: String(m.name ?? m.modelID ?? m.id) }))
+  }
+
   async prompt(sessionId: string, text: string) { await this.call('POST', `/api/session/${sessionId}/prompt`, { text }) }
   async replyPermission(sessionId: string, requestId: string, decision: 'once' | 'reject', message?: string) {
     await this.call('POST', `/api/session/${sessionId}/permission/${requestId}/reply`, { decision, ...(message ? { message } : {}) })
@@ -267,15 +281,24 @@ export class HttpOpencodeApi implements OpencodeApi {
   }
 }
 
+/**
+ * Config do servidor (spec custos-e-perfis §8): sem MCP/plugins; os seis provedores declarados (assim os modelos listam
+ * mesmo sem chave) e `apiKey` só onde o Natan salvou chave. É o único lugar por onde uma chave sai do app.
+ */
+export function opencodeConfigContent(keys: Partial<Record<ProviderId, string>>): string {
+  const provider = Object.fromEntries(PROVIDERS.map(p => [p.id, keys[p.id] ? { options: { apiKey: keys[p.id] } } : {}]))
+  return JSON.stringify({ mcp: {}, plugin: [], provider })
+}
+
 /** Sobe `opencode serve` com senha aleatória e sem MCP do usuário; fecha matando o processo. */
-export async function startOpencodeServer(spawnFn: typeof spawn = spawn): Promise<{ api: OpencodeApi; close(): Promise<void>; onExit(cb: () => void): void }> {
+export async function startOpencodeServer(spawnFn: typeof spawn = spawn, keys: Partial<Record<ProviderId, string>> = {}): Promise<{ api: OpencodeApi; close(): Promise<void>; onExit(cb: () => void): void }> {
   const password = randomBytes(18).toString('base64url')
   // Só instruções do Natan (spec §7): sem config/plugins do projeto nem do usuário, sem MCP.
   const proc: ChildProcess = spawnFn('opencode', ['serve', '--hostname=127.0.0.1', '--port=0'], {
     env: {
       ...safeEnv(),
       OPENCODE_SERVER_PASSWORD: password,
-      OPENCODE_CONFIG_CONTENT: JSON.stringify({ mcp: {}, plugin: [] }),
+      OPENCODE_CONFIG_CONTENT: opencodeConfigContent(keys),
       OPENCODE_DISABLE_PROJECT_CONFIG: '1',
       OPENCODE_CONFIG_PROJECT_DISABLE: '1',
       OPENCODE_CONFIG_DIR: mkdtempSync(join(tmpdir(), 'tutti-opencode-config-')),

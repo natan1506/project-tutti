@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { getAgent, knownAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
+import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { WindowKind } from '@shared/usage'
 import type { StartRunInput } from '@shared/models'
@@ -18,9 +19,15 @@ interface Deps {
   homeDir?: string
   /** Ferramenta instalada e logada? (padrão: sim) */
   toolReady?: (tool: ToolKind) => Promise<boolean>
+  /** Chave do provedor salva? (agentes por API; padrão: sim) */
+  keyReady?: (provider: ProviderId) => boolean
   /** Uso/limite medido num run (UsageService). */
   onUsage?: (runId: string, agentId: AgentId, ev: Extract<AgentEvent, { type: 'usage' | 'limit' }>) => void
 }
+
+/** Assinatura do agente para retomar sessão: trocar transporte ou modelo começa sessão nova (spec custos-e-perfis §6). */
+export const agentSignature = (a: AgentDef): string =>
+  `${a.transport.kind}:${a.transport.kind === 'cli' ? a.transport.tool : a.transport.provider}:${a.defaultModel ?? ''}`
 
 /** Só erros que falam de sessão/conversa inexistente justificam recomeçar sem contexto (limite e rede não). */
 const looksLikeStaleSession = (msg: string) => /session|conversation|thread|not found|no such|unknown id|404/i.test(msg)
@@ -50,8 +57,7 @@ export class RunService {
 
   /** Pedido direto a um agente: espera a vez do projeto, ponto de restauração, agente, diff. */
   async start(input: StartRunInput): Promise<string> {
-    const agent = getAgent(input.agentId)
-    const adapter = await this.readyAdapter(agent.tool)
+    const adapter = await this.readyAdapter(input.agentId)
     if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
     const runId = this.open(input, true)
     const signal = this.controllers.get(runId)!.signal
@@ -72,7 +78,7 @@ export class RunService {
 
   /** Passo de um pedido de time: sem fila e sem ponto de restauração próprios (o pai cuida dos dois). */
   async startChild(input: StartRunInput & { parentRunId: string }): Promise<string> {
-    const adapter = await this.readyAdapter(getAgent(input.agentId).tool)
+    const adapter = await this.readyAdapter(input.agentId)
     const runId = this.open(input, false)
     this.finished.set(runId, this.execute(runId, input, adapter, this.controllers.get(runId)!.signal, false))
     return runId
@@ -94,10 +100,20 @@ export class RunService {
     return !signal.aborted || this.queue.position(projectPath, runId) === 0
   }
 
-  private async readyAdapter(tool: ToolKind): Promise<AgentAdapter> {
-    const adapter = this.deps.adapters[tool]
-    if (!adapter || !(await (this.deps.toolReady?.(tool) ?? true))) throw new Error('TOOL_UNAVAILABLE')
-    return adapter
+  /** O agente pode trabalhar agora? CLI: ferramenta instalada e logada. API: opencode pronto e chave do provedor salva. */
+  async availability(agentId: AgentId): Promise<{ ok: true } | { ok: false; hint: string }> {
+    const agent = getAgent(agentId)
+    if (!knownAgent(agentId)) return { ok: false, hint: 'Agente removido' }
+    if (!this.deps.adapters[agent.tool] || !(await (this.deps.toolReady?.(agent.tool) ?? true))) return { ok: false, hint: 'Ferramenta indisponível' }
+    if (agent.transport.kind === 'api' && !(this.deps.keyReady?.(agent.transport.provider) ?? true)) {
+      return { ok: false, hint: `Sem chave da ${providerName(agent.transport.provider)}` }
+    }
+    return { ok: true }
+  }
+
+  private async readyAdapter(agentId: AgentId): Promise<AgentAdapter> {
+    if (!(await this.availability(agentId)).ok) throw new Error('TOOL_UNAVAILABLE')
+    return this.deps.adapters[getAgent(agentId).tool]!
   }
 
   /** Cria o run (status running) e o controle de cancelamento. */
@@ -105,7 +121,7 @@ export class RunService {
     const runId = randomUUID()
     this.deps.store.createRun({
       id: runId, conversationId: input.conversationId, agentId: input.agentId, prompt: input.prompt, startedAt: Date.now(),
-      hasCheckpoint, ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+      hasCheckpoint, ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}), agentSig: agentSignature(getAgent(input.agentId)),
     })
     this.record(runId, { type: 'run_started', runId, agentId: input.agentId })
     this.controllers.set(runId, new AbortController())
@@ -311,7 +327,9 @@ export class RunService {
       if (signal.aborted) return
       const agent = getAgent(input.agentId)
       // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
-      let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id) ?? undefined
+      let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id, agentSignature(agent)) ?? undefined
+      // Agente por API usa sempre o modelo do perfil (o modelo escolhido no pedido é da lista das CLIs).
+      const model = agent.transport.kind === 'api' ? `${agent.transport.provider}/${agent.defaultModel ?? ''}` : input.model
       // Contexto compartilhado: o que o Natan e os outros já disseram nesta conversa (consulta não recebe, por economia).
       const shared = (resumed: boolean) => {
         if (input.mode === 'consult') return ''
@@ -325,12 +343,13 @@ export class RunService {
         let staleSession = false
         const events = adapter.run({
           agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
-          ...(input.model ? { model: input.model } : {}), ...(input.mode ? { mode: input.mode } : {}),
+          ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
           ...(input.mode !== 'consult' ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal) } : {}),
         })
         try {
-          for await (const ev of events) {
+          for await (let ev of events) {
+            if (ev.type === 'usage' && isPaidApi(agent)) ev = { ...ev, tool: 'api' }
             if (ev.type === 'usage' || ev.type === 'limit') {
               // Uso não é conversa: vai para o banco e para o painel, não para o histórico do chat.
               if (ev.type === 'usage') this.delivered.add(runId)

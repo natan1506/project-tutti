@@ -73,6 +73,14 @@ describe('UsageService', () => {
     expect(svc.settings().perTool.claude).toEqual({ estimateCeilingTokens: 500 })
   })
 
+  it('linha API só aparece quando há uso de API, sem porcentagem nem alerta', () => {
+    const { store, svc, now } = setup()
+    expect(svc.snapshot().rows.map(r => r.tool)).toEqual(['claude', 'codex', 'gemini', 'opencode'])
+    store.recordUsage('r', 'kimi', 'api', { input: 100, output: 20, cacheRead: 0, reasoning: 0 }, now.t)
+    const api = svc.snapshot().rows.find(r => r.tool === 'api')
+    expect(api).toMatchObject({ utilization: null, alert: false, tokens: { input: 100, output: 20 } })
+  })
+
   it('emite no máximo um snapshot por segundo', async () => {
     vi.useFakeTimers()
     const { svc, snaps } = setup()

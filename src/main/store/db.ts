@@ -6,7 +6,7 @@ import type { Profile } from '@shared/profiles'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { ToolKind } from '@shared/agents'
 import type { Conversation, Project, RunRow } from '@shared/models'
-import type { LimitWindow, TokenUsage, WindowKind } from '@shared/usage'
+import type { LimitWindow, TokenUsage, UsageSource, WindowKind } from '@shared/usage'
 
 export type { Conversation, Project, RunRow }
 
@@ -15,7 +15,7 @@ export interface Store {
   recentProjects(limit?: number): Project[]
   createConversation(projectId: string, title: string): Conversation
   listConversations(projectId: string): Conversation[]
-  createRun(r: Omit<RunRow, 'status' | 'finishedAt' | 'sessionId' | 'parentRunId'> & { parentRunId?: string }): RunRow
+  createRun(r: Omit<RunRow, 'status' | 'finishedAt' | 'sessionId' | 'parentRunId'> & { parentRunId?: string; agentSig?: string }): RunRow
   listChildren(parentRunId: string): RunRow[]
   finishRun(id: string, status: RunStatus, sessionId?: string): void
   getRun(id: string): RunRow | undefined
@@ -23,14 +23,15 @@ export interface Store {
   listRuns(conversationId: string): RunRow[]
   listEvents(runId: string): RunEvent[]
   listRunsByStatus(status: RunStatus): RunRow[]
-  lastSessionFor(conversationId: string, agentId: AgentId): string | null
+  /** Última sessão do agente na conversa com a mesma assinatura (transporte e modelo); runs antigos sem assinatura valem. */
+  lastSessionFor(conversationId: string, agentId: AgentId, agentSig?: string): string | null
   markInterruptedRuns(): number
   projectPathForRun(runId: string): string | undefined
-  recordUsage(runId: string, agentId: AgentId, tool: ToolKind, tokens: TokenUsage, at: number): void
+  recordUsage(runId: string, agentId: AgentId, tool: UsageSource, tokens: TokenUsage, at: number): void
   recordLimit(l: LimitWindow): void
-  tokensSince(tool: ToolKind, since: number): TokenUsage
-  tokensByRun(conversationId: string): { runId: string; agentId: AgentId; tool: ToolKind; tokens: TokenUsage }[]
-  tokensByDay(days: number, now?: number): { day: string; projectPath: string; tool: ToolKind; tokens: TokenUsage }[]
+  tokensSince(tool: UsageSource, since: number): TokenUsage
+  tokensByRun(conversationId: string): { runId: string; agentId: AgentId; tool: UsageSource; tokens: TokenUsage }[]
+  tokensByDay(days: number, now?: number): { day: string; projectPath: string; tool: UsageSource; tokens: TokenUsage }[]
   latestLimits(): LimitWindow[]
   getSetting<T>(key: string): T | undefined
   setSetting(key: string, value: unknown): void
@@ -73,6 +74,7 @@ export function openStore(file: string): Store {
   db.exec(SCHEMA)
   // Fase 3B: runs-filhos de um pedido de time.
   if (!(db.prepare('PRAGMA table_info(runs)').all() as Row[]).some(c => c.name === 'parent_run_id')) db.exec('ALTER TABLE runs ADD COLUMN parent_run_id TEXT')
+  if (!(db.prepare('PRAGMA table_info(runs)').all() as Row[]).some(c => c.name === 'agent_sig')) db.exec('ALTER TABLE runs ADD COLUMN agent_sig TEXT')
   // Date.now() pode repetir dentro do mesmo milissegundo; o relógio do store nunca anda para trás nem empata.
   let last = 0
   const now = () => (last = Math.max(Date.now(), last + 1))
@@ -95,8 +97,8 @@ export function openStore(file: string): Store {
       return (db.prepare('SELECT * FROM conversations WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Row[]).map(toConversation)
     },
     createRun(r) {
-      db.prepare(`INSERT INTO runs (id, conversation_id, agent_id, prompt, status, started_at, has_checkpoint, parent_run_id)
-        VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`).run(r.id, r.conversationId, r.agentId, r.prompt, r.startedAt, r.hasCheckpoint ? 1 : 0, r.parentRunId ?? null)
+      db.prepare(`INSERT INTO runs (id, conversation_id, agent_id, prompt, status, started_at, has_checkpoint, parent_run_id, agent_sig)
+        VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`).run(r.id, r.conversationId, r.agentId, r.prompt, r.startedAt, r.hasCheckpoint ? 1 : 0, r.parentRunId ?? null, r.agentSig ?? null)
       return this.getRun(r.id)!
     },
     finishRun(id, status, sessionId) {
@@ -122,9 +124,10 @@ export function openStore(file: string): Store {
     listRunsByStatus(status) {
       return (db.prepare('SELECT * FROM runs WHERE status = ?').all(status) as Row[]).map(toRun)
     },
-    lastSessionFor(conversationId, agentId) {
+    lastSessionFor(conversationId, agentId, agentSig) {
       const r = db.prepare(`SELECT session_id FROM runs WHERE conversation_id = ? AND agent_id = ? AND status = 'done'
-        AND session_id IS NOT NULL ORDER BY started_at DESC LIMIT 1`).get(conversationId, agentId) as Row | undefined
+        AND session_id IS NOT NULL AND (agent_sig IS NULL OR ? IS NULL OR agent_sig = ?) ORDER BY started_at DESC LIMIT 1`)
+        .get(conversationId, agentId, agentSig ?? null, agentSig ?? null) as Row | undefined
       return (r?.session_id as string | undefined) ?? null
     },
     markInterruptedRuns() {
