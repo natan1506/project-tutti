@@ -2,6 +2,8 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAgent } from '@shared/agents'
 import type { AdapterRunOptions } from '../../../src/main/adapters/types'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { buildClaudeOptions, makeCanUseTool, mapClaudeMessage } from '../../../src/main/adapters/claude'
 
 const cwd = '/tmp/proj'
@@ -132,5 +134,25 @@ describe('makeCanUseTool', () => {
   it('sem askAgent (ou em consulta) não há servidor', () => {
     expect(buildClaudeOptions(opts(), async () => ({ behavior: 'allow' })).mcpServers).toEqual({})
     expect(buildClaudeOptions(opts({ askAgent: async () => '', mode: 'consult' }), async () => ({ behavior: 'allow' })).mcpServers).toEqual({})
+  })
+})
+
+describe('uso e limite do Claude', () => {
+  const fx = (n: string) => JSON.parse(readFileSync(join(__dirname, 'fixtures', n), 'utf8'))
+  it('rate_limit_event vira um limite por janela, em 0–100 e milissegundos', () => {
+    expect(mapClaudeMessage(fx('claude-rate-limit.json'), cwd)).toEqual([
+      { type: 'limit', limit: { tool: 'claude', window: 'five_hour', utilization: 28, resetsAt: 1793541000_000, at: expect.any(Number) } },
+      { type: 'limit', limit: { tool: 'claude', window: 'seven_day', utilization: 86, resetsAt: 1793584800_000, at: expect.any(Number) } },
+    ])
+  })
+  it('janela por modelo vira seven_day_model; evento sem unifiedWindows usa o topo', () => {
+    const ev = msg({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'seven_day_opus', utilization: 0.5, resetsAt: 10 } })
+    expect(mapClaudeMessage(ev, cwd)).toEqual([{ type: 'limit', limit: { tool: 'claude', window: 'seven_day_model', utilization: 50, resetsAt: 10_000, at: expect.any(Number) } }])
+  })
+  it('resultado com usage emite tokens antes do fim', () => {
+    expect(mapClaudeMessage(fx('claude-result-usage.json'), cwd)).toEqual([
+      { type: 'usage', tool: 'claude', tokens: { input: 10057, output: 4, cacheRead: 300, reasoning: 7 } },
+      { type: 'done', sessionId: 's9' },
+    ])
   })
 })

@@ -81,4 +81,29 @@ describe('store', () => {
     expect(s.getRun('pai')!.parentRunId).toBeNull()
     expect(s.listChildren('pai').map(r => r.id)).toEqual(['f1', 'f2'])
   })
+  it('grava e soma uso por ferramenta, run e dia; último limite por janela', () => {
+    const s = openStore(':memory:')
+    const p = s.upsertProject('/a')
+    const c = s.createConversation(p.id, 't')
+    s.createRun({ id: 'r1', conversationId: c.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    s.createRun({ id: 'r2', conversationId: c.id, agentId: 'radar', prompt: 'y', startedAt: 2, hasCheckpoint: true })
+    s.recordUsage('r1', 'forja', 'claude', { input: 10, output: 5, cacheRead: 1, reasoning: 0 }, 100)
+    s.recordUsage('r1', 'forja', 'claude', { input: 20, output: 5, cacheRead: 0, reasoning: 2 }, 200)
+    s.recordUsage('r2', 'radar', 'gemini', { input: 7, output: 1, cacheRead: 0, reasoning: 0 }, 150)
+    expect(s.tokensSince('claude', 150)).toEqual({ input: 20, output: 5, cacheRead: 0, reasoning: 2 })
+    expect(s.tokensSince('claude', 0)).toEqual({ input: 30, output: 10, cacheRead: 1, reasoning: 2 })
+    expect(s.tokensByRun(c.id)).toEqual([
+      { runId: 'r1', agentId: 'forja', tool: 'claude', tokens: { input: 30, output: 10, cacheRead: 1, reasoning: 2 } },
+      { runId: 'r2', agentId: 'radar', tool: 'gemini', tokens: { input: 7, output: 1, cacheRead: 0, reasoning: 0 } },
+    ])
+    expect(s.tokensByDay(7, 300).map(d => [d.projectPath, d.tool, d.tokens.input])).toEqual(expect.arrayContaining([['/a', 'claude', 30], ['/a', 'gemini', 7]]))
+    s.recordLimit({ tool: 'claude', window: 'five_hour', utilization: 20, at: 1 })
+    s.recordLimit({ tool: 'claude', window: 'five_hour', utilization: 30, resetsAt: 9, at: 2 })
+    s.recordLimit({ tool: 'claude', window: 'seven_day', utilization: 80, at: 1 })
+    expect(s.latestLimits()).toEqual(expect.arrayContaining([
+      { tool: 'claude', window: 'five_hour', utilization: 30, resetsAt: 9, at: 2 },
+      { tool: 'claude', window: 'seven_day', utilization: 80, at: 1 },
+    ]))
+    expect(s.latestLimits()).toHaveLength(2)
+  })
 })

@@ -341,4 +341,17 @@ describe('RunService', () => {
     expect(answer).toBe('O Radar não está disponível.')
     expect(fake.calls.filter(c => c.mode === 'consult')).toEqual([])
   })
+  it('uso e limite são gravados e emitidos, mas não entram no histórico do chat', async () => {
+    const { emitted, svc, start, store } = await setup(async function* () {
+      yield { type: 'usage', tool: 'claude', tokens: { input: 3, output: 2, cacheRead: 0, reasoning: 0 } }
+      yield { type: 'limit', limit: { tool: 'claude', window: 'five_hour', utilization: 40, at: 1 } }
+      yield { type: 'done' }
+    })
+    const id = await start()
+    await svc.whenFinished(id)
+    expect(emitted.some(e => e.type === 'usage') && emitted.some(e => e.type === 'limit')).toBe(true)
+    expect(store.listEvents(id).some(e => e.type === 'usage' || e.type === 'limit')).toBe(false)
+    expect(store.tokensSince('claude', 0).input).toBe(3)
+    expect(store.latestLimits()).toEqual([{ tool: 'claude', window: 'five_hour', utilization: 40, at: 1 }])
+  })
 })

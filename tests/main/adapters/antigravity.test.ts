@@ -37,12 +37,20 @@ describe('buildAgyArgs', () => {
 })
 
 describe('mapAgyEvent', () => {
+  it('soma o usage dos passos e emite no resultado', () => {
+    const evs = mapAll(fixture('agy-plan-readonly.jsonl'))
+    const u = evs.find(e => e.type === 'usage') as Extract<AgentEvent, { type: 'usage' }>
+    const expected = fixture('agy-plan-readonly.jsonl').map(l => JSON.parse(l)).filter(e => e.step_update?.usage)
+      .reduce((a, e) => a + e.step_update.usage.input_tokens, 0)
+    expect(u.tokens.input).toBe(expected)
+  })
   it('pesquisa só leitura: texto completo, leitura, busca e fim com a conversa', () => {
     const evs = mapAll(fixture('agy-plan-readonly.jsonl'))
     expect(evs).toEqual([
       { type: 'text', text: expect.stringMatching(/^Vou ler o arquivo `hello.txt` e pesquisar.*`x\.txt`\.$/s) },
       { type: 'tool', name: 'Read', summary: 'hello.txt' },
       { type: 'tool', name: 'WebSearch', summary: 'current Node.js LTS version' },
+      { type: 'usage', tool: 'gemini', tokens: expect.objectContaining({ input: expect.any(Number), output: expect.any(Number) }) },
       { type: 'done', sessionId: '10c43eb6-2e76-420c-ac3b-37043eb6148f' },
     ])
   })
@@ -52,6 +60,7 @@ describe('mapAgyEvent', () => {
     expect(evs).toEqual([
       { type: 'tool', name: 'Read', summary: 'hello.txt' },
       { type: 'text', text: 'Não consegui responder: tentei uma ação que o Radar não pode fazer (run_command).' },
+      { type: 'usage', tool: 'gemini', tokens: expect.any(Object) },
       { type: 'done', sessionId: '00098d08-50d6-4527-b335-e1fb10205b89' },
     ])
   })
@@ -88,7 +97,7 @@ describe('AntigravityAdapter', () => {
     expect(cmd).toBe('agy')
     expect(o.cwd).toBe('/tmp/proj')
     expect(o.env).not.toHaveProperty('GEMINI_API_KEY')
-    expect(evs.map(e => e.type)).toEqual(['text', 'tool', 'tool', 'done'])
+    expect(evs.map(e => e.type)).toEqual(['text', 'tool', 'tool', 'usage', 'done'])
   })
 
   it('saída com erro e sem resultado vira erro com o stderr', async () => {

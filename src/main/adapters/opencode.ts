@@ -4,6 +4,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentEvent } from '@shared/events'
+import { addTokens, zeroTokens, type TokenUsage } from '@shared/usage'
 import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
@@ -73,10 +74,17 @@ export function permissionToToolCalls(data: Record<string, unknown>, cwd: string
   }
 }
 
-export function mapOpencodeEvent(ev: OcEvent, sessionId: string, cwd: string): AgentEvent[] {
+export const newOcUsage = (): { tokens: TokenUsage } => ({ tokens: zeroTokens() })
+
+export function mapOpencodeEvent(ev: OcEvent, sessionId: string, cwd: string, usage = newOcUsage()): AgentEvent[] {
   const d = ev.data ?? {}
   if (d.sessionID !== sessionId) return []
   switch (ev.type) {
+    case 'session.step.ended': {
+      const t = d.tokens as { input?: number; output?: number; reasoning?: number; cache?: { read?: number } } | undefined
+      if (t) usage.tokens = addTokens(usage.tokens, { input: t.input ?? 0, output: t.output ?? 0, cacheRead: t.cache?.read ?? 0, reasoning: t.reasoning ?? 0 })
+      return []
+    }
     case 'session.tool.called': {
       const input = (d.input ?? {}) as Record<string, unknown>
       if (typeof input.command === 'string') return [{ type: 'tool', name: 'Bash', summary: input.command }]
@@ -87,7 +95,7 @@ export function mapOpencodeEvent(ev: OcEvent, sessionId: string, cwd: string): A
       return writes ? [{ type: 'tool', name: 'Write', summary }, { type: 'file_changed', path: summary }] : [{ type: 'tool', name: 'Read', summary }]
     }
     case 'session.text.ended': return typeof d.text === 'string' && d.text.trim() ? [{ type: 'text', text: d.text }] : []
-    case 'session.execution.succeeded': return [{ type: 'done', sessionId }]
+    case 'session.execution.succeeded': return [{ type: 'usage', tool: 'opencode', tokens: usage.tokens }, { type: 'done', sessionId }]
     case 'session.execution.failed': {
       const err = d.error as { message?: string } | undefined
       return [{ type: 'error', message: err?.message ?? 'O opencode falhou.' }]
@@ -157,6 +165,7 @@ export class OpencodeAdapter implements AgentAdapter {
       else opts.signal.addEventListener('abort', onAbort, { once: true })
     })
     const toolInputs = new Map<string, Record<string, unknown>>()
+    const usage = newOcUsage()
 
     // Assina os eventos antes de mandar o prompt para não perder o começo.
     const it = api.events(ctl.signal)[Symbol.asyncIterator]()
@@ -185,7 +194,7 @@ export class OpencodeAdapter implements AgentAdapter {
           await this.answerPermission(api, sessionId, d, toolInputs, opts)
           continue
         }
-        const out = mapOpencodeEvent(ev, sessionId, opts.cwd)
+        const out = mapOpencodeEvent(ev, sessionId, opts.cwd, usage)
         yield* out
         if (out.some(e => e.type === 'done' || e.type === 'error')) return
       }

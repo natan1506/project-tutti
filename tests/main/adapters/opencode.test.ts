@@ -5,7 +5,7 @@ import { getAgent } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
 import type { AdapterRunOptions } from '../../../src/main/adapters/types'
 import {
-  HttpOpencodeApi, mapOpencodeEvent, OpencodeAdapter, OpencodeHost, parseSse, permissionToToolCalls, startOpencodeServer, type OcEvent, type OpencodeApi,
+  HttpOpencodeApi, mapOpencodeEvent, newOcUsage, OpencodeAdapter, OpencodeHost, parseSse, permissionToToolCalls, startOpencodeServer, type OcEvent, type OpencodeApi,
 } from '../../../src/main/adapters/opencode'
 
 const FIX = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'opencode-events.json'), 'utf8')) as OcEvent[]
@@ -77,9 +77,17 @@ describe('mapOpencodeEvent', () => {
       { type: 'file_changed', path: 'a.txt' },
       { type: 'tool', name: 'Bash', summary: 'npm install left-pad' },
       { type: 'text', text: expect.stringContaining('negado') },
+      { type: 'usage', tool: 'opencode', tokens: expect.any(Object) },
       { type: 'done', sessionId: SID },
     ])
     expect(FIX.flatMap(e => mapOpencodeEvent(e, 'outra', CWD))).toEqual([])
+  })
+  it('soma os tokens dos passos e emite antes do fim', () => {
+    const st = newOcUsage()
+    const evs = FIX.flatMap(e => mapOpencodeEvent(e, SID, CWD, st))
+    const i = evs.findIndex(e => e.type === 'done')
+    expect(evs[i - 1]).toMatchObject({ type: 'usage', tool: 'opencode', tokens: { input: expect.any(Number), output: expect.any(Number) } })
+    expect((evs[i - 1] as { tokens: { input: number } }).tokens.input).toBeGreaterThan(0)
   })
   it('execução que falha vira erro', () => {
     expect(mapOpencodeEvent({ type: 'session.execution.failed', data: { sessionID: SID, error: { message: 'cota' } } }, SID, CWD))

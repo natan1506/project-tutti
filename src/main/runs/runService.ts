@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { getAgent, type ToolKind } from '@shared/agents'
-import type { RunEvent, RunStatus } from '@shared/events'
+import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
@@ -16,6 +16,8 @@ interface Deps {
   homeDir?: string
   /** Ferramenta instalada e logada? (padrão: sim) */
   toolReady?: (tool: ToolKind) => Promise<boolean>
+  /** Uso/limite medido num run (UsageService). */
+  onUsage?: (runId: string, agentId: AgentId, ev: Extract<AgentEvent, { type: 'usage' | 'limit' }>) => void
 }
 
 /** Só erros que falam de sessão/conversa inexistente justificam recomeçar sem contexto (limite e rede não). */
@@ -252,6 +254,14 @@ export class RunService {
         })
         try {
           for await (const ev of events) {
+            if (ev.type === 'usage' || ev.type === 'limit') {
+              // Uso não é conversa: vai para o banco e para o painel, não para o histórico do chat.
+              if (ev.type === 'usage') this.deps.store.recordUsage(runId, agent.id, ev.tool, ev.tokens, Date.now())
+              else this.deps.store.recordLimit(ev.limit)
+              this.deps.emit(runId, ev)
+              this.deps.onUsage?.(runId, agent.id, ev)
+              continue
+            }
             if (!started && resume && ev.type === 'error' && looksLikeStaleSession(ev.message)) { staleSession = true; break }
             started = true
             if (ev.type === 'done') sessionId = ev.sessionId

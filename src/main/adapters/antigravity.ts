@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import type { AgentEvent } from '@shared/events'
+import { addTokens, zeroTokens, type TokenUsage } from '@shared/usage'
 import { summarizeToolCall } from '../policy/commandPolicy'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
@@ -12,8 +13,8 @@ const READ_TOOLS: Record<string, string> = {
   search_web: 'WebSearch', read_url_content: 'WebSearch',
 }
 
-export interface AgyState { sessionId?: string; texts: Map<number, string>; spoke: boolean; blocked?: string }
-export const newAgyState = (): AgyState => ({ texts: new Map(), spoke: false })
+export interface AgyState { sessionId?: string; texts: Map<number, string>; spoke: boolean; blocked?: string; tokens: TokenUsage }
+export const newAgyState = (): AgyState => ({ texts: new Map(), spoke: false, tokens: zeroTokens() })
 
 export function buildAgyArgs(opts: AdapterRunOptions): string[] {
   return [
@@ -42,6 +43,8 @@ export function mapAgyEvent(line: string, cwd: string, st: AgyState): AgentEvent
   const s = ev.step_update
   if (ev.event === 'step_update' && s) {
     const idx = s.step_index as number
+    const u = s.usage as { input_tokens?: number; output_tokens?: number; thinking_tokens?: number; cache_read_tokens?: number } | undefined
+    if (u && s.state === 'DONE') st.tokens = addTokens(st.tokens, { input: u.input_tokens ?? 0, output: u.output_tokens ?? 0, cacheRead: u.cache_read_tokens ?? 0, reasoning: u.thinking_tokens ?? 0 })
     if (s.step_type === 'agent_response') {
       st.texts.set(idx, (st.texts.get(idx) ?? '') + ((s.text_delta as string) ?? ''))
       if (s.state !== 'DONE') return []
@@ -67,6 +70,7 @@ export function mapAgyEvent(line: string, cwd: string, st: AgyState): AgentEvent
     const out: AgentEvent[] = []
     if (!st.spoke && response) out.push({ type: 'text', text: response })
     else if (!st.spoke) out.push({ type: 'text', text: `Não consegui responder: tentei uma ação que o Radar não pode fazer (${st.blocked ?? 'desconhecida'}).` })
+    out.push({ type: 'usage', tool: 'gemini', tokens: st.tokens })
     out.push({ type: 'done', sessionId: (r.conversation_id as string) ?? st.sessionId })
     return out
   }

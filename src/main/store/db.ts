@@ -3,7 +3,9 @@ import { basename } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { AgentId } from '@shared/agents'
 import type { RunEvent, RunStatus } from '@shared/events'
+import type { ToolKind } from '@shared/agents'
 import type { Conversation, Project, RunRow } from '@shared/models'
+import type { LimitWindow, TokenUsage, WindowKind } from '@shared/usage'
 
 export type { Conversation, Project, RunRow }
 
@@ -23,6 +25,12 @@ export interface Store {
   lastSessionFor(conversationId: string, agentId: AgentId): string | null
   markInterruptedRuns(): number
   projectPathForRun(runId: string): string | undefined
+  recordUsage(runId: string, agentId: AgentId, tool: ToolKind, tokens: TokenUsage, at: number): void
+  recordLimit(l: LimitWindow): void
+  tokensSince(tool: ToolKind, since: number): TokenUsage
+  tokensByRun(conversationId: string): { runId: string; agentId: AgentId; tool: ToolKind; tokens: TokenUsage }[]
+  tokensByDay(days: number, now?: number): { day: string; projectPath: string; tool: ToolKind; tokens: TokenUsage }[]
+  latestLimits(): LimitWindow[]
   close(): void
 }
 
@@ -32,6 +40,11 @@ CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, project_id TEXT N
 CREATE TABLE IF NOT EXISTS runs (
   id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversations(id), agent_id TEXT NOT NULL, prompt TEXT NOT NULL,
   status TEXT NOT NULL, session_id TEXT, started_at INTEGER NOT NULL, finished_at INTEGER, has_checkpoint INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS usage (run_id TEXT NOT NULL, agent_id TEXT NOT NULL, tool TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL,
+  cache_read INTEGER NOT NULL, reasoning INTEGER NOT NULL, at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS usage_tool_at ON usage (tool, at);
+CREATE TABLE IF NOT EXISTS limits (tool TEXT NOT NULL, window TEXT NOT NULL, utilization REAL NOT NULL, resets_at INTEGER, at INTEGER NOT NULL,
+  PRIMARY KEY (tool, window));
 CREATE TABLE IF NOT EXISTS events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (run_id, seq));
 `
 
@@ -112,6 +125,43 @@ export function openStore(file: string): Store {
       const r = db.prepare(`SELECT p.path FROM runs r JOIN conversations c ON c.id = r.conversation_id
         JOIN projects p ON p.id = c.project_id WHERE r.id = ?`).get(runId) as Row | undefined
       return r?.path as string | undefined
+    },
+    recordUsage(runId, agentId, tool, t, at) {
+      db.prepare('INSERT INTO usage (run_id, agent_id, tool, input, output, cache_read, reasoning, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(runId, agentId, tool, t.input, t.output, t.cacheRead, t.reasoning, at)
+    },
+    recordLimit(l) {
+      // Guarda só o mais recente por (ferramenta, janela).
+      db.prepare(`INSERT INTO limits (tool, window, utilization, resets_at, at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(tool, window) DO UPDATE SET utilization = excluded.utilization, resets_at = excluded.resets_at, at = excluded.at
+        WHERE excluded.at >= limits.at`).run(l.tool, l.window, l.utilization, l.resetsAt ?? null, l.at)
+    },
+    tokensSince(tool, since) {
+      const r = db.prepare(`SELECT COALESCE(SUM(input),0) i, COALESCE(SUM(output),0) o, COALESCE(SUM(cache_read),0) c, COALESCE(SUM(reasoning),0) r
+        FROM usage WHERE tool = ? AND at >= ?`).get(tool, since) as Row
+      return { input: Number(r.i), output: Number(r.o), cacheRead: Number(r.c), reasoning: Number(r.r) }
+    },
+    tokensByRun(conversationId) {
+      return (db.prepare(`SELECT u.run_id, u.agent_id, u.tool, SUM(u.input) i, SUM(u.output) o, SUM(u.cache_read) c, SUM(u.reasoning) r
+        FROM usage u JOIN runs ru ON ru.id = u.run_id WHERE ru.conversation_id = ? GROUP BY u.run_id, u.agent_id, u.tool ORDER BY MIN(ru.started_at)`)
+        .all(conversationId) as Row[]).map(r => ({
+        runId: r.run_id as string, agentId: r.agent_id as AgentId, tool: r.tool as ToolKind,
+        tokens: { input: Number(r.i), output: Number(r.o), cacheRead: Number(r.c), reasoning: Number(r.r) },
+      }))
+    },
+    tokensByDay(days, nowMs = Date.now()) {
+      return (db.prepare(`SELECT date(u.at / 1000, 'unixepoch', 'localtime') day, p.path, u.tool, SUM(u.input) i, SUM(u.output) o, SUM(u.cache_read) c, SUM(u.reasoning) r
+        FROM usage u JOIN runs ru ON ru.id = u.run_id JOIN conversations cv ON cv.id = ru.conversation_id JOIN projects p ON p.id = cv.project_id
+        WHERE u.at >= ? GROUP BY day, p.path, u.tool ORDER BY day`).all(nowMs - days * 86_400_000) as Row[]).map(r => ({
+        day: r.day as string, projectPath: r.path as string, tool: r.tool as ToolKind,
+        tokens: { input: Number(r.i), output: Number(r.o), cacheRead: Number(r.c), reasoning: Number(r.r) },
+      }))
+    },
+    latestLimits() {
+      return (db.prepare('SELECT * FROM limits').all() as Row[]).map(r => ({
+        tool: r.tool as ToolKind, window: r.window as WindowKind, utilization: Number(r.utilization),
+        ...(r.resets_at != null ? { resetsAt: Number(r.resets_at) } : {}), at: Number(r.at),
+      }))
     },
     close() { db.close() },
   }

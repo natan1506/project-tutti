@@ -2,7 +2,10 @@ import type { ThreadEvent } from '@openai/codex-sdk'
 import { describe, expect, it, vi } from 'vitest'
 import { getAgent } from '@shared/agents'
 import type { AdapterRunOptions } from '../../../src/main/adapters/types'
-import { buildCodexPrompt, buildCodexThreadOptions, codexEnv, mapCodexEvent, unwrapShell } from '../../../src/main/adapters/codex'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { buildCodexPrompt, buildCodexThreadOptions, codexEnv, codexLimitsFromLog, findRolloutFile, mapCodexEvent, unwrapShell } from '../../../src/main/adapters/codex'
 
 const cwd = '/tmp/proj'
 const opts = (o: Partial<AdapterRunOptions> = {}): AdapterRunOptions => ({
@@ -78,5 +81,30 @@ describe('codexEnv', () => {
     const env = codexEnv()
     for (const k of ['OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL']) { expect(env).not.toHaveProperty(k); delete process.env[k] }
     expect(env).toHaveProperty('PATH')
+  })
+})
+
+describe('uso e limite do Codex', () => {
+  it('turno concluído com usage emite tokens antes do fim (sem contar cache como entrada)', () => {
+    const st = { threadId: 't1' }
+    expect(mapCodexEvent(ev({ type: 'turn.completed', usage: { input_tokens: 30553, cached_input_tokens: 27392, output_tokens: 145, reasoning_output_tokens: 9 } }), cwd, st)).toEqual([
+      { type: 'usage', tool: 'codex', tokens: { input: 3161, output: 145, cacheRead: 27392, reasoning: 9 } },
+      { type: 'done', sessionId: 't1' },
+    ])
+  })
+  it('lê o último rate_limits do log local: primary = 5 h, secondary = semanal', () => {
+    const text = readFileSync(join(__dirname, 'fixtures', 'codex-rollout.jsonl'), 'utf8')
+    expect(codexLimitsFromLog(text, 5)).toEqual([
+      { tool: 'codex', window: 'five_hour', utilization: 14, resetsAt: 1793462010_000, at: 5 },
+      { tool: 'codex', window: 'seven_day', utilization: 4, resetsAt: 1794048810_000, at: 5 },
+    ])
+    expect(codexLimitsFromLog('nada aqui', 5)).toEqual([])
+  })
+  it('acha o arquivo da thread nas pastas de sessão', () => {
+    const root = mkdtempSync(join(tmpdir(), 'cx-'))
+    mkdirSync(join(root, '2026/10/31'), { recursive: true })
+    writeFileSync(join(root, '2026/10/31/rollout-2026-10-31T08-22-10-abc-123.jsonl'), '')
+    expect(findRolloutFile('abc-123', root)).toBe(join(root, '2026/10/31/rollout-2026-10-31T08-22-10-abc-123.jsonl'))
+    expect(findRolloutFile('zzz', root)).toBeUndefined()
   })
 })

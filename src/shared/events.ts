@@ -1,5 +1,6 @@
-import type { AgentId } from './agents'
+import type { AgentId, ToolKind } from './agents'
 import type { Confirmation, Lineup, TriageScore } from './team'
+import type { LimitWindow, TokenUsage } from './usage'
 
 export type RunStatus = 'running' | 'done' | 'error' | 'cancelled' | 'interrupted'
 
@@ -20,6 +21,8 @@ export type AgentEvent =
   | { type: 'question_answered'; id: string; answer: string | null }
   | { type: 'done'; sessionId?: string }
   | { type: 'error'; message: string }
+  | { type: 'usage'; tool: ToolKind; tokens: TokenUsage }
+  | { type: 'limit'; limit: LimitWindow }
 
 export type RunEvent =
   | AgentEvent
