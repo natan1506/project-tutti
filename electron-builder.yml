@@ -1,0 +1,17 @@
+# Empacota o Tutti como .app local (macOS). Sem asar: os SDKs do Claude e do Codex
+# executam binários de node_modules, e binário dentro do asar não roda.
+appId: dev.natan.tutti
+productName: Tutti
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: false
+mac:
+  target: dir
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  # Sem certificado de desenvolvedor: app só para esta máquina, sem assinatura.
+  identity: null

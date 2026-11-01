@@ -29,7 +29,8 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
-  app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
+  // Empacotado, o ícone vem do bundle; em dev o Dock mostraria o do Electron.
+  if (!app.isPackaged) app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
   const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
   const tools = cachedDetector(realExec)
