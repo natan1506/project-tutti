@@ -9,6 +9,9 @@ import type { TeamService } from './team/teamService'
 import type { UsageService } from './usage/usageService'
 import type { UsageSettingsPatch } from '@shared/usage'
 import type { Store } from './store/db'
+import type { KeyStore } from './keys/keyStore'
+import type { ProfileService } from './profiles/profileService'
+import { PROVIDERS, type ProviderId } from '@shared/profiles'
 
 const absolutePath = (p: unknown): string => {
   if (typeof p !== 'string' || !isAbsolute(p)) throw new Error('Caminho inválido')
@@ -44,7 +47,28 @@ function sanitizeUsageSettings(raw: unknown): UsageSettingsPatch {
 }
 const paths = (p: unknown): string[] | undefined => (Array.isArray(p) ? p.map(text) : undefined)
 
-export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, team: TeamService, usage: UsageService, tools: () => Promise<Record<ToolKind, ToolStatus>>): (runId: string, ev: RunEvent) => void {
+export interface ProfileDeps { profiles: ProfileService; keys: KeyStore; keysChanged(): void }
+
+const provider = (p: unknown): ProviderId => {
+  if (!PROVIDERS.some(x => x.id === p)) throw new Error('provedor desconhecido')
+  return p as ProviderId
+}
+
+export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, team: TeamService, usage: UsageService, tools: () => Promise<Record<ToolKind, ToolStatus>>, pd: ProfileDeps): (runId: string, ev: RunEvent) => void {
+  ipcMain.handle('profiles', () => pd.profiles.all())
+  ipcMain.handle('saveProfile', (_e, p) => pd.profiles.save(p))
+  ipcMain.handle('deleteProfile', (_e, id) => pd.profiles.remove(text(id)))
+  ipcMain.handle('duplicateProfile', (_e, id, nome) => pd.profiles.duplicate(text(id), typeof nome === 'string' ? nome : undefined))
+  ipcMain.handle('activeProfile', (_e, projectId) => pd.profiles.activeFor(text(projectId)))
+  ipcMain.handle('setActiveProfile', (_e, projectId, profileId) => pd.profiles.setActive(text(projectId), text(profileId)))
+  // Nenhum handler devolve uma chave: a interface só sabe quais provedores têm.
+  ipcMain.handle('providerKeys', () => pd.keys.which())
+  ipcMain.handle('setProviderKey', (_e, p, key) => {
+    if (typeof key !== 'string' || !key.trim() || key.length > 500) throw new Error('chave inválida')
+    pd.keys.set(provider(p), key.trim())
+    pd.keysChanged()
+  })
+  ipcMain.handle('removeProviderKey', (_e, p) => { pd.keys.remove(provider(p)); pd.keysChanged() })
   ipcMain.handle('usageSnapshot', () => usage.snapshot())
   ipcMain.handle('usageDetail', (_e, conversationId) => ({
     byRun: typeof conversationId === 'string' ? store.tokensByRun(conversationId) : [],

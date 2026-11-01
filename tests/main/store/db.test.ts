@@ -107,3 +107,18 @@ describe('store', () => {
     expect(s.latestLimits()).toHaveLength(2)
   })
 })
+
+describe('perfis no banco', () => {
+  it('salva, lista, atualiza e apaga perfis; apaga configurações', () => {
+    const s = openStore(':memory:')
+    const p = { id: 'p1', nome: 'Meu', builtin: false, defaults: { transport: { kind: 'cli' as const, tool: 'claude' as const } }, agents: [] }
+    s.saveProfile(p)
+    s.saveProfile({ ...p, nome: 'Meu 2' })
+    expect(s.listProfiles()).toEqual([{ ...p, nome: 'Meu 2' }])
+    s.deleteProfile('p1')
+    expect(s.listProfiles()).toEqual([])
+    s.setSetting('x', 1)
+    s.deleteSetting('x')
+    expect(s.getSetting('x')).toBeUndefined()
+  })
+})

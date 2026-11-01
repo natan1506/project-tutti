@@ -125,12 +125,12 @@ const transportSchema = z.union([
   z.object({ kind: z.literal('api'), provider: z.enum(PROVIDERS.map(p => p.id) as [ProviderId, ...ProviderId[]]) }),
 ])
 const agentSchema = z.object({
-  id: z.string().min(1).max(80), nome: z.string().max(40), prompt: z.string().max(8000), funcao: z.string().max(200),
+  id: z.string().max(80), nome: z.string().max(40), prompt: z.string().max(8000), funcao: z.string().max(200),
   readOnly: z.boolean(), transport: transportSchema.optional(), model: z.string().max(200).optional(),
   reviewer: z.boolean(), consultable: z.boolean(),
 })
 const profileSchema = z.object({
-  id: z.string().min(1).max(80), nome: z.string().max(60), builtin: z.boolean(),
+  id: z.string().max(80), nome: z.string().max(60), builtin: z.boolean(),
   defaults: z.object({ transport: transportSchema, model: z.string().max(200).optional() }),
   coordinatorId: z.string().optional(), agents: z.array(agentSchema),
 })
@@ -154,7 +154,8 @@ export function validateProfile(raw: unknown): { ok: true; profile: Profile } | 
     const model = a.model ?? (a.transport ? undefined : p.defaults.model)
     if (transport.kind === 'api' && !model?.trim()) errors.push(`${nome}: escolha o modelo do provedor.`)
   }
-  if (new Set(p.agents.map(a => a.id)).size !== p.agents.length) errors.push('Agentes com o mesmo id.')
+  const ids = p.agents.map(a => a.id).filter(Boolean)
+  if (new Set(ids).size !== ids.length) errors.push('Agentes com o mesmo id.')
   if (p.coordinatorId !== undefined) {
     const c = p.agents.find(a => a.id === p.coordinatorId)
     if (!c) errors.push('O coordenador precisa ser um agente do perfil.')

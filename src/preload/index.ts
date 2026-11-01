@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { RunEvent } from '@shared/events'
+import type { Profile } from '@shared/profiles'
 import type { TimeApi } from '@shared/models'
 import type { UsageSnapshot } from '@shared/usage'
 
@@ -23,6 +24,20 @@ const api: TimeApi = {
   toolStatus: () => ipcRenderer.invoke('toolStatus'),
   usageSnapshot: () => ipcRenderer.invoke('usageSnapshot'),
   usageDetail: conversationId => ipcRenderer.invoke('usageDetail', conversationId),
+  profiles: () => ipcRenderer.invoke('profiles'),
+  saveProfile: p => ipcRenderer.invoke('saveProfile', p),
+  deleteProfile: id => ipcRenderer.invoke('deleteProfile', id),
+  duplicateProfile: (id, nome) => ipcRenderer.invoke('duplicateProfile', id, nome),
+  activeProfile: projectId => ipcRenderer.invoke('activeProfile', projectId),
+  setActiveProfile: (projectId, profileId) => ipcRenderer.invoke('setActiveProfile', projectId, profileId),
+  onProfiles: cb => {
+    const listener = (_e: IpcRendererEvent, ps: Profile[]) => cb(ps)
+    ipcRenderer.on('profiles', listener)
+    return () => { ipcRenderer.removeListener('profiles', listener) }
+  },
+  providerKeys: () => ipcRenderer.invoke('providerKeys'),
+  setProviderKey: (provider, key) => ipcRenderer.invoke('setProviderKey', provider, key),
+  removeProviderKey: provider => ipcRenderer.invoke('removeProviderKey', provider),
   usageSettings: () => ipcRenderer.invoke('usageSettings'),
   updateUsageSettings: s => ipcRenderer.invoke('updateUsageSettings', s),
   onUsage: cb => {

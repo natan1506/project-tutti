@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { AgentId } from '@shared/agents'
+import type { Profile } from '@shared/profiles'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { ToolKind } from '@shared/agents'
 import type { Conversation, Project, RunRow } from '@shared/models'
@@ -33,6 +34,10 @@ export interface Store {
   latestLimits(): LimitWindow[]
   getSetting<T>(key: string): T | undefined
   setSetting(key: string, value: unknown): void
+  deleteSetting(key: string): void
+  listProfiles(): Profile[]
+  saveProfile(p: Profile): void
+  deleteProfile(id: string): void
   close(): void
 }
 
@@ -48,6 +53,7 @@ CREATE INDEX IF NOT EXISTS usage_tool_at ON usage (tool, at);
 CREATE TABLE IF NOT EXISTS limits (tool TEXT NOT NULL, window TEXT NOT NULL, utilization REAL NOT NULL, resets_at INTEGER, at INTEGER NOT NULL,
   PRIMARY KEY (tool, window));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (run_id, seq));
 `
 
@@ -172,6 +178,19 @@ export function openStore(file: string): Store {
     },
     setSetting(key, value) {
       db.prepare('INSERT INTO settings (key, json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json').run(key, JSON.stringify(value))
+    },
+    deleteSetting(key) {
+      db.prepare('DELETE FROM settings WHERE key = ?').run(key)
+    },
+    listProfiles() {
+      return (db.prepare('SELECT json FROM profiles ORDER BY rowid').all() as Row[]).map(r => JSON.parse(r.json as string) as Profile)
+    },
+    saveProfile(p) {
+      db.prepare('INSERT INTO profiles (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at')
+        .run(p.id, JSON.stringify(p), Date.now())
+    },
+    deleteProfile(id) {
+      db.prepare('DELETE FROM profiles WHERE id = ?').run(id)
     },
     close() { db.close() },
   }

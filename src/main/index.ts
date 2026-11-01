@@ -1,7 +1,10 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, safeStorage } from 'electron'
+import { KeyStore } from './keys/keyStore'
+import { ProfileService } from './profiles/profileService'
 import { join } from 'node:path'
 import { AGENTS, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
+import type { Profile } from '@shared/profiles'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
@@ -33,6 +36,13 @@ app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
   const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
+  let pushProfiles: (ps: Profile[]) => void = () => {}
+  const profiles = new ProfileService({ store, emit: ps => pushProfiles(ps) })
+  const keys = new KeyStore({ store, crypto: {
+    isAvailable: () => safeStorage.isEncryptionAvailable(),
+    encrypt: s => safeStorage.encryptString(s),
+    decrypt: b => safeStorage.decryptString(b),
+  } })
   const tools = cachedDetector(realExec)
   const opencode = new OpencodeHost(() => startOpencodeServer())
   let quitting = false
@@ -65,7 +75,8 @@ app.whenReady().then(async () => {
   await runs.recover()
   const win = createWindow()
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
-  send = registerIpc(win, store, runs, team, usage, tools)
+  pushProfiles = ps => { if (!win.isDestroyed()) win.webContents.send('profiles', ps) }
+  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => {} })
   const stopPolling = usage.startPolling()
   app.on('will-quit', stopPolling)
 })

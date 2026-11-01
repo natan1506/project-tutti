@@ -1,4 +1,5 @@
 import type { AgentId, ToolKind } from './agents'
+import type { Profile, ProviderId } from './profiles'
 import type { UsageDetail, UsageSettings, UsageSettingsPatch, UsageSnapshot } from './usage'
 import type { RunEvent, RunStatus } from './events'
 
@@ -38,6 +39,16 @@ export interface TimeApi {
   toolStatus(): Promise<Record<ToolKind, ToolStatus>>
   usageSnapshot(): Promise<UsageSnapshot>
   usageDetail(conversationId: string | null): Promise<UsageDetail>
+  profiles(): Promise<Profile[]>
+  saveProfile(p: Profile): Promise<{ ok: true; profile: Profile } | { ok: false; errors: string[] }>
+  deleteProfile(id: string): Promise<void>
+  duplicateProfile(id: string, nome?: string): Promise<Profile>
+  activeProfile(projectId: string): Promise<Profile>
+  setActiveProfile(projectId: string, profileId: string): Promise<void>
+  onProfiles(cb: (profiles: Profile[]) => void): () => void
+  providerKeys(): Promise<Record<ProviderId, boolean>>
+  setProviderKey(provider: ProviderId, key: string): Promise<void>
+  removeProviderKey(provider: ProviderId): Promise<void>
   usageSettings(): Promise<UsageSettings>
   updateUsageSettings(s: UsageSettingsPatch): Promise<void>
   onUsage(cb: (s: UsageSnapshot) => void): () => void
