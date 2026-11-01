@@ -10,6 +10,7 @@ import { useProfileStore } from '../../src/renderer/state/profileStore'
 import { useRunStore } from '../../src/renderer/state/runStore'
 import { agentColor, shadeColor } from '../../src/renderer/stage/colors'
 import { MascotBody } from '../../src/renderer/stage/mascots'
+import { MascotLabel } from '../../src/renderer/stage/Mascot'
 import { motionFrame } from '../../src/renderer/stage/motion'
 
 afterEach(cleanup)
@@ -58,6 +59,11 @@ describe('perfil ativo na interface', () => {
     expect(kimi.disabled).toBe(true)
     expect(kimi.title).toBe('Sem chave da OpenRouter')
     expect(useRunStore.getState().selectedAgent).toBe('claudinho')
+  })
+
+  it('rótulo do agente por API mostra o provedor, não o motor', () => {
+    const { container } = render(<MascotLabel id="kimi" view={{ pose: 'idle', label: 'Disponível' }} onSelect={() => {}} />)
+    expect(container.querySelector('.tool')?.textContent).toBe('OpenRouter · API')
   })
 
   it('trocar de perfil grava no projeto', async () => {

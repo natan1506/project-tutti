@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { useRef, type RefObject } from 'react'
 import type { Group } from 'three'
 import { getAgent, type AgentId } from '@shared/agents'
+import { providerName } from '@shared/profiles'
 import type { MascotView } from './derive'
 import { DimContext } from './materials'
 import { MascotBody } from './mascots'
@@ -17,7 +18,7 @@ export function MascotLabel({ id, view, onSelect }: { id: AgentId; view: MascotV
   return (
     <div className={`tag ${view.pose === 'locked' ? 'locked' : ''}`} data-agent={id} data-pose={view.pose} onClick={onSelect}>
       <div className="nm">{a.nome}</div>
-      <div className="tool">{TOOL[a.tool]}</div>
+      <div className="tool">{a.transport.kind === 'api' ? `${providerName(a.transport.provider)} · API` : TOOL[a.tool]}</div>
       <div className={`pill ${view.pose}`}><i />{view.label}</div>
     </div>
   )
