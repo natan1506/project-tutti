@@ -101,6 +101,30 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
   }
 }
 
+/**
+ * Uso do plano sem gastar pedido: sessão com entrada em stream que nunca manda mensagem + consulta de uso
+ * (experimental no SDK — qualquer falha vira "sem dado"). Spike de uso.
+ */
+export async function pollClaudeUsage(queryFn: typeof query = query, now = Date.now): Promise<LimitWindow[]> {
+  let release: (() => void) | undefined
+  const idle = (async function* () { await new Promise<void>(r => { release = r }) })() as AsyncIterable<never>
+  const q = queryFn({ prompt: idle, options: { cwd: process.cwd(), env: safeEnv(dropEnv), settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [] } })
+  try {
+    const u = await q.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({ skipBehaviors: true })
+    if (!u.rate_limits_available || !u.rate_limits) return []
+    const at = now()
+    return (Object.entries(u.rate_limits) as [string, { utilization: number | null; resets_at: string | null } | null][])
+      .flatMap(([k, w]) => (WINDOW[k] && w && typeof w.utilization === 'number'
+        ? [{ tool: 'claude' as const, window: WINDOW[k], utilization: Math.round(w.utilization), ...(w.resets_at ? { resetsAt: Date.parse(w.resets_at) } : {}), at }]
+        : []))
+  } catch {
+    return []
+  } finally {
+    release?.()
+    void q.interrupt?.().catch(() => {})
+  }
+}
+
 export class ClaudeAdapter implements AgentAdapter {
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
     const abortController = new AbortController()

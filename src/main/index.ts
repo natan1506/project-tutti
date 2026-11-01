@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import { AntigravityAdapter } from './adapters/antigravity'
-import { ClaudeAdapter } from './adapters/claude'
+import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
 import { OpencodeAdapter, OpencodeHost, startOpencodeServer } from './adapters/opencode'
 import { registerIpc } from './ipc'
@@ -12,6 +12,7 @@ import { openStore } from './store/db'
 import { ClaudeBrain } from './team/brain'
 import { TeamService } from './team/teamService'
 import { cachedDetector, realExec } from './tools/detect'
+import { UsageService } from './usage/usageService'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -42,14 +43,21 @@ app.whenReady().then(async () => {
   })
   const adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) }
   const toolReady = async (t: ToolKind) => { const s = (await tools())[t]; return s.installed && s.loggedIn }
+  let pushUsage: (s: import('@shared/usage').UsageSnapshot) => void = () => {}
+  const usage = new UsageService({ store, emit: s => pushUsage(s), pollClaude: async () => ((await toolReady('claude')) ? pollClaudeUsage() : []) })
   const runs = new RunService({
     store,
     adapters,
     emit: (runId, ev) => send(runId, ev),
     toolReady,
+    onUsage: (runId, agentId, ev) => usage.onEvent(runId, agentId, ev),
   })
   const team = new TeamService({ runs, store, brain: new ClaudeBrain(), adapters, toolReady, emit: (runId, ev) => send(runId, ev) })
   await runs.recover()
-  send = registerIpc(createWindow(), store, runs, team, tools)
+  const win = createWindow()
+  pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
+  send = registerIpc(win, store, runs, team, usage, tools)
+  const stopPolling = usage.startPolling()
+  app.on('will-quit', stopPolling)
 })
 app.on('window-all-closed', () => app.quit())

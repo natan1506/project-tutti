@@ -6,6 +6,8 @@ import type { StartRunInput, ToolStatus } from '@shared/models'
 import { initRepo, isGitRepo } from './git/git'
 import type { RunService } from './runs/runService'
 import type { TeamService } from './team/teamService'
+import type { UsageService } from './usage/usageService'
+import type { UsageSettings } from '@shared/usage'
 import type { Store } from './store/db'
 
 const absolutePath = (p: unknown): string => {
@@ -20,9 +22,33 @@ const agentId = (id: unknown): AgentId => {
   if (!AGENTS.some(a => a.id === id)) throw new Error('Agente inválido')
   return id as AgentId
 }
+/** Só números de 1 a 100 (porcentagem) e tetos positivos; o resto é ignorado. */
+function sanitizeUsageSettings(raw: unknown): Partial<UsageSettings> {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const pct = (v: unknown) => (typeof v === 'number' && v >= 1 && v <= 100 ? Math.round(v) : undefined)
+  const out: Partial<UsageSettings> = {}
+  if (pct(r.alertAt) !== undefined) out.alertAt = pct(r.alertAt)
+  if (r.perTool && typeof r.perTool === 'object') {
+    out.perTool = {}
+    for (const t of ['claude', 'codex', 'gemini', 'opencode'] as const) {
+      const v = (r.perTool as Record<string, Record<string, unknown> | undefined>)[t]
+      if (!v) continue
+      const ceiling = typeof v.estimateCeilingTokens === 'number' && v.estimateCeilingTokens > 0 ? Math.round(v.estimateCeilingTokens) : undefined
+      out.perTool[t] = { ...(pct(v.alertAt) !== undefined ? { alertAt: pct(v.alertAt) } : {}), ...(ceiling ? { estimateCeilingTokens: ceiling } : {}) }
+    }
+  }
+  return out
+}
 const paths = (p: unknown): string[] | undefined => (Array.isArray(p) ? p.map(text) : undefined)
 
-export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, team: TeamService, tools: () => Promise<Record<ToolKind, ToolStatus>>): (runId: string, ev: RunEvent) => void {
+export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, team: TeamService, usage: UsageService, tools: () => Promise<Record<ToolKind, ToolStatus>>): (runId: string, ev: RunEvent) => void {
+  ipcMain.handle('usageSnapshot', () => usage.snapshot())
+  ipcMain.handle('usageDetail', (_e, conversationId) => ({
+    byRun: typeof conversationId === 'string' ? store.tokensByRun(conversationId) : [],
+    byDay: store.tokensByDay(7),
+  }))
+  ipcMain.handle('usageSettings', () => usage.settings())
+  ipcMain.handle('updateUsageSettings', (_e, s) => usage.updateSettings(sanitizeUsageSettings(s)))
   ipcMain.handle('toolStatus', () => tools())
   ipcMain.handle('pickFolder', async () => {
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })

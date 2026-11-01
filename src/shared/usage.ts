@@ -10,3 +10,15 @@ export interface LimitWindow { tool: ToolKind; window: WindowKind; utilization: 
 export const zeroTokens = (): TokenUsage => ({ input: 0, output: 0, cacheRead: 0, reasoning: 0 })
 export const addTokens = (a: TokenUsage, b: TokenUsage): TokenUsage =>
   ({ input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, reasoning: a.reasoning + b.reasoning })
+
+export interface ToolUsageRow {
+  tool: ToolKind; utilization: number | null; estimated: boolean; window: WindowKind | null
+  resetsAt?: number; tokens: TokenUsage; alert: boolean
+}
+export interface UsageSnapshot { rows: ToolUsageRow[]; at: number }
+export interface UsageSettings { alertAt: number; perTool: Partial<Record<ToolKind, { alertAt?: number; estimateCeilingTokens?: number }>> }
+export const DEFAULT_USAGE_SETTINGS: UsageSettings = { alertAt: 90, perTool: {} }
+export interface UsageDetail {
+  byRun: { runId: string; agentId: import('./agents').AgentId; tool: ToolKind; tokens: TokenUsage }[]
+  byDay: { day: string; projectPath: string; tool: ToolKind; tokens: TokenUsage }[]
+}

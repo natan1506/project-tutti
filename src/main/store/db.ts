@@ -31,6 +31,8 @@ export interface Store {
   tokensByRun(conversationId: string): { runId: string; agentId: AgentId; tool: ToolKind; tokens: TokenUsage }[]
   tokensByDay(days: number, now?: number): { day: string; projectPath: string; tool: ToolKind; tokens: TokenUsage }[]
   latestLimits(): LimitWindow[]
+  getSetting<T>(key: string): T | undefined
+  setSetting(key: string, value: unknown): void
   close(): void
 }
 
@@ -45,6 +47,7 @@ CREATE TABLE IF NOT EXISTS usage (run_id TEXT NOT NULL, agent_id TEXT NOT NULL, 
 CREATE INDEX IF NOT EXISTS usage_tool_at ON usage (tool, at);
 CREATE TABLE IF NOT EXISTS limits (tool TEXT NOT NULL, window TEXT NOT NULL, utilization REAL NOT NULL, resets_at INTEGER, at INTEGER NOT NULL,
   PRIMARY KEY (tool, window));
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (run_id, seq));
 `
 
@@ -162,6 +165,13 @@ export function openStore(file: string): Store {
         tool: r.tool as ToolKind, window: r.window as WindowKind, utilization: Number(r.utilization),
         ...(r.resets_at != null ? { resetsAt: Number(r.resets_at) } : {}), at: Number(r.at),
       }))
+    },
+    getSetting(key) {
+      const r = db.prepare('SELECT json FROM settings WHERE key = ?').get(key) as Row | undefined
+      return r ? JSON.parse(r.json as string) : undefined
+    },
+    setSetting(key, value) {
+      db.prepare('INSERT INTO settings (key, json) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET json = excluded.json').run(key, JSON.stringify(value))
     },
     close() { db.close() },
   }

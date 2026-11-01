@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { RunEvent } from '@shared/events'
 import type { TimeApi } from '@shared/models'
+import type { UsageSnapshot } from '@shared/usage'
 
 const api: TimeApi = {
   pickFolder: () => ipcRenderer.invoke('pickFolder'),
@@ -19,6 +20,15 @@ const api: TimeApi = {
   undo: (runId, paths) => ipcRenderer.invoke('undo', runId, paths),
   patch: (runId, path) => ipcRenderer.invoke('patch', runId, path),
   toolStatus: () => ipcRenderer.invoke('toolStatus'),
+  usageSnapshot: () => ipcRenderer.invoke('usageSnapshot'),
+  usageDetail: conversationId => ipcRenderer.invoke('usageDetail', conversationId),
+  usageSettings: () => ipcRenderer.invoke('usageSettings'),
+  updateUsageSettings: s => ipcRenderer.invoke('updateUsageSettings', s),
+  onUsage: cb => {
+    const listener = (_e: IpcRendererEvent, s: UsageSnapshot) => cb(s)
+    ipcRenderer.on('usage', listener)
+    return () => { ipcRenderer.removeListener('usage', listener) }
+  },
   onRunEvent: cb => {
     const listener = (_e: IpcRendererEvent, runId: string, ev: RunEvent) => cb(runId, ev)
     ipcRenderer.on('runEvent', listener)
