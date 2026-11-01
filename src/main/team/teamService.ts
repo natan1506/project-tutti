@@ -43,7 +43,26 @@ export class TeamService {
   private plans = new Map<string, (approved: boolean) => void>()
   private finished = new Map<string, Promise<void>>()
 
-  constructor(private deps: Deps) {}
+  /** Filho trocado por limite → quem assumiu (o pai espera o substituto no lugar). */
+  private replaced = new Map<string, Promise<string>>()
+
+  constructor(private deps: Deps) {
+    deps.runs.onChildHandoff = (parentId, oldId, newId, to) => {
+      this.replaced.set(oldId, newId)
+      void newId.then(id => this.say(parentId, { type: 'child_started', runId: id, agentId: to, task: `Assume o trabalho de ${getAgent(this.deps.store.getRun(oldId)!.agentId).nome}` }))
+    }
+  }
+
+  /** Espera o filho e, se ele foi substituído, o substituto (em cadeia). Devolve o id final. */
+  private async settle(id: string, active: Set<string>): Promise<string> {
+    await this.deps.runs.whenFinished(id)
+    const pending = this.replaced.get(id)
+    if (!pending) return id
+    const next = await pending
+    active.delete(id)
+    active.add(next)
+    return this.settle(next, active)
+  }
 
   async start(input: TeamStartInput): Promise<string> {
     if (!(await this.deps.toolReady('claude'))) throw new Error('TOOL_UNAVAILABLE')
@@ -175,10 +194,10 @@ export class TeamService {
         this.say(parentId, { type: 'error', message: `Não consegui iniciar ${notStarted.map(a => `o ${getAgent(a).nome}`).join(' e ')}: a ferramenta não está pronta.` })
         return 'error'
       }
-      await Promise.all(ids.map(id => runs.whenFinished(id)))
-      ids.forEach(id => active.delete(id))
+      const finals = await Promise.all(ids.map(id => this.settle(id, active)))
+      finals.forEach(id => active.delete(id))
       if (signal.aborted) return 'cancelled'
-      const results = ids.map(id => store.getRun(id))
+      const results = finals.map(id => store.getRun(id))
       const failed = results.find(r => r?.status === 'error')
       if (failed) {
         this.say(parentId, { type: 'text', text: `Parei porque o ${getAgent(failed.agentId).nome} falhou.` })

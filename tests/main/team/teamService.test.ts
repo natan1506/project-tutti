@@ -271,4 +271,20 @@ describe('TeamService', () => {
     t.team.cancel(second)
     await t.team.whenFinished(second)
   })
+  it('troca por limite dentro do time: o mesmo passo vira um novo filho do mesmo pedido', async () => {
+    const lineup = { ...LINEUP, steps: [{ agentId: 'forja', task: 'Criar server/x.js', areas: ['server'] }] }
+    const t = await setup({ brain: fakeBrain([TRIAGE], [lineup]), work: async function* (o) {
+      if (o.agent.id === 'curinga') { mkdirSync(join(o.cwd, 'server'), { recursive: true }); writeFileSync(join(o.cwd, 'server/x.js'), 'ok\n'); yield { type: 'done' }; return }
+      await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))
+    } })
+    const id = await t.start()
+    await waitFor(() => t.store.listChildren(id).length === 1)
+    await t.runs.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
+    const w = t.emitted.map(e => e.ev).find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    await t.runs.respondLimit(w.id, true)
+    await t.team.whenFinished(id)
+    expect(t.store.listChildren(id).map(c => [c.agentId, c.status])).toEqual([['forja', 'cancelled'], ['curinga', 'done']])
+    expect(t.parentEvents(id).at(-1)).toEqual({ type: 'run_finished', status: 'done' })
+    expect(t.parentEvents(id).find(e => e.type === 'diff')).toMatchObject({ files: [{ path: 'server/x.js' }] })
+  })
 })

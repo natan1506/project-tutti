@@ -29,6 +29,7 @@ export interface TimeApi {
   startRun(input: StartRunInput): Promise<string>
   startTeam(input: { projectPath: string; conversationId: string; prompt: string; fullRound?: boolean; forcePlan?: boolean }): Promise<string>
   respondPlan(id: string, approved: boolean): Promise<void>
+  respondLimit(id: string, pass: boolean): Promise<void>
   respondApproval(id: string, allowed: boolean): Promise<void>
   answerQuestion(id: string, answer: string): Promise<void>
   cancelRun(runId: string): Promise<void>

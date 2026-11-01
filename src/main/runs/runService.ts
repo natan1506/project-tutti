@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
+import type { WindowKind } from '@shared/usage'
 import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
@@ -32,6 +33,14 @@ export class RunService {
   private approvals = new Map<string, (allowed: boolean) => void>()
   private questions = new Map<string, (answer: string | null) => void>()
   private finished = new Map<string, Promise<void>>()
+  /** Runs com o agente de fato trabalhando (fora da fila). */
+  private executing = new Set<string>()
+  /** Avisos de limite: um por run por ferramenta. */
+  private warned = new Set<string>()
+  private warnings = new Map<string, { runId: string; to?: AgentId }>()
+  /** O TeamService troca o passo do time quando um filho é substituído. */
+  onChildHandoff?: (parentRunId: string, oldRunId: string, newRunId: Promise<string>, to: AgentId) => void
+
   /** Spec §6.2: um pedido por vez por projeto. Compartilhada com o TeamService (run-pai do time). */
   readonly queue = new ProjectQueue()
 
@@ -204,6 +213,52 @@ export class RunService {
     }
   }
 
+  /**
+   * Spec custos-e-perfis §5: a ferramenta passou do limite. Cada run trabalhando nela recebe um aviso (só um por run),
+   * com o substituto sugerido — ou sem destino, se ninguém tem folga.
+   */
+  async warnLimit(tool: ToolKind, window: WindowKind, utilization: number, pick: (from: AgentId) => Promise<AgentId | undefined>): Promise<void> {
+    for (const runId of this.executing) {
+      const run = this.deps.store.getRun(runId)
+      if (!run || run.status !== 'running' || getAgent(run.agentId).tool !== tool || this.warned.has(`${runId}:${tool}`)) continue
+      this.warned.add(`${runId}:${tool}`)
+      const to = await pick(run.agentId)
+      const id = randomUUID()
+      this.warnings.set(id, { runId, ...(to ? { to } : {}) })
+      this.record(runId, { type: 'limit_warning', id, tool, window, utilization, ...(to ? { to } : {}) })
+    }
+  }
+
+  /** Resposta do Natan ao aviso: Passar (troca de agente, mantendo o que já foi feito) ou Continuar. */
+  async respondLimit(warningId: string, pass: boolean): Promise<void> {
+    const w = this.warnings.get(warningId)
+    if (!w) return
+    this.warnings.delete(warningId)
+    const run = this.deps.store.getRun(w.runId)
+    const doPass = pass && !!w.to && run?.status === 'running'
+    this.record(w.runId, { type: 'limit_resolved', id: warningId, pass: doPass })
+    if (!doPass || !run || !w.to) return
+    const from = getAgent(run.agentId)
+    const files = [...new Set(this.deps.store.listEvents(run.id).flatMap(e => (e.type === 'file_changed' ? [e.path] : [])))]
+    const prompt = [
+      run.prompt,
+      `Você está assumindo o trabalho do ${from.nome}, que parou no limite da assinatura.`,
+      files.length ? `Arquivos que ele já alterou: ${files.join(', ')}.` : 'Ele ainda não tinha alterado arquivos.',
+      'Continue de onde ele parou; não desfaça o que já foi feito sem motivo.',
+    ].join('\n\n')
+    const projectPath = this.deps.store.projectPathForRun(run.id)!
+    let resolveNew!: (id: string) => void
+    const newIdPromise = new Promise<string>(r => { resolveNew = r })
+    // O pai do time precisa saber da troca antes de ver o filho antigo terminar cancelado.
+    if (run.parentRunId) this.onChildHandoff?.(run.parentRunId, run.id, newIdPromise, w.to)
+    this.cancel(run.id)
+    await this.whenFinished(run.id)
+    const base = { projectPath, conversationId: run.conversationId, agentId: w.to, prompt }
+    const newRunId = run.parentRunId ? await this.startChild({ ...base, parentRunId: run.parentRunId }) : await this.start(base)
+    resolveNew(newRunId)
+    this.record(run.id, { type: 'handoff', to: w.to, newRunId })
+  }
+
   /** Spec §5.4: pergunta ao Radar/Lupa em modo consulta, sem repassar a ferramenta (profundidade 1). */
   private askAgent(runId: string, from: StartRunInput['agentId'], cwd: string, signal: AbortSignal): NonNullable<AdapterRunOptions['askAgent']> {
     return async (to, question) => {
@@ -238,6 +293,7 @@ export class RunService {
   private async execute(runId: string, input: StartRunInput, adapter: AgentAdapter, signal: AbortSignal, withCheckpoint: boolean): Promise<void> {
     let status: RunStatus = 'done'
     let sessionId: string | undefined
+    this.executing.add(runId)
     try {
       const instructions = await loadInstructions(input.projectPath, this.deps.homeDir)
       if (signal.aborted) return
@@ -291,6 +347,7 @@ export class RunService {
         this.record(runId, { type: 'error', message: e instanceof Error ? e.message : String(e) })
       }
     } finally {
+      this.executing.delete(runId)
       if (signal.aborted) status = 'cancelled'
       if (withCheckpoint && !(await this.finalDiff(runId, input.projectPath))) status = 'error'
       this.close(runId, status, sessionId)

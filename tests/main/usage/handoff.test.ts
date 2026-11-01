@@ -1,0 +1,29 @@
+import { describe, expect, it } from 'vitest'
+import type { AgentId, ToolKind } from '@shared/agents'
+import type { ToolUsageRow, UsageSnapshot } from '@shared/usage'
+import { pickReplacement } from '../../../src/main/usage/handoff'
+
+const ALL: AgentId[] = ['bussola', 'forja', 'pincel', 'radar', 'lupa', 'curinga']
+const snap = (u: Partial<Record<ToolKind, number | null>>): UsageSnapshot => ({
+  at: 0,
+  rows: (['claude', 'codex', 'gemini', 'opencode'] as ToolKind[]).map(tool => ({
+    tool, utilization: u[tool] ?? null, estimated: false, window: null, tokens: { input: 0, output: 0, cacheRead: 0, reasoning: 0 }, alert: false,
+  } as ToolUsageRow)),
+})
+const at90 = () => 90
+
+describe('pickReplacement', () => {
+  it('Forja (Claude, escreve) no limite → Curinga (opencode, escreve)', () => {
+    expect(pickReplacement('forja', ALL, snap({ claude: 92 }), at90)).toBe('curinga')
+  })
+  it('Radar (só lê) → Lupa (só lê, outra ferramenta)', () => {
+    expect(pickReplacement('radar', ALL, snap({ gemini: 95, codex: 10 }), at90)).toBe('lupa')
+  })
+  it('ninguém de outra ferramenta com folga → undefined', () => {
+    expect(pickReplacement('forja', ALL, snap({ claude: 92, opencode: 95 }), at90)).toBeUndefined()
+    expect(pickReplacement('forja', ['forja', 'pincel', 'bussola'], snap({ claude: 92 }), at90)).toBeUndefined()
+  })
+  it('entre vários com folga, a ferramenta menos usada vence', () => {
+    expect(pickReplacement('radar', ['radar', 'lupa'], snap({ gemini: 95, codex: 80 }), at90)).toBe('lupa')
+  })
+})

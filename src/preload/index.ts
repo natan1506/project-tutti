@@ -15,6 +15,7 @@ const api: TimeApi = {
   respondApproval: (id, allowed) => ipcRenderer.invoke('respondApproval', id, allowed),
   startTeam: input => ipcRenderer.invoke('startTeam', input),
   respondPlan: (id, approved) => ipcRenderer.invoke('respondPlan', id, approved),
+  respondLimit: (id, pass) => ipcRenderer.invoke('respondLimit', id, pass),
   answerQuestion: (id, answer) => ipcRenderer.invoke('answerQuestion', id, answer),
   cancelRun: runId => ipcRenderer.invoke('cancelRun', runId),
   undo: (runId, paths) => ipcRenderer.invoke('undo', runId, paths),

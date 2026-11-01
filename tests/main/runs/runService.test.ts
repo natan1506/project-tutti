@@ -18,7 +18,7 @@ class FakeAdapter implements AgentAdapter {
   run(opts: AdapterRunOptions) { this.seen = opts; this.calls.push(opts); return this.script(opts) }
 }
 
-async function setup(script: Script, { git = true, toolReady, radar = false }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean } = {}) {
+async function setup(script: Script, { git = true, toolReady, radar = false, all = false }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean; all?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'run-'))
   if (git) {
     await runGit(dir, ['init', '-q'])
@@ -30,7 +30,7 @@ async function setup(script: Script, { git = true, toolReady, radar = false }: {
   const emitted: RunEvent[] = []
   const fake = new FakeAdapter(script)
   const svc = new RunService({
-    store, adapters: { claude: fake, codex: undefined, gemini: radar ? fake : undefined, opencode: undefined },
+    store, adapters: { claude: fake, codex: all ? fake : undefined, gemini: radar || all ? fake : undefined, opencode: all ? fake : undefined },
     emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady,
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
@@ -377,5 +377,56 @@ describe('RunService', () => {
     expect(third.resumeSessionId).toBe('s-forja')
     expect(third.prompt).toContain('pedido BBBB')
     expect(third.prompt).not.toContain('pedido AAAA')
+  })
+  it('aviso de limite: um por pedido por ferramenta, mesmo oscilando', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    for (const u of [91, 89, 93]) await svc.warnLimit('claude', 'five_hour', u, async () => 'curinga')
+    expect(emitted.filter(e => e.type === 'limit_warning')).toHaveLength(1)
+    expect(emitted.find(e => e.type === 'limit_warning')).toMatchObject({ tool: 'claude', window: 'five_hour', utilization: 91, to: 'curinga' })
+    release()
+    await svc.whenFinished(id)
+  })
+
+  it('sem substituto: aviso sem destino; Passar não faz nada além de fechar o aviso', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    const { emitted, svc, start, fake } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const id = await start()
+    await new Promise(r => setTimeout(r, 300))
+    await svc.warnLimit('claude', 'five_hour', 95, async () => undefined)
+    const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    expect(w.to).toBeUndefined()
+    await svc.respondLimit(w.id, true)
+    expect(emitted).toContainEqual({ type: 'limit_resolved', id: w.id, pass: false })
+    expect(fake.calls).toHaveLength(1)
+    release()
+    await svc.whenFinished(id)
+  })
+
+  it('Passar com aprovação pendente: original cancela, Curinga assume com a lista do que mudou', async () => {
+    const { emitted, svc, start, fake, store } = await setup(async function* (o) {
+      if (o.agent.id === 'curinga') { yield { type: 'done' }; return }
+      yield { type: 'file_changed', path: 'src/a.ts' }
+      await o.requestApproval({ toolName: 'Bash', summary: 'npm i x' })
+    }, { all: true })
+    const id = await start('Crie a API')
+    await waitFor(() => emitted.some(e => e.type === 'approval_request'))
+    await svc.warnLimit('claude', 'five_hour', 92, async () => 'curinga')
+    const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
+    await svc.respondLimit(w.id, true)
+    await svc.whenFinished(id)
+    expect(store.getRun(id)!.status).toBe('cancelled')
+    expect(emitted).toContainEqual({ type: 'approval_resolved', id: expect.any(String), allowed: false })
+    const handoff = emitted.find(e => e.type === 'handoff') as Extract<RunEvent, { type: 'handoff' }>
+    expect(handoff.to).toBe('curinga')
+    await svc.whenFinished(handoff.newRunId)
+    const replacement = fake.calls.find(c => c.agent.id === 'curinga')!
+    expect(replacement.prompt).toContain('assumindo o trabalho do Forja')
+    expect(replacement.prompt).toContain('src/a.ts')
+    expect(replacement.prompt).toContain('Crie a API')
   })
 })

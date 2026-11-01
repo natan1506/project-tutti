@@ -72,6 +72,7 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
     projectPath: absolutePath(input?.projectPath), conversationId: text(input?.conversationId), prompt: text(input?.prompt),
     fullRound: input?.fullRound === true, forcePlan: input?.forcePlan === true,
   }))
+  ipcMain.handle('respondLimit', (_e, id, pass) => runs.respondLimit(text(id), pass === true))
   ipcMain.handle('respondPlan', (_e, id, approved) => team.respondPlan(text(id), approved === true))
   ipcMain.handle('respondApproval', (_e, id, allowed) => runs.respondApproval(text(id), allowed === true))
   ipcMain.handle('answerQuestion', (_e, id, answer) => runs.answerQuestion(text(id), text(answer)))

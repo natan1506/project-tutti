@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
-import type { ToolKind } from '@shared/agents'
+import { AGENTS, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
@@ -12,6 +12,7 @@ import { openStore } from './store/db'
 import { ClaudeBrain } from './team/brain'
 import { TeamService } from './team/teamService'
 import { cachedDetector, realExec } from './tools/detect'
+import { pickReplacement } from './usage/handoff'
 import { UsageService } from './usage/usageService'
 
 function createWindow(): BrowserWindow {
@@ -51,6 +52,13 @@ app.whenReady().then(async () => {
     emit: (runId, ev) => send(runId, ev),
     toolReady,
     onUsage: (runId, agentId, ev) => usage.onEvent(runId, agentId, ev),
+  })
+  // Spec custos-e-perfis §5: ferramenta passou do limite → aviso nos runs dela, com substituto sugerido.
+  usage.onCross((tool, _row, window, utilization) => {
+    void runs.warnLimit(tool, window, utilization, async from => {
+      const ready = await Promise.all(AGENTS.map(async a => ((await toolReady(a.tool)) ? a.id : null)))
+      return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
+    })
   })
   const team = new TeamService({ runs, store, brain: new ClaudeBrain(), adapters, toolReady, emit: (runId, ev) => send(runId, ev) })
   await runs.recover()
