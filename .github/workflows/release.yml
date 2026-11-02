@@ -1,0 +1,35 @@
+# Release: ao enviar uma tag vX.Y.Z (igual à versão do package.json), gera um .dmg para Apple Silicon e outro
+# para Intel e publica os dois numa release do GitHub. Sem certificado de desenvolvedor: assinatura ad-hoc.
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Tag igual à versão do package.json
+        run: test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./package.json').version")"
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vitest run
+      - run: npx electron-vite build
+      # Os SDKs do Claude e do Codex trazem binários por arquitetura: cada .dmg sai com as dependências daquela arquitetura.
+      - name: .dmg Apple Silicon
+        run: npx electron-builder --mac --arm64 --publish never
+      - run: npm ci --cpu=x64 --os=darwin
+      - name: .dmg Intel
+        run: npx electron-builder --mac --x64 --publish never
+      - name: Publicar a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/Tutti-*.dmg --title "Tutti ${GITHUB_REF_NAME#v}" --generate-notes
