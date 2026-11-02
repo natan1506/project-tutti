@@ -52,6 +52,9 @@ export interface TimeApi {
   agentStatus(projectId: string): Promise<Record<AgentId, { ok: boolean; hint?: string }>>
   setProviderKey(provider: ProviderId, key: string): Promise<void>
   removeProviderKey(provider: ProviderId): Promise<void>
+  updateInfo(): Promise<{ version: string; url: string } | null>
+  onUpdate(cb: (u: { version: string; url: string }) => void): () => void
+  openUpdate(): Promise<void>
   usageSettings(): Promise<UsageSettings>
   updateUsageSettings(s: UsageSettingsPatch): Promise<void>
   onUsage(cb: (s: UsageSnapshot) => void): () => void

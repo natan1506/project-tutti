@@ -6,6 +6,7 @@ import { ProfilesScreen } from './components/ProfilesScreen'
 import { ProjectPicker } from './components/ProjectPicker'
 import { useProfileStore } from './state/profileStore'
 import { Stage } from './stage/Stage'
+import { UpdateBanner } from './components/UpdateBanner'
 import { UsagePanel } from './components/UsagePanel'
 import { useRunStore } from './state/runStore'
 import { startToolRefresh } from './state/toolRefresh'
@@ -32,7 +33,7 @@ export function App() {
         <div className="head">
           <h1>Tutti</h1>
           <div className="sub">{busy ? <><b>{busy} de {total}</b> trabalhando</> : <><b>{total} agentes</b>, todos disponíveis</>}</div>
-          <div className="pickers"><ProjectPicker /><ProfilePicker /></div>
+          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner /></div>
         </div>
         <Stage />
         <UsagePanel />

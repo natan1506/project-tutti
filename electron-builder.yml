@@ -9,9 +9,13 @@ files:
   - out/**
   - package.json
 asar: false
+afterPack: build/adhoc-sign.cjs
+# Um .dmg por arquitetura: os binários dos SDKs vêm da arquitetura instalada em node_modules
+# (o CI reinstala com --cpu=x64 / --cpu=arm64 antes de cada build).
+artifactName: Tutti-${version}-${arch}.${ext}
 mac:
-  target: dir
+  target: dmg
   icon: build/icon.png
   category: public.app-category.developer-tools
-  # Sem certificado de desenvolvedor: app só para esta máquina, sem assinatura.
+  # Sem certificado de desenvolvedor: o electron-builder não assina; build/adhoc-sign.cjs assina ad-hoc.
   identity: null

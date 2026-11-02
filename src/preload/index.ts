@@ -41,6 +41,13 @@ const api: TimeApi = {
   agentStatus: projectId => ipcRenderer.invoke('agentStatus', projectId),
   setProviderKey: (provider, key) => ipcRenderer.invoke('setProviderKey', provider, key),
   removeProviderKey: provider => ipcRenderer.invoke('removeProviderKey', provider),
+  updateInfo: () => ipcRenderer.invoke('updateInfo'),
+  onUpdate: cb => {
+    const listener = (_e: IpcRendererEvent, u: { version: string; url: string }) => cb(u)
+    ipcRenderer.on('update', listener)
+    return () => { ipcRenderer.removeListener('update', listener) }
+  },
+  openUpdate: () => ipcRenderer.invoke('openUpdate'),
   usageSettings: () => ipcRenderer.invoke('usageSettings'),
   updateUsageSettings: s => ipcRenderer.invoke('updateUsageSettings', s),
   onUsage: cb => {
