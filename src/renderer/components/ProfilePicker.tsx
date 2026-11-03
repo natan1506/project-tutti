@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useProfileStore } from '../state/profileStore'
 import { useRunStore } from '../state/runStore'
+import { useSkillStore } from '../state/skillStore'
 
 /** Seletor de perfil ao lado do projeto; cada projeto lembra o seu (spec custos-e-perfis §6). */
 export function ProfilePicker() {
   const project = useRunStore(s => s.project)
   const { profiles, active, setActive, openConfig } = useProfileStore()
+  const openSkills = useSkillStore(s => s.setOpen)
   const [open, setOpen] = useState(false)
 
   return (
@@ -19,6 +21,7 @@ export function ProfilePicker() {
             </button>
           ))}
           <button className="menu-action" onClick={() => { setOpen(false); openConfig(true) }}>Configurar perfis…</button>
+          <button className="menu-action" onClick={() => { setOpen(false); openSkills(true) }}>Skills…</button>
         </div>
       )}
     </div>

@@ -12,6 +12,8 @@ import type { Store } from './store/db'
 import type { KeyStore } from './keys/keyStore'
 import type { ProfileService } from './profiles/profileService'
 import { PROVIDERS, type ProviderId } from '@shared/profiles'
+import type { SkillService } from './skills/skillService'
+import { skillHandlers } from './skills/skillIpc'
 
 const absolutePath = (p: unknown): string => {
   if (typeof p !== 'string' || !isAbsolute(p)) throw new Error('Caminho inválido')
@@ -53,6 +55,7 @@ export interface ProfileDeps {
   keysChanged(): void
   runs: RunService
   models(provider: ProviderId): Promise<{ id: string; name: string }[]>
+  skills: SkillService
 }
 
 const provider = (p: unknown): ProviderId => {
@@ -82,6 +85,7 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
     const p = pd.profiles.activeFor(text(projectId))
     return Object.fromEntries(await Promise.all(p.agents.map(async a => [a.id, await pd.runs.availability(a.id)])))
   })
+  for (const [name, fn] of Object.entries(skillHandlers(pd.skills))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   ipcMain.handle('usageSnapshot', () => usage.snapshot())
   ipcMain.handle('usageDetail', (_e, conversationId) => ({
     byRun: typeof conversationId === 'string' ? store.tokensByRun(conversationId) : [],

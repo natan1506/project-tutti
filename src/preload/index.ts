@@ -36,6 +36,13 @@ const api: TimeApi = {
     ipcRenderer.on('profiles', listener)
     return () => { ipcRenderer.removeListener('profiles', listener) }
   },
+  skills: () => ipcRenderer.invoke('skills'),
+  saveSkill: s => ipcRenderer.invoke('saveSkill', s),
+  deleteSkill: id => ipcRenderer.invoke('deleteSkill', id),
+  createSkill: i => ipcRenderer.invoke('createSkill', i),
+  testSkill: i => ipcRenderer.invoke('testSkill', i),
+  improveSkill: i => ipcRenderer.invoke('improveSkill', i),
+  cancelSkill: draftId => ipcRenderer.invoke('cancelSkill', draftId),
   providerKeys: () => ipcRenderer.invoke('providerKeys'),
   providerModels: provider => ipcRenderer.invoke('providerModels', provider),
   agentStatus: projectId => ipcRenderer.invoke('agentStatus', projectId),

@@ -3,6 +3,8 @@ import { ChatPanel } from './components/ChatPanel'
 import { Composer } from './components/Composer'
 import { ProfilePicker } from './components/ProfilePicker'
 import { ProfilesScreen } from './components/ProfilesScreen'
+import { SkillsScreen } from './components/SkillsScreen'
+import { useSkillStore } from './state/skillStore'
 import { ProjectPicker } from './components/ProjectPicker'
 import { useProfileStore } from './state/profileStore'
 import { Stage } from './stage/Stage'
@@ -19,6 +21,7 @@ export function App() {
   useEffect(() => startToolRefresh(loadTools), [loadTools])
   const project = useRunStore(s => s.project)
   const { active, load, setProfiles, configOpen } = useProfileStore()
+  const skillsOpen = useSkillStore(s => s.open)
   // Perfil do projeto: carrega ao abrir o projeto e acompanha mudanças feitas na tela de perfis.
   useEffect(() => { if (project) void load(project.id) }, [project, load])
   useEffect(() => window.time.onProfiles(ps => { setProfiles(ps); if (project) void load(project.id) }), [project, load, setProfiles])
@@ -41,6 +44,7 @@ export function App() {
       </main>
       <ChatPanel />
       {configOpen && <ProfilesScreen />}
+      {skillsOpen && <SkillsScreen />}
     </div>
   )
 }

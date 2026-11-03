@@ -1,5 +1,6 @@
 import type { AgentDef, AgentId, ToolKind } from './agents'
 import type { Profile, ProviderId } from './profiles'
+import type { Skill, SkillDraft } from './skills'
 import type { UsageDetail, UsageSettings, UsageSettingsPatch, UsageSnapshot } from './usage'
 import type { RunEvent, RunStatus } from './events'
 
@@ -17,6 +18,9 @@ export interface StartRunInput {
   /** Só runs-filhos de um pedido de time. */
   parentRunId?: string; model?: string; mode?: 'work' | 'consult'
 }
+
+export type SkillRunError = 'PAID_NEEDS_CONFIRM' | 'INVALID_SKILL' | 'AGENT_UNAVAILABLE' | 'CANCELED' | 'FAILED'
+export type SkillRunResult<T> = ({ ok: true } & T) | { ok: false; error: SkillRunError }
 
 /** API exposta ao renderer pelo preload como `window.time`. */
 export interface TimeApi {
@@ -47,6 +51,13 @@ export interface TimeApi {
   activeProfile(projectId: string): Promise<Profile>
   setActiveProfile(projectId: string, profileId: string): Promise<void>
   onProfiles(cb: (profiles: Profile[]) => void): () => void
+  skills(): Promise<Skill[]>
+  saveSkill(s: Skill): Promise<{ ok: true; skill: Skill } | { ok: false; errors: string[] }>
+  deleteSkill(id: string): Promise<void>
+  createSkill(i: { draftId: string; request: string; creatorId: AgentId; confirmPaid?: boolean }): Promise<SkillRunResult<{ skill: SkillDraft }>>
+  testSkill(i: { draftId: string; skill: SkillDraft; agentId: AgentId; task: string; projectPath?: string; confirmPaid?: boolean }): Promise<SkillRunResult<{ answer: string }>>
+  improveSkill(i: { draftId: string; skill: SkillDraft; creatorId: AgentId; task: string; answer: string; feedback?: string; confirmPaid?: boolean }): Promise<SkillRunResult<{ skill: SkillDraft }>>
+  cancelSkill(draftId: string): Promise<void>
   providerKeys(): Promise<Record<ProviderId, boolean>>
   providerModels(provider: ProviderId): Promise<{ id: string; name: string }[]>
   agentStatus(projectId: string): Promise<Record<AgentId, { ok: boolean; hint?: string }>>

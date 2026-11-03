@@ -140,3 +140,8 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .profile-edit .opt-line input:not([type]) { width: 150px; }
 .profile-edit .opt-line input[aria-label="Modelo"] { width: 240px; }
 .update { display: flex; gap: 8px; align-items: center; font-size: 12px; background: #1d1a42; border: 1px solid #8b6cf6; border-radius: 8px; padding: 6px 10px; }
+/* Skills (plano skills) */
+.skills label.block { display: flex; flex-direction: column; gap: 4px; font-size: 12px; margin: 6px 0; }
+.skills textarea { background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 6px; font: inherit; resize: vertical; }
+.skills .profile-edit input.wide { width: 360px; }
+.skill-answer { white-space: pre-wrap; background: #120f2e; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12px; max-height: 220px; overflow: auto; }

@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
   const win = createWindow()
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
   pushProfiles = ps => { if (!win.isDestroyed()) win.webContents.send('profiles', ps) }
-  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [] })
+  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [], skills })
   // Versão nova no GitHub (só no app empacotado): aviso com link para a release; a URL nunca vem da interface.
   let update: { version: string; url: string } | null = null
   ipcMain.handle('updateInfo', () => update)
