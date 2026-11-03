@@ -2,11 +2,13 @@ import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron'
 import { checkForUpdate } from './updates/updateCheck'
 import { KeyStore } from './keys/keyStore'
 import { ProfileService } from './profiles/profileService'
+import { SkillService } from './skills/skillService'
+import { mkdirSync } from 'node:fs'
 import { TextBrain } from './team/textBrain'
 import { join } from 'node:path'
 import { agentsOfProfile, getAgent, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
-import { PADRAO, type Profile } from '@shared/profiles'
+import { isPaidApi, PADRAO, type Profile } from '@shared/profiles'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
@@ -67,7 +69,13 @@ app.whenReady().then(async () => {
     toolReady,
     keyReady: p => keys.get(p) !== undefined,
     onUsage: (runId, agentId, ev) => usage.onEvent(runId, agentId, ev),
+    skillsFor: id => skills.skillsFor(id),
+    skillPluginDir: id => join(app.getPath('userData'), 'skill-plugins', id),
   })
+  // Skills (plano skills): quem cria roda numa pasta vazia do app, em consulta.
+  const skillWork = join(app.getPath('userData'), 'skill-work')
+  mkdirSync(skillWork, { recursive: true })
+  const skills = new SkillService({ store, runs, workDir: skillWork, isPaid: id => isPaidApi(getAgent(id)) })
   // Spec custos-e-perfis §5: ferramenta passou do limite → aviso nos runs dela, com substituto sugerido.
   usage.onCross((tool, _row, window, utilization) => {
     void runs.warnLimit(tool, window, utilization, async from => {

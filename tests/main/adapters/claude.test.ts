@@ -22,6 +22,13 @@ describe('buildClaudeOptions', () => {
     delete process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_AUTH_TOKEN; delete process.env.ANTHROPIC_BASE_URL; delete process.env.CLAUDECODE; delete process.env.CLAUDE_CODE_ENTRYPOINT
   })
 
+  it('skills marcadas entram como plugin local tutti', () => {
+    const o = buildClaudeOptions(opts({ skillPlugin: { path: '/app/skill-plugins/forja', names: ['tutti:resumo-3'] } }), async () => ({ behavior: 'allow' }))
+    expect(o.plugins).toEqual([{ type: 'local', path: '/app/skill-plugins/forja' }])
+    expect(o.skills).toEqual(['tutti:resumo-3'])
+    expect(o.settingSources).toEqual([])
+  })
+
   it('isola a configuração pessoal e usa a assinatura', () => {
     const o = buildClaudeOptions(opts({ resumeSessionId: 's1' }), async () => ({ behavior: 'allow' }))
     expect(o).toMatchObject({

@@ -19,6 +19,8 @@ export interface AdapterRunOptions {
   askAgent?: AskAgent
   /** Quem pode ser consultado (perfil do agente); vazio = sem ferramenta de consulta. */
   consultable?: AgentDef[]
+  /** Skills marcadas para o agente, como plugin local (só o adaptador Claude usa; os outros recebem nas instruções). */
+  skillPlugin?: { path: string; names: string[] }
 }
 
 export interface AgentAdapter {

@@ -3,6 +3,7 @@ import { agentsOfProfile, getAgent, knownAgent, type AgentDef, type AgentId, typ
 import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { WindowKind } from '@shared/usage'
+import { skillsInstructions, type SkillDraft } from '@shared/skills'
 import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
@@ -11,6 +12,7 @@ import { buildContext, collectEntries } from '../context/conversationContext'
 import { loadInstructions } from '../instructions/loadInstructions'
 import type { Store } from '../store/db'
 import { ProjectQueue } from './projectQueue'
+import { writeClaudePlugin } from '../skills/claudePlugin'
 
 interface Deps {
   store: Store
@@ -23,6 +25,10 @@ interface Deps {
   keyReady?: (provider: ProviderId) => boolean
   /** Uso/limite medido num run (UsageService). */
   onUsage?: (runId: string, agentId: AgentId, ev: Extract<AgentEvent, { type: 'usage' | 'limit' }>) => void
+  /** Skills marcadas para o agente (SkillService). */
+  skillsFor?: (agentId: AgentId) => SkillDraft[]
+  /** Pasta do plugin de skills de um agente Claude CLI. */
+  skillPluginDir?: (agentId: AgentId) => string
 }
 
 /** Assinatura do agente para retomar sessão: trocar transporte ou modelo começa sessão nova (spec custos-e-perfis §6). */
@@ -368,9 +374,14 @@ export class RunService {
     let sessionId: string | undefined
     this.executing.add(runId)
     try {
-      const instructions = await loadInstructions(input.projectPath, this.deps.homeDir)
+      const loaded = await loadInstructions(input.projectPath, this.deps.homeDir)
       if (signal.aborted) return
       const agent = getAgent(input.agentId)
+      // Skills (plano skills, Design §6): Claude CLI por plugin local; as outras ferramentas nas instruções. Consulta não recebe.
+      const skills = input.mode === 'consult' ? [] : this.deps.skillsFor?.(agent.id) ?? []
+      const byPlugin = skills.length > 0 && agent.transport.kind === 'cli' && agent.tool === 'claude' && !!this.deps.skillPluginDir
+      const skillPlugin = byPlugin ? writeClaudePlugin(this.deps.skillPluginDir!(agent.id), skills) : undefined
+      const instructions = byPlugin ? loaded : [loaded, skillsInstructions(skills)].filter(Boolean).join('\n\n')
       // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
       let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id, agentSignature(agent)) ?? undefined
       // Agente por API usa sempre o modelo do perfil (o modelo escolhido no pedido é da lista das CLIs).
@@ -390,7 +401,7 @@ export class RunService {
         const events = adapter.run({
           agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
-          requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal),
+          requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal), ...(skillPlugin ? { skillPlugin } : {}),
           ...(input.mode !== 'consult' && consultable.length ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal), consultable } : {}),
         })
         try {
