@@ -41,6 +41,26 @@ describe('consultOnce', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('I-3: cancelado enquanto confere a disponibilidade não chama o agente', async () => {
+    const ctl = new AbortController()
+    let ready!: (v: boolean) => void
+    const { svc, calls } = setup(async function* () { yield { type: 'done' } }, () => new Promise(r => { ready = r }))
+    const p = svc.consultOnce({ usageRunId: 'x', agentId: 'forja', prompt: 'p', cwd: '/tmp', signal: ctl.signal })
+    await new Promise(r => setTimeout(r, 10))
+    ctl.abort()
+    ready(true)
+    await expect(p).rejects.toThrow('CANCELED')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('I-6: estourar o prazo é TIMEOUT, não cancelamento', async () => {
+    const { svc } = setup(async function* (o) {
+      await new Promise(r => o.signal.addEventListener('abort', r))
+      throw new Error('abortado')
+    })
+    await expect(svc.consultOnce({ usageRunId: 'x', agentId: 'forja', prompt: 'p', cwd: '/tmp', signal: new AbortController().signal, timeoutMs: 20 })).rejects.toThrow('TIMEOUT')
+  })
+
   it('cancelado: CANCELED', async () => {
     const ctl = new AbortController()
     const { svc } = setup(async function* (o) {

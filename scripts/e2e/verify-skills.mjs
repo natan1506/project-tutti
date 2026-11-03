@@ -85,9 +85,11 @@ try {
   await page.click('.chip:has-text("Forja")')
   await page.fill('.inp textarea', 'Responda só: ok')
   await page.keyboard.press('Enter')
-  const dir = join(userData, 'skill-plugins', 'forja', 'skills')
-  for (let i = 0; i < 100 && !existsSync(join(dir, name, 'SKILL.md')); i++) await page.waitForTimeout(300)
-  const files = existsSync(dir) ? readdirSync(dir) : []
+  // Uma pasta por versão do conteúdo: skill-plugins/forja/<hash>/skills/<nome>/SKILL.md
+  const base = join(userData, 'skill-plugins', 'forja')
+  const pluginSkills = () => (existsSync(base) ? readdirSync(base).filter(h => !h.startsWith('.')).flatMap(h => (existsSync(join(base, h, 'skills')) ? readdirSync(join(base, h, 'skills')) : [])) : [])
+  for (let i = 0; i < 100 && !pluginSkills().includes(name); i++) await page.waitForTimeout(300)
+  const files = pluginSkills()
   log('5 plugin do Forja', files.includes(name), `skills no plugin: ${files.join(', ')}`)
   await page.waitForFunction(() => {
     const s = [...document.querySelectorAll('.step')]

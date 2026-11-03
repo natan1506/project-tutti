@@ -11,14 +11,14 @@ const FORMAT = [
   '',
   'Instruções objetivas, em passos, para o agente seguir. Só texto: sem scripts nem arquivos extras.',
   '',
-  'Devolva SÓ um bloco de código com a linguagem `skill` contendo o SKILL.md completo, assim:',
-  '```skill',
+  'Devolva SÓ um bloco de código com a linguagem `skill`, aberto e fechado com QUATRO crases (a skill pode ter blocos de código dentro), assim:',
+  '````skill',
   '---',
   'name: …',
   'description: …',
   '---',
   '…',
-  '```',
+  '````',
 ].join('\n')
 
 export function createPrompt(request: string): string {

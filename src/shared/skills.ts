@@ -21,20 +21,38 @@ const DESCRIPTION_MAX = 300
 export const BODY_MAX = 20_000
 
 export function toSkillMd(d: SkillDraft): string {
-  return `---\nname: ${d.name}\ndescription: ${d.description.replace(/\s+/g, ' ').trim()}\n---\n\n${d.body.trim()}\n`
+  // Descrição entre aspas (string JSON = escalar YAML válido): o modelo escreve "Use quando: …".
+  return `---\nname: ${d.name}\ndescription: ${JSON.stringify(d.description.replace(/\s+/g, ' ').trim())}\n---\n\n${d.body.trim()}\n`
 }
 
-/** Lê um SKILL.md puro ou o primeiro bloco ```skill de uma resposta; `null` se não for uma skill válida. */
+/** Conteúdo do bloco ```skill (ou ````skill): fecha na ÚLTIMA cerca igual, porque a skill pode ter blocos de código dentro. */
+function unwrapSkillBlock(text: string): string {
+  const lines = text.split('\n')
+  const open = lines.findIndex(l => /^`{3,}skill\b/.test(l))
+  if (open < 0) return text
+  const fence = lines[open].match(/^`+/)![0]
+  for (let i = lines.length - 1; i > open; i--) if (lines[i].trim() === fence) return lines.slice(open + 1, i).join('\n')
+  return lines.slice(open + 1).join('\n')
+}
+
+function scalar(v: string): string {
+  if (v.startsWith('"')) {
+    try { return String(JSON.parse(v)) } catch { return v.slice(1, v.endsWith('"') ? -1 : undefined) }
+  }
+  return v.replace(/^'(.*)'$/, '$1')
+}
+
+/** Lê um SKILL.md puro ou o bloco ```skill de uma resposta; `null` se não for uma skill válida. */
 export function parseSkillMd(text: string): SkillDraft | null {
-  const block = text.match(/```skill[^\n]*\n([\s\S]*?)\n```/)
-  const md = (block ? block[1] : text).trim()
+  const md = unwrapSkillBlock(text.replace(/\r\n/g, '\n')).trim()
   const m = md.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
   if (!m) return null
-  const field = (k: string) => m[1].match(new RegExp(`^${k}:\\s*(.+)$`, 'm'))?.[1].trim().replace(/^(["'])(.*)\1$/, '$2')
+  const field = (k: string) => { const v = m[1].match(new RegExp(`^${k}:\\s*(.+)$`, 'm'))?.[1].trim(); return v ? scalar(v) : undefined }
   const name = field('name')
   const description = field('description')
   const body = m[2].trim()
   if (!name || !SKILL_NAME_RE.test(name) || name.length > NAME_MAX || !description || !body) return null
+  if (description.length > DESCRIPTION_MAX || body.length > BODY_MAX) return null
   return { name, description, body }
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AgentDef } from '@shared/agents'
 import type { SkillRunError } from '@shared/models'
 import { isPaidApi, providerName, resolveAgentDefs } from '@shared/profiles'
-import type { Skill, SkillDraft } from '@shared/skills'
+import { BODY_MAX, type Skill, type SkillDraft } from '@shared/skills'
 import { useProfileStore } from '../state/profileStore'
 import { useRunStore } from '../state/runStore'
 import { useSkillStore } from '../state/skillStore'
@@ -14,6 +14,7 @@ const ERRORS: Record<SkillRunError, string> = {
   AGENT_UNAVAILABLE: 'Esse agente não está disponível agora.',
   PAID_NEEDS_CONFIRM: 'Agente por API paga: confirme no botão.',
   CANCELED: 'Cancelado.',
+  TIMEOUT: 'O agente não respondeu a tempo.',
   FAILED: 'Algo deu errado. Tente de novo.',
 }
 const BUSY = { create: 'Criando…', test: 'Testando…', improve: 'Ajustando…' } as const
@@ -60,6 +61,9 @@ export function SkillsScreen() {
         const error = (r as unknown as { error: SkillRunError }).error
         if (error !== 'CANCELED') setErrors([ERRORS[error] ?? ERRORS.FAILED])
       }
+    } catch {
+      // ex.: entrada recusada no main (tamanho)
+      setErrors([ERRORS.FAILED])
     } finally {
       setBusy(undefined)
     }
@@ -110,9 +114,9 @@ export function SkillsScreen() {
         <div className="row between"><b>Skills</b><button onClick={close}>Fechar</button></div>
         <div className="profiles-body">
           <aside className="profiles-list">
-            {skills.map(s => <button key={s.id} className={current?.id === s.id ? 'on' : ''} onClick={() => pick(s)}>{s.name}</button>)}
+            {skills.map(s => <button key={s.id} className={current?.id === s.id ? 'on' : ''} disabled={!!busy} onClick={() => pick(s)}>{s.name}</button>)}
             {current && !current.id && <button className="on">{current.name || 'Nova skill'} (não salva)</button>}
-            <button className="menu-action" onClick={() => pick(blank())}>Nova skill</button>
+            <button className="menu-action" disabled={!!busy} onClick={() => pick(blank())}>Nova skill</button>
           </aside>
           {current ? (
             <section className="profile-edit">
@@ -136,7 +140,7 @@ export function SkillsScreen() {
                     <label>Quando usar <input aria-label="Quando usar" className="wide" value={current.description} maxLength={300} onChange={e => edit({ description: e.target.value })} /></label>
                   </div>
                   <label className="block">Instruções
-                    <textarea aria-label="Instruções" rows={10} value={current.body} onChange={e => edit({ body: e.target.value })} />
+                    <textarea aria-label="Instruções" rows={10} value={current.body} maxLength={BODY_MAX} onChange={e => edit({ body: e.target.value })} />
                   </label>
                   <h4>Teste</h4>
                   <label className="block">Tarefa de exemplo
@@ -150,7 +154,7 @@ export function SkillsScreen() {
                   <div className="opt-line wrap">
                     {current.id && agentSelect('Quem cria', creatorId, setCreatorId)}
                     <label>Comentário (opcional) <input aria-label="Comentário" className="wide" value={feedback} maxLength={5000} disabled={!!busy} onChange={e => setFeedback(e.target.value)} /></label>
-                    <button disabled={!!busy || answer === undefined} onClick={() => void improve()}>{busy === 'improve' ? BUSY.improve : 'Ajustar'}</button>
+                    <button disabled={!!busy || answer === undefined} onClick={() => void improve()}>{busy === 'improve' ? BUSY.improve : `Ajustar${paidLabel(creator)}`}</button>
                   </div>
                   <h4>Usada por</h4>
                   {profiles.map(p => (

@@ -44,6 +44,11 @@ describe('IPC das skills', () => {
     expect(await p).toEqual({ ok: false, error: 'CANCELED' })
   })
 
+  it('I-6: prazo estourado vira TIMEOUT', async () => {
+    const { h } = setup(async () => { throw new Error('TIMEOUT') })
+    expect(await h.createSkill({ draftId: 'd', request: 'x', creatorId: 'forja' })).toEqual({ ok: false, error: 'TIMEOUT' })
+  })
+
   it('salvar devolve erros de validação', async () => {
     const { h } = setup(async () => '')
     const ok = h.saveSkill({ id: '', ...draft, agentIds: ['forja'], updatedAt: 0 })

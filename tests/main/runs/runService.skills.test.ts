@@ -31,7 +31,8 @@ describe('skills nos pedidos', () => {
   it('agente Claude CLI recebe o plugin, sem o bloco nas instruções', async () => {
     const { calls, go, plugins } = await setup([skill])
     await go('forja')
-    expect(calls[0].skillPlugin).toEqual({ path: join(plugins, 'forja'), names: ['tutti:resumo-3'] })
+    expect(calls[0].skillPlugin?.names).toEqual(['tutti:resumo-3'])
+    expect(calls[0].skillPlugin?.path.startsWith(join(plugins, 'forja'))).toBe(true)
     expect(calls[0].instructions).not.toContain('Três tópicos.')
   })
 

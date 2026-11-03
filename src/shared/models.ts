@@ -19,7 +19,7 @@ export interface StartRunInput {
   parentRunId?: string; model?: string; mode?: 'work' | 'consult'
 }
 
-export type SkillRunError = 'PAID_NEEDS_CONFIRM' | 'INVALID_SKILL' | 'AGENT_UNAVAILABLE' | 'CANCELED' | 'FAILED'
+export type SkillRunError = 'PAID_NEEDS_CONFIRM' | 'INVALID_SKILL' | 'AGENT_UNAVAILABLE' | 'CANCELED' | 'TIMEOUT' | 'FAILED'
 export type SkillRunResult<T> = ({ ok: true } & T) | { ok: false; error: SkillRunError }
 
 /** API exposta ao renderer pelo preload como `window.time`. */

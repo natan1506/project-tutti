@@ -13,6 +13,24 @@ describe('skills', () => {
     expect(parseSkillMd(r)).toEqual(d)
   })
 
+  it('I-1: bloco de código dentro da skill não corta as instruções (cerca de 3 ou 4 crases)', () => {
+    const inner = { ...d, body: '1. Rode:\n```bash\nnpm test\n```\n2. Leia a saída.' }
+    expect(parseSkillMd('Pronto:\n```skill\n' + toSkillMd(inner) + '```\nfim')).toEqual(inner)
+    expect(parseSkillMd('````skill\n' + toSkillMd(inner) + '````')).toEqual(inner)
+  })
+
+  it('I-7: descrição com dois-pontos sai entre aspas e volta igual', () => {
+    const c = { ...d, description: 'Use quando: pedirem "testes" #rápido' }
+    const md = toSkillMd(c)
+    expect(md).toContain('description: "Use quando: pedirem \\"testes\\" #rápido"')
+    expect(parseSkillMd(md)).toEqual(c)
+  })
+
+  it('I-6: resposta acima dos limites não vira skill', () => {
+    expect(parseSkillMd(toSkillMd({ ...d, body: 'x'.repeat(20_001) }))).toBeNull()
+    expect(parseSkillMd(toSkillMd({ ...d, description: 'x'.repeat(301) }))).toBeNull()
+  })
+
   it('resposta sem skill válida vira null', () => {
     expect(parseSkillMd('não sei fazer')).toBeNull()
     expect(parseSkillMd('```skill\nsem frontmatter\n```')).toBeNull()

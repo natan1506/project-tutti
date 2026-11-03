@@ -33,6 +33,7 @@ beforeEach(() => {
 })
 
 const create = async (r: ReturnType<typeof render>) => {
+  await act(async () => {})
   fireEvent.click(r.getByText('Nova skill'))
   fireEvent.change(r.getByLabelText('O que a skill deve fazer'), { target: { value: 'resumo em três tópicos' } })
   await act(async () => { fireEvent.click(r.getByText('Criar')) })
@@ -57,6 +58,43 @@ describe('tela de skills', () => {
     fireEvent.change(r.getByLabelText('O que a skill deve fazer'), { target: { value: 'x' } })
     await act(async () => { fireEvent.click(r.getByText('Criar (API paga — DeepSeek)')) })
     expect(api.createSkill).toHaveBeenCalledWith(expect.objectContaining({ creatorId: 'kimi', confirmPaid: true }))
+  })
+
+  it('I-2: com execução em andamento, não dá para trocar de skill', async () => {
+    useSkillStore.setState({ skills: [{ id: 'sk_b', ...draft, name: 'outra', agentIds: [], updatedAt: 0 }] })
+    api.skills.mockResolvedValue([{ id: 'sk_b', ...draft, name: 'outra', agentIds: [], updatedAt: 0 }])
+    let finish!: (v: unknown) => void
+    api.createSkill.mockReturnValueOnce(new Promise(res => { finish = res }) as never)
+    const r = render(<SkillsScreen />)
+    await act(async () => {})
+    fireEvent.click(r.getByText('Nova skill'))
+    fireEvent.change(r.getByLabelText('O que a skill deve fazer'), { target: { value: 'x' } })
+    fireEvent.click(r.getByText('Criar'))
+    expect((r.getByText('outra') as HTMLButtonElement).disabled).toBe(true)
+    expect((r.getByText('Nova skill') as HTMLButtonElement).disabled).toBe(true)
+    await act(async () => { finish({ ok: true, skill: draft }) })
+  })
+
+  it('I-5: Ajustar com quem cria pago mostra o aviso no botão', async () => {
+    useProfileStore.setState({ active: outro })
+    const r = render(<SkillsScreen />)
+    fireEvent.click(r.getByText('Nova skill'))
+    fireEvent.change(r.getByLabelText('O que a skill deve fazer'), { target: { value: 'x' } })
+    await act(async () => { fireEvent.click(r.getByText('Criar (API paga — DeepSeek)')) })
+    expect(r.getByText('Ajustar (API paga — DeepSeek)')).toBeTruthy()
+  })
+
+  it('I-6: erro na chamada (ex.: limite de tamanho) aparece e o tempo esgotado também', async () => {
+    const r = render(<SkillsScreen />)
+    await create(r)
+    api.testSkill.mockRejectedValueOnce(new Error('zod'))
+    fireEvent.change(r.getByLabelText('Tarefa de exemplo'), { target: { value: 't' } })
+    await act(async () => { fireEvent.click(r.getByText('Testar')) })
+    expect(r.getByText('Algo deu errado. Tente de novo.')).toBeTruthy()
+    api.testSkill.mockResolvedValueOnce({ ok: false, error: 'TIMEOUT' } as never)
+    await act(async () => { fireEvent.click(r.getByText('Testar')) })
+    expect(r.getByText('O agente não respondeu a tempo.')).toBeTruthy()
+    expect((r.getByLabelText('Instruções') as HTMLTextAreaElement).maxLength).toBe(20000)
   })
 
   it('testa no projeto aberto e ajusta com o resultado', async () => {
