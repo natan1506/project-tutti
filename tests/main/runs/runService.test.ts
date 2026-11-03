@@ -36,7 +36,9 @@ async function setup(script: Script, { git = true, toolReady, radar = false, all
     emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady, keyReady,
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
-  return { dir, store, conv, emitted, fake, svc, start }
+  // Espera o agente ser chamado (o ponto de restauração usa git e pode passar de 300 ms numa máquina carregada).
+  const untilRunning = () => waitFor(() => fake.calls.length > 0)
+  return { dir, store, conv, emitted, fake, svc, start, untilRunning }
 }
 const types = (evs: RunEvent[]) => evs.map(e => e.type)
 const waitFor = async (cond: () => boolean) => { for (let i = 0; i < 200 && !cond(); i++) await new Promise(r => setTimeout(r, 10)) }
@@ -383,9 +385,9 @@ describe('RunService', () => {
   it('aviso de limite: um por pedido por ferramenta, mesmo oscilando', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const { untilRunning, emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     for (const u of [91, 89, 93]) await svc.warnLimit('claude', 'five_hour', u, async () => 'curinga')
     expect(emitted.filter(e => e.type === 'limit_warning')).toHaveLength(1)
     expect(emitted.find(e => e.type === 'limit_warning')).toMatchObject({ tool: 'claude', window: 'five_hour', utilization: 91, to: 'curinga' })
@@ -396,9 +398,9 @@ describe('RunService', () => {
   it('pedido que termina com aviso pendente fecha o aviso sem passar', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const { untilRunning, emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     await svc.warnLimit('claude', 'five_hour', 92, async () => 'curinga')
     const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
     release()
@@ -408,11 +410,11 @@ describe('RunService', () => {
 
   it('I-1: substituto que não consegue começar não deixa o pedido sem resposta', async () => {
     let curingaOk = true
-    const { emitted, svc, start, store } = await setup(async function* (o) {
+    const { untilRunning, emitted, svc, start, store } = await setup(async function* (o) {
       await new Promise<void>(r => o.signal.addEventListener('abort', () => r(), { once: true }))
     }, { all: true, toolReady: async t => t !== 'opencode' || curingaOk })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     await svc.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
     const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
     curingaOk = false
@@ -425,9 +427,9 @@ describe('RunService', () => {
   it('I-3: sem aviso para pedido que já entregou o resultado', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { emitted, svc, start } = await setup(async function* () { yield { type: 'done' }; await gate })
+    const { untilRunning, emitted, svc, start } = await setup(async function* () { yield { type: 'done' }; await gate })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     await svc.warnLimit('claude', 'five_hour', 95, async () => 'curinga')
     expect(emitted.some(e => e.type === 'limit_warning')).toBe(false)
     release()
@@ -437,9 +439,9 @@ describe('RunService', () => {
   it('I-3: pedido que termina enquanto escolhe o substituto não ganha aviso aberto', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const { untilRunning, emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     await svc.warnLimit('claude', 'five_hour', 95, async () => { release(); await svc.whenFinished(id); return 'curinga' })
     expect(emitted.some(e => e.type === 'limit_warning')).toBe(false)
   })
@@ -447,9 +449,9 @@ describe('RunService', () => {
   it('sem substituto: aviso sem destino; Passar não faz nada além de fechar o aviso', async () => {
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { emitted, svc, start, fake } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const { untilRunning, emitted, svc, start, fake } = await setup(async function* () { await gate; yield { type: 'done' } })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     await svc.warnLimit('claude', 'five_hour', 95, async () => undefined)
     const w = emitted.find(e => e.type === 'limit_warning') as Extract<RunEvent, { type: 'limit_warning' }>
     expect(w.to).toBeUndefined()
@@ -542,9 +544,9 @@ describe('RunService', () => {
       agents: [{ id: 'kimi2', nome: 'Kimi', prompt: 'x', funcao: 'x', readOnly: false, reviewer: false, consultable: false }] }))
     let release!: () => void
     const gate = new Promise<void>(r => { release = r })
-    const { emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
+    const { untilRunning, emitted, svc, start } = await setup(async function* () { await gate; yield { type: 'done' } })
     const id = await start()
-    await new Promise(r => setTimeout(r, 300))
+    await untilRunning()
     await svc.warnLimit('claude', 'five_hour', 95, async () => 'kimi2')
     expect(emitted.find(e => e.type === 'limit_warning')).toMatchObject({ to: 'kimi2', paid: { provider: 'OpenRouter' } })
     release()
