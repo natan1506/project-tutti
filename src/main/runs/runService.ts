@@ -311,6 +311,39 @@ export class RunService {
     this.record(run.id, { type: 'handoff', to: w.to, newRunId })
   }
 
+  /**
+   * Uma consulta avulsa (só leitura) a um agente: junta os textos e registra o uso em `usageRunId`.
+   * Lança `AGENT_UNAVAILABLE` se o agente não pode trabalhar agora e `CANCELED` se o sinal (ou o prazo) abortar.
+   */
+  async consultOnce(i: { usageRunId: string; agentId: AgentId; prompt: string; cwd: string; instructions?: string; signal: AbortSignal; timeoutMs?: number }): Promise<string> {
+    const agent = getAgent(i.agentId)
+    const adapter = this.deps.adapters[agent.tool]
+    if (!adapter || !(await this.availability(i.agentId)).ok) throw new Error('AGENT_UNAVAILABLE')
+    const ctl = new AbortController()
+    const onParent = () => ctl.abort()
+    i.signal.addEventListener('abort', onParent, { once: true })
+    const timer = i.timeoutMs ? setTimeout(() => ctl.abort(), i.timeoutMs) : undefined
+    const texts: string[] = []
+    try {
+      const model = effectiveModel(agent)
+      for await (const ev of adapter.run({
+        agent, prompt: i.prompt, cwd: i.cwd, instructions: i.instructions ?? '', signal: ctl.signal, mode: 'consult',
+        requestApproval: async () => false, ...(model ? { model } : {}),
+      })) {
+        if (ev.type === 'text') texts.push(ev.text)
+        if (ev.type === 'usage' || ev.type === 'limit') this.recordUsage(i.usageRunId, agent.id, ev)
+      }
+    } catch (e) {
+      if (ctl.signal.aborted) throw new Error('CANCELED')
+      throw e
+    } finally {
+      clearTimeout(timer)
+      i.signal.removeEventListener('abort', onParent)
+    }
+    if (ctl.signal.aborted) throw new Error('CANCELED')
+    return texts.join('\n\n')
+  }
+
   /** Spec §5.4: pergunta ao Radar/Lupa em modo consulta, sem repassar a ferramenta (profundidade 1). */
   private askAgent(runId: string, from: StartRunInput['agentId'], cwd: string, signal: AbortSignal): NonNullable<AdapterRunOptions['askAgent']> {
     return async (to, question) => {
@@ -318,28 +351,12 @@ export class RunService {
       // Só quem o perfil marca como "pode ser consultado" (o modelo pode inventar um id).
       if (!consultableFor(getAgent(from)).some(a => a.id === to)) return `Não há ninguém com o id ${to} para consultar.`
       this.record(runId, { type: 'agent_call', from, to, question })
-      const adapter = this.deps.adapters[agent.tool]
       let answer: string
-      if (!adapter || !(await this.availability(to)).ok) answer = `O ${agent.nome} não está disponível.`
-      else {
-        const ctl = new AbortController()
-        const onParent = () => ctl.abort()
-        signal.addEventListener('abort', onParent, { once: true })
-        const timer = setTimeout(() => ctl.abort(), 120_000)
-        const texts: string[] = []
-        try {
-          const model = effectiveModel(agent)
-          for await (const ev of adapter.run({ agent, prompt: question, cwd, instructions: '', signal: ctl.signal, mode: 'consult', requestApproval: async () => false, ...(model ? { model } : {}) })) {
-            if (ev.type === 'text') texts.push(ev.text)
-            if (ev.type === 'usage' || ev.type === 'limit') this.recordUsage(runId, agent.id, ev)
-          }
-        } catch {
-          // falha do chamado vira "não respondeu" para quem perguntou
-        } finally {
-          clearTimeout(timer)
-          signal.removeEventListener('abort', onParent)
-        }
-        answer = texts.join('\n\n') || `O ${agent.nome} não respondeu a tempo.`
+      try {
+        answer = (await this.consultOnce({ usageRunId: runId, agentId: to, prompt: question, cwd, signal, timeoutMs: 120_000 })) || `O ${agent.nome} não respondeu a tempo.`
+      } catch (e) {
+        // falha do chamado vira "não respondeu" para quem perguntou
+        answer = e instanceof Error && e.message === 'AGENT_UNAVAILABLE' ? `O ${agent.nome} não está disponível.` : `O ${agent.nome} não respondeu a tempo.`
       }
       this.record(runId, { type: 'agent_call_answer', from, to, answer })
       return answer
