@@ -63,6 +63,7 @@ export class SkillService {
   }
 
   private draft(answer: string): SkillDraft {
+    if (!answer.trim()) throw new Error('EMPTY_ANSWER')
     const d = parseSkillMd(answer)
     if (!d) throw new Error('INVALID_SKILL')
     return d

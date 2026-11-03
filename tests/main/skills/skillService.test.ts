@@ -31,6 +31,12 @@ describe('SkillService', () => {
     await expect(svc.create({ draftId: 'd1', request: 'x', creatorId: 'forja', signal })).rejects.toThrow('INVALID_SKILL')
   })
 
+  it('resposta vazia: EMPTY_ANSWER (não "skill inválida")', async () => {
+    const { svc } = setup('  ')
+    await expect(svc.create({ draftId: 'd1', request: 'x', creatorId: 'forja', signal })).rejects.toThrow('EMPTY_ANSWER')
+    await expect(svc.improve({ draftId: 'd1', skill: draft, creatorId: 'forja', task: 't', answer: 'a', signal })).rejects.toThrow('EMPTY_ANSWER')
+  })
+
   it('agente pago sem confirmação: PAID_NEEDS_CONFIRM sem chamar o agente', async () => {
     const { svc, calls } = setup(md, ['kimi'])
     await expect(svc.create({ draftId: 'd1', request: 'x', creatorId: 'kimi', signal })).rejects.toThrow('PAID_NEEDS_CONFIRM')

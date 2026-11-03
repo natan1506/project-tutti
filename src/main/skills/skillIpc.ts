@@ -14,7 +14,7 @@ const createInput = z.object({ ...base, request: z.string().min(1).max(5000), cr
 const testInput = z.object({ ...base, skill: draft, agentId: agent, task: z.string().min(1).max(5000), projectPath: z.string().refine(isAbsolute).optional() })
 const improveInput = z.object({ ...base, skill: draft, creatorId: agent, task: z.string().max(5000), answer: z.string().max(100_000), feedback: z.string().max(5000).optional() })
 
-const KNOWN: SkillRunError[] = ['PAID_NEEDS_CONFIRM', 'INVALID_SKILL', 'AGENT_UNAVAILABLE', 'CANCELED', 'TIMEOUT']
+const KNOWN: SkillRunError[] = ['PAID_NEEDS_CONFIRM', 'INVALID_SKILL', 'AGENT_UNAVAILABLE', 'CANCELED', 'TIMEOUT', 'EMPTY_ANSWER', 'AGENT_ERROR']
 
 export function skillHandlers(svc: SkillService) {
   const running = new Map<string, AbortController>()

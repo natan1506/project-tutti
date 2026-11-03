@@ -61,6 +61,11 @@ describe('consultOnce', () => {
     await expect(svc.consultOnce({ usageRunId: 'x', agentId: 'forja', prompt: 'p', cwd: '/tmp', signal: new AbortController().signal, timeoutMs: 20 })).rejects.toThrow('TIMEOUT')
   })
 
+  it('erro do agente sem nenhum texto: AGENT_ERROR', async () => {
+    const { svc } = setup(async function* () { yield { type: 'error', message: 'rate limit' }; yield { type: 'done' } })
+    await expect(svc.consultOnce({ usageRunId: 'x', agentId: 'forja', prompt: 'p', cwd: '/tmp', signal: new AbortController().signal })).rejects.toThrow('AGENT_ERROR')
+  })
+
   it('cancelado: CANCELED', async () => {
     const ctl = new AbortController()
     const { svc } = setup(async function* (o) {

@@ -15,6 +15,8 @@ const ERRORS: Record<SkillRunError, string> = {
   PAID_NEEDS_CONFIRM: 'Agente por API paga: confirme no botão.',
   CANCELED: 'Cancelado.',
   TIMEOUT: 'O agente não respondeu a tempo.',
+  EMPTY_ANSWER: 'O agente não respondeu nada. Tente de novo ou escolha outro agente.',
+  AGENT_ERROR: 'O agente deu erro. Tente de novo ou escolha outro agente.',
   FAILED: 'Algo deu errado. Tente de novo.',
 }
 const BUSY = { create: 'Criando…', test: 'Testando…', improve: 'Ajustando…' } as const

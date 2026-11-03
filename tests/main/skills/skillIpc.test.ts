@@ -49,6 +49,11 @@ describe('IPC das skills', () => {
     expect(await h.createSkill({ draftId: 'd', request: 'x', creatorId: 'forja' })).toEqual({ ok: false, error: 'TIMEOUT' })
   })
 
+  it('agente sem resposta ou com erro vira código próprio', async () => {
+    expect(await setup(async () => '').h.createSkill({ draftId: 'd', request: 'x', creatorId: 'forja' })).toEqual({ ok: false, error: 'EMPTY_ANSWER' })
+    expect(await setup(async () => { throw new Error('AGENT_ERROR') }).h.createSkill({ draftId: 'd', request: 'x', creatorId: 'forja' })).toEqual({ ok: false, error: 'AGENT_ERROR' })
+  })
+
   it('salvar devolve erros de validação', async () => {
     const { h } = setup(async () => '')
     const ok = h.saveSkill({ id: '', ...draft, agentIds: ['forja'], updatedAt: 0 })

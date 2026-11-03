@@ -319,7 +319,7 @@ export class RunService {
 
   /**
    * Uma consulta avulsa (só leitura) a um agente: junta os textos e registra o uso em `usageRunId`.
-   * Lança `AGENT_UNAVAILABLE` se o agente não pode trabalhar agora, `CANCELED` se o sinal abortar e `TIMEOUT` se o prazo estourar.
+   * Lança `AGENT_UNAVAILABLE` se o agente não pode trabalhar agora, `CANCELED` se o sinal abortar, `TIMEOUT` se o prazo estourar e `AGENT_ERROR` se o agente só devolveu erro.
    */
   async consultOnce(i: { usageRunId: string; agentId: AgentId; prompt: string; cwd: string; instructions?: string; signal: AbortSignal; timeoutMs?: number }): Promise<string> {
     const agent = getAgent(i.agentId)
@@ -333,6 +333,7 @@ export class RunService {
     const timer = i.timeoutMs ? setTimeout(() => { timedOut = true; ctl.abort() }, i.timeoutMs) : undefined
     const stopped = () => new Error(timedOut ? 'TIMEOUT' : 'CANCELED')
     const texts: string[] = []
+    let failed = false
     try {
       const model = effectiveModel(agent)
       for await (const ev of adapter.run({
@@ -340,6 +341,7 @@ export class RunService {
         requestApproval: async () => false, ...(model ? { model } : {}),
       })) {
         if (ev.type === 'text') texts.push(ev.text)
+        if (ev.type === 'error') failed = true
         if (ev.type === 'usage' || ev.type === 'limit') this.recordUsage(i.usageRunId, agent.id, ev)
       }
     } catch (e) {
@@ -350,6 +352,8 @@ export class RunService {
       i.signal.removeEventListener('abort', onParent)
     }
     if (ctl.signal.aborted) throw stopped()
+    // Erro do agente (limite, autenticação…) sem nenhum texto: não é "resposta vazia".
+    if (failed && !texts.length) throw new Error('AGENT_ERROR')
     return texts.join('\n\n')
   }
 

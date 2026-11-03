@@ -94,6 +94,12 @@ describe('tela de skills', () => {
     api.testSkill.mockResolvedValueOnce({ ok: false, error: 'TIMEOUT' } as never)
     await act(async () => { fireEvent.click(r.getByText('Testar')) })
     expect(r.getByText('O agente não respondeu a tempo.')).toBeTruthy()
+    api.testSkill.mockResolvedValueOnce({ ok: false, error: 'EMPTY_ANSWER' } as never)
+    await act(async () => { fireEvent.click(r.getByText('Testar')) })
+    expect(r.getByText('O agente não respondeu nada. Tente de novo ou escolha outro agente.')).toBeTruthy()
+    api.testSkill.mockResolvedValueOnce({ ok: false, error: 'AGENT_ERROR' } as never)
+    await act(async () => { fireEvent.click(r.getByText('Testar')) })
+    expect(r.getByText('O agente deu erro. Tente de novo ou escolha outro agente.')).toBeTruthy()
     expect((r.getByLabelText('Instruções') as HTMLTextAreaElement).maxLength).toBe(20000)
   })
 
