@@ -2,17 +2,17 @@
   {
     "step": "1 criar",
     "ok": true,
-    "detail": "nome=resumo-em-tres-topicos instruções=462 caracteres "
+    "detail": "nome=resumo-tres-topicos instruções=1105 caracteres "
   },
   {
     "step": "2 testar",
     "ok": true,
-    "detail": "resposta=\"I'll read the README first.\\n\\n- Liste as tarefas no aplicativo.\\n- Faça login para acessar o app.\\n- Exporte as tarefas para CSV.\" "
+    "detail": "resposta=\"- Listar tarefas como função principal do app\\n- Incluir login para acesso ao sistema\\n- Exportar tarefas para arquivo CSV\" "
   },
   {
     "step": "3 ajustar",
     "ok": true,
-    "detail": "instruções=1162 caracteres, mudou=true "
+    "detail": "instruções=1998 caracteres, mudou=true "
   },
   {
     "step": "4 salvar",
@@ -22,7 +22,7 @@
   {
     "step": "5 plugin do Forja",
     "ok": true,
-    "detail": "skills no plugin: resumo-em-tres-topicos"
+    "detail": "skills no plugin: resumo-tres-topicos, resumo-em-tres-topicos, resumo-em-tres-topicos, resumo-em-tres-topicos, resumo-em-tres-topicos"
   },
   {
     "step": "6 sem erros no console",
