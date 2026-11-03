@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron'
 import { checkForUpdate } from './updates/updateCheck'
+import { windowOptions } from './windowOptions'
 import { KeyStore } from './keys/keyStore'
 import { ProfileService } from './profiles/profileService'
 import { SkillService } from './skills/skillService'
@@ -23,13 +24,7 @@ import { pickReplacement } from './usage/handoff'
 import { UsageService } from './usage/usageService'
 
 function createWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    width: 1280, height: 800, minWidth: 1200, minHeight: 640, backgroundColor: '#0c0b1f', title: 'Tutti',
-    webPreferences: {
-      preload: join(import.meta.dirname, '../preload/index.cjs'),
-      contextIsolation: true, nodeIntegration: false, sandbox: true,
-    },
-  })
+  const win = new BrowserWindow(windowOptions(join(import.meta.dirname, '../preload/index.cjs')))
   if (process.env.ELECTRON_RENDERER_URL) void win.loadURL(process.env.ELECTRON_RENDERER_URL)
   else void win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
   return win

@@ -15,11 +15,11 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .err { color: #f87171; }
 
 .app { display: grid; grid-template-columns: 52px 1fr 380px; height: 100vh; overflow: hidden; }
-.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 14px 0; }
+.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 50px 0 14px; }
 .rail .logo { width: 28px; height: 28px; border-radius: 7px; }
 
 .stage { container-type: inline-size; position: relative; overflow: hidden; min-height: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse 80% 60% at 50% 20%, #2b2575 0%, #15133a 55%, #0c0b1f 100%); min-width: 0; }
-.head { padding: 18px 22px 0; }
+.head { padding: 40px 22px 0; }
 .head h1 { font-size: 19px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .head h1 img { width: 22px; height: 22px; border-radius: 6px; }
 .head .sub { color: var(--muted); font-size: 12px; margin-top: 2px; } .head .sub b { color: #c9c6ea; font-weight: 500; }
@@ -145,3 +145,6 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .skills textarea { background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 6px; font: inherit; resize: vertical; }
 .skills .profile-edit input.wide { width: 360px; }
 .skill-answer { white-space: pre-wrap; background: #120f2e; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12px; max-height: 220px; overflow: auto; }
+/* Barra de título escondida (windowOptions.ts): o topo arrasta a janela; o que é clicável não. */
+.rail, .head, .side .top { -webkit-app-region: drag; }
+.rail button, .head button, .head input, .head select, .head a, .pickers, .menu, .side .top button { -webkit-app-region: no-drag; }
