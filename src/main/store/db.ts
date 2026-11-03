@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { AgentId } from '@shared/agents'
 import type { Profile } from '@shared/profiles'
+import type { Skill } from '@shared/skills'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { ToolKind } from '@shared/agents'
 import type { Conversation, Project, RunRow } from '@shared/models'
@@ -39,6 +40,10 @@ export interface Store {
   listProfiles(): Profile[]
   saveProfile(p: Profile): void
   deleteProfile(id: string): void
+  /** Skills por nome. */
+  listSkills(): Skill[]
+  saveSkill(s: Skill): void
+  deleteSkill(id: string): void
   close(): void
 }
 
@@ -55,6 +60,7 @@ CREATE TABLE IF NOT EXISTS limits (tool TEXT NOT NULL, window TEXT NOT NULL, uti
   PRIMARY KEY (tool, window));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS skills (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (run_id, seq));
 `
 
@@ -194,6 +200,17 @@ export function openStore(file: string): Store {
     },
     deleteProfile(id) {
       db.prepare('DELETE FROM profiles WHERE id = ?').run(id)
+    },
+    listSkills() {
+      return (db.prepare('SELECT json FROM skills').all() as Row[]).map(r => JSON.parse(r.json as string) as Skill)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    },
+    saveSkill(sk) {
+      db.prepare('INSERT INTO skills (id, json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json, updated_at = excluded.updated_at')
+        .run(sk.id, JSON.stringify(sk), Date.now())
+    },
+    deleteSkill(id) {
+      db.prepare('DELETE FROM skills WHERE id = ?').run(id)
     },
     close() { db.close() },
   }
