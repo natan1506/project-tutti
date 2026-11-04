@@ -228,3 +228,18 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .eleven-confirm { margin: 6px 0; padding: 8px 10px; border: 1px solid #f5a52466; border-radius: 8px; background: #3a241033; }
 .prof, .stop-all, .mute { display: inline-flex; align-items: center; gap: 6px; } .mute { padding: 7px 9px; color: var(--muted); } .mute:hover { color: var(--text); }
 .prof .caret, .proj .caret { color: var(--muted); }
+/* Mascotes */
+.mascots { width: 820px; }
+.mascot-item { display: inline-flex; align-items: center; gap: 8px; }
+.mascot-edit { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+.mascot-preview { height: 300px; border-radius: 14px; border: 1px solid var(--line); background: radial-gradient(ellipse at 50% 30%, #2b2575, #120f2e 75%); overflow: hidden; }
+.mascot-preview-off { width: 80px; height: 64px; margin: 110px auto; border-radius: 12px; }
+.mascot-controls { display: flex; flex-direction: column; gap: 12px; } .mascot-controls h4 { margin: 0; font-size: 16px; color: var(--text); }
+.mascot-controls .block { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
+.mascot-controls select { background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 5px 8px; font: inherit; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.swatch { width: 24px; height: 24px; border-radius: 50%; padding: 0; border: 2px solid transparent; }
+.swatch.on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.swatches input[type=color] { width: 30px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+.eyes-pick button { font-size: 12px; padding: 4px 10px; }
+.mascot-controls .link { align-self: flex-start; padding: 0; }

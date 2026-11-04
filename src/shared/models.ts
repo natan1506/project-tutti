@@ -71,6 +71,9 @@ export interface TimeApi {
   providerKeys(): Promise<Record<ProviderId, boolean>>
   providerModels(provider: ProviderId): Promise<{ id: string; name: string }[]>
   agentStatus(projectId: string): Promise<Record<AgentId, { ok: boolean; hint?: string }>>
+  /** Aparência dos mascotes por agente. */
+  looks(): Promise<Record<string, import('./look').Look>>
+  setLook(i: { agentId: AgentId; look: import('./look').Look | null }): Promise<Record<string, import('./look').Look>>
   /** Vozes (design §6). */
   voiceStatus(): Promise<VoiceSourceStatus>
   voiceList(i: { source: VoiceSource; all?: boolean }): Promise<VoiceOption[]>

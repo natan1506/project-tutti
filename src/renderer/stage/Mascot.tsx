@@ -9,6 +9,7 @@ import { DimContext } from './materials'
 import { MascotBody } from './mascots'
 import { GROUND } from './mascots/types'
 import { motionFrame, type MotionFrame } from './motion'
+import { useLookStore } from '../state/lookStore'
 
 const TOOL = { claude: 'Claude Code', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode' }
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -41,12 +42,14 @@ export function Mascot({ id, index, x, view, selected, onSelect, labels, portal 
   const locked = view.pose === 'locked'
   const phase = index * 1.3
   const select = () => { if (!locked) onSelect(id) }
+  const look = useLookStore(s => s.looks[id])
+  const eyes = look?.eyes ?? (id === 'forja' ? 'squint' : undefined)
 
   useFrame(({ clock }) => {
     t.current = clock.elapsedTime
     if (since.current.pose !== view.pose) since.current = { pose: view.pose, at: t.current }
     frame.current = motionFrame(view.pose, t.current, phase, t.current - since.current.at, {
-      float: getAgent(id).family === 'gemini', defaultExpression: id === 'forja' ? 'squint' : undefined, reduced: reducedMotion(),
+      float: (look?.body ?? (getAgent(id).family === 'gemini' ? 'star' : '')) === 'star', defaultExpression: eyes, reduced: reducedMotion(),
     })
     if (root.current) root.current.rotation.y = frame.current.rotY
   })
@@ -60,7 +63,7 @@ export function Mascot({ id, index, x, view, selected, onSelect, labels, portal 
         onPointerOut={() => { document.body.style.cursor = '' }}
       >
         <DimContext.Provider value={locked}>
-          <MascotBody agentId={id} frame={frame} t={t} />
+          <MascotBody agentId={id} look={look} frame={frame} t={t} />
         </DimContext.Provider>
       </group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, GROUND + 0.005, 0]} visible={selected}>

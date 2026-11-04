@@ -1,4 +1,5 @@
-import { AudioLines, Sparkles, UsersRound, type LucideIcon } from 'lucide-react'
+import { AudioLines, Palette, Sparkles, UsersRound, type LucideIcon } from 'lucide-react'
+import { useLookStore } from '../state/lookStore'
 import { useProfileStore } from '../state/profileStore'
 import { useSkillStore } from '../state/skillStore'
 import { useVoiceStore } from '../state/voiceStore'
@@ -21,6 +22,8 @@ export function Rail() {
   const openSkills = useSkillStore(s => s.setOpen)
   const voicesOpen = useVoiceStore(s => s.open)
   const openVoices = useVoiceStore(s => s.setOpen)
+  const mascotsOpen = useLookStore(s => s.open)
+  const openMascots = useLookStore(s => s.setOpen)
   return (
     <nav className="rail">
       <img className="logo" src={icon} alt="Tutti" />
@@ -28,6 +31,7 @@ export function Rail() {
         <RailButton label="Perfis" Icon={UsersRound} on={profilesOpen} onClick={() => openProfiles(true)} />
         <RailButton label="Skills" Icon={Sparkles} on={skillsOpen} onClick={() => openSkills(true)} />
         <RailButton label="Vozes" Icon={AudioLines} on={voicesOpen} onClick={() => openVoices(true)} />
+        <RailButton label="Mascotes" Icon={Palette} on={mascotsOpen} onClick={() => openMascots(true)} />
       </div>
     </nav>
   )

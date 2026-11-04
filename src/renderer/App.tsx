@@ -7,6 +7,8 @@ import { ProfilesScreen } from './components/ProfilesScreen'
 import { SkillsScreen } from './components/SkillsScreen'
 import { MuteButton } from './components/MuteButton'
 import { Rail } from './components/Rail'
+import { MascotsScreen } from './components/MascotsScreen'
+import { useLookStore } from './state/lookStore'
 import { VoicesScreen } from './components/VoicesScreen'
 import { useVoiceStore } from './state/voiceStore'
 import { useSkillStore } from './state/skillStore'
@@ -27,6 +29,8 @@ export function App() {
   const { active, load, setProfiles, configOpen } = useProfileStore()
   const skillsOpen = useSkillStore(s => s.open)
   const { open: voicesOpen, notice: voiceNotice } = useVoiceStore()
+  const mascotsOpen = useLookStore(s => s.open)
+  useEffect(() => { void useLookStore.getState().load() }, [])
   // Perfil do projeto: carrega ao abrir o projeto e acompanha mudanças feitas na tela de perfis.
   useEffect(() => { if (project) void load(project.id) }, [project, load])
   useEffect(() => window.time.onProfiles(ps => { setProfiles(ps); if (project) void load(project.id) }), [project, load, setProfiles])
@@ -52,6 +56,7 @@ export function App() {
       {configOpen && <ProfilesScreen />}
       {skillsOpen && <SkillsScreen />}
       {voicesOpen && <VoicesScreen />}
+      {mascotsOpen && <MascotsScreen />}
     </div>
   )
 }
