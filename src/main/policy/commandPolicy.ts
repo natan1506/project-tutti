@@ -1,10 +1,15 @@
 import { homedir } from 'node:os'
 import { relative, resolve, sep } from 'node:path'
+import type { ApprovalReason, AutonomyLevel } from '@shared/autonomy'
 
-// Política de comandos do spec §6.4: o que roda sozinho e o que pede aprovação ao Natan.
+// Política de comandos do spec §6.4: o que roda sozinho e o que pede aprovação ao Natan,
+// agora por nível de autonomia (design escritório-autonomia-vozes §4).
 
 export type Decision = 'allow' | 'ask'
 export interface ToolCall { toolName: string; input: Record<string, unknown> }
+/** `sandboxed`: o agente roda os comandos no sandbox do macOS do Agent SDK (escrita só no projeto). */
+export interface PolicyContext { level: AutonomyLevel; sandboxed: boolean }
+export interface PolicyResult { decision: Decision; reason?: ApprovalReason }
 
 const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead'])
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
@@ -18,6 +23,55 @@ const RG_DENY_FLAGS = /^--pre(-glob)?(=|$)/
 const GIT_READ = new Set(['status', 'diff', 'log', 'show', 'branch'])
 const SCRIPT_READ = new Set(['test', 'lint', 'build', 'typecheck'])
 const NPX_READ = new Set(['tsc', 'vitest', 'eslint'])
+// Internet: livre só no Sozinho. `SandboxNetworkAccess` é a rede pedida de dentro do sandbox (spike-sandbox).
+const NETWORK_TOOLS = new Set(['WebFetch', 'WebSearch', 'SandboxNetworkAccess'])
+const GIT_SOLO = new Set(['add', 'commit', 'fetch', 'pull'])
+
+/**
+ * Destrutivo ou irreversível (§4.1): pede em todos os níveis. Olha o texto inteiro, para pegar o que vem
+ * encadeado ou dentro de `$( )`/crases; na dúvida (ex.: dentro de aspas depois de `;`), pede.
+ */
+const DESTRUCTIVE: RegExp[] = [
+  /(?:^|[\s;&|(`$])(?:rm|rmdir|sudo|chmod|chown|brew)(?=\s|$)/,
+  /(?:^|[\s;&|(`$])git\s+(?:rm|clean|push|rebase|restore)\b/,
+  /(?:^|[\s;&|(`$])git\s+reset\b[^;&|]*--hard/,
+  /(?:^|[\s;&|(`$])git\s+checkout\s+(?:[^;&|]*\s)?--(?:\s|$)/,
+  /(?:^|[\s;&|(`$])git\s+branch\b[^;&|]*\s-D\b/,
+  /(?:^|[\s;&|(`$])find\b[^;&|]*\s-delete\b/,
+  /(?:^|[\s;&|(`$])(?:npm|pnpm|yarn)\s+(?:i|install|add)\b[^;&|]*\s(?:-g|--global)\b/,
+  /(?:^|[\s;&|(`$])yarn\s+global\b/,
+  /(?:^|[\s;&|(`$])pip3?\s+install\b/,
+  /(?:^|[\s;&|(`$])(?:curl|wget)\b[^;&]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b/,
+]
+
+export function isDestructive(command: string): boolean {
+  return DESTRUCTIVE.some(re => re.test(command))
+}
+
+/** Uma decisão a partir do nível e do sandbox; `classifyToolCall` é o nível de antes ("Aceitar edições"). */
+export function decide(call: ToolCall, projectDir: string, ctx: PolicyContext): PolicyResult {
+  const { toolName, input } = call
+  const ask = (reason: ApprovalReason): PolicyResult => ({ decision: 'ask', reason })
+  if (FREE_TOOLS.has(toolName)) return { decision: 'allow' }
+  if (NETWORK_TOOLS.has(toolName)) return ctx.level === 'autonomous' ? { decision: 'allow' } : ask('network')
+  if (READ_TOOLS.has(toolName) || WRITE_TOOLS.has(toolName)) {
+    if (classifyFileCall(call, projectDir) === 'ask') return ask('outside')
+    return WRITE_TOOLS.has(toolName) && ctx.level === 'ask_all' ? ask('ask_all') : { decision: 'allow' }
+  }
+  if (toolName === 'Bash') {
+    const command = typeof input.command === 'string' ? input.command : ''
+    if (isDestructive(command)) return ask('destructive')
+    if (ctx.level === 'ask_all') return ask('ask_all')
+    if (ctx.level === 'autonomous' && ctx.sandboxed) return { decision: 'allow' }
+    const solo = ctx.level === 'autonomous'
+    if (!hasShellMagic(command) && splitSegments(command).every(s => {
+      const tokens = tokenize(s)
+      return classifySegment(tokens, projectDir) === 'allow' || (solo && classifySolo(tokens, projectDir))
+    })) return { decision: 'allow' }
+    return ask(bashTouchesOutside(command, projectDir) ? 'outside' : 'unknown')
+  }
+  return ask('unknown')
+}
 
 export function isInside(projectDir: string, p: string): boolean {
   if (/^~[^/]/.test(p)) return false // ~usuario/… aponta para a home de outro usuário
@@ -26,22 +80,39 @@ export function isInside(projectDir: string, p: string): boolean {
 }
 
 export function classifyToolCall(call: ToolCall, projectDir: string): Decision {
+  return decide(call, projectDir, { level: 'accept_edits', sandboxed: false }).decision
+}
+
+/** Ler/escrever: tudo dentro do projeto (e escrita fora de `.git/`)? */
+function classifyFileCall(call: ToolCall, projectDir: string): Decision {
   const { toolName, input } = call
-  if (FREE_TOOLS.has(toolName)) return 'allow'
-  if (READ_TOOLS.has(toolName) || WRITE_TOOLS.has(toolName)) {
-    const paths = PATH_KEYS.map(k => input[k]).filter((v): v is string => typeof v === 'string')
-    // Padrões de Glob/Grep também podem apontar para fora do projeto.
-    const patterns = [toolName === 'Glob' ? input.pattern : undefined, toolName === 'Grep' ? input.glob : undefined]
-      .filter((v): v is string => typeof v === 'string' && looksLikePath(v))
-    if (WRITE_TOOLS.has(toolName) && paths.some(touchesGitDir)) return 'ask'
-    return [...paths, ...patterns].every(p => isInside(projectDir, p)) ? 'allow' : 'ask'
+  const paths = PATH_KEYS.map(k => input[k]).filter((v): v is string => typeof v === 'string')
+  // Padrões de Glob/Grep também podem apontar para fora do projeto.
+  const patterns = [toolName === 'Glob' ? input.pattern : undefined, toolName === 'Grep' ? input.glob : undefined]
+    .filter((v): v is string => typeof v === 'string' && looksLikePath(v))
+  if (WRITE_TOOLS.has(toolName) && paths.some(touchesGitDir)) return 'ask'
+  return [...paths, ...patterns].every(p => isInside(projectDir, p)) ? 'allow' : 'ask'
+}
+
+/** Sozinho sem sandbox (opencode): os comandos comuns de projeto além da lista de hoje (§4.1.1). */
+function classifySolo(tokens: string[], projectDir: string): boolean {
+  const [cmd, ...args] = tokens
+  if (!cmd || tokens.some(t => t.includes('>') || t.includes('<'))) return false
+  const pathsInside = args.every(a => !looksLikePath(a) || isInside(projectDir, a))
+  if (cmd === 'npm' || cmd === 'pnpm' || cmd === 'yarn') {
+    const [sub] = args
+    return pathsInside && (sub === 'run' || sub === 'install' || sub === 'i' || sub === 'ci')
   }
-  if (toolName === 'Bash') {
-    const command = typeof input.command === 'string' ? input.command : ''
-    if (hasShellMagic(command)) return 'ask'
-    return splitSegments(command).every(s => classifySegment(tokenize(s), projectDir) === 'allow') ? 'allow' : 'ask'
+  if (cmd === 'node') {
+    const file = args.find(a => !a.startsWith('-'))
+    return !!file && !args.some(a => a === '-e' || a === '--eval' || a === '-p') && isInside(projectDir, file) && pathsInside
   }
-  return 'ask'
+  if (cmd === 'git') return GIT_SOLO.has(args[0]) && pathsInside && !args.some(a => GIT_DENY_FLAGS.test(a))
+  return false
+}
+
+function bashTouchesOutside(command: string, projectDir: string): boolean {
+  return splitSegments(command).some(s => tokenize(s).some(t => looksLikePath(t) && !isInside(projectDir, t)))
 }
 
 export function summarizeToolCall(call: ToolCall, projectDir: string): string {
