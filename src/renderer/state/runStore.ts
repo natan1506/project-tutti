@@ -3,6 +3,7 @@ import type { AgentId, ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import type { Conversation, Project, ToolStatus } from '@shared/models'
 import { useProfileStore } from './profileStore'
+import { speakEvent } from './voiceBridge'
 import { applyEvent, chatFromHistory, emptyChat, withPrompt, type ChatState } from './chat'
 
 interface UiState {
@@ -69,5 +70,6 @@ export const useRunStore = create<UiState>((set, get) => ({
 
   receive(runId, ev) {
     set(s => ({ chat: applyEvent(s.chat, runId, ev) }))
+    try { speakEvent(get().chat, runId, ev) } catch { /* voz nunca atrapalha o pedido */ }
   },
 }))

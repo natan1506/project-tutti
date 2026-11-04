@@ -91,6 +91,7 @@ app.whenReady().then(async () => {
     crypto: { isAvailable: () => safeStorage.isEncryptionAvailable(), encrypt: s => safeStorage.encryptString(s), decrypt: b => safeStorage.decryptString(b) },
     profileAgents: id => agentsOfProfile(getAgent(id).profileId).map(a => a.id),
   })
+  void voices.macVoices().catch(() => {})
   const claudeBrain = new ClaudeBrain()
   const team = new TeamService({
     runs, store, brain: claudeBrain, adapters, toolReady, emit: (runId, ev) => send(runId, ev),

@@ -5,6 +5,9 @@ import { Composer } from './components/Composer'
 import { ProfilePicker } from './components/ProfilePicker'
 import { ProfilesScreen } from './components/ProfilesScreen'
 import { SkillsScreen } from './components/SkillsScreen'
+import { MuteButton } from './components/MuteButton'
+import { VoicesScreen } from './components/VoicesScreen'
+import { useVoiceStore } from './state/voiceStore'
 import { useSkillStore } from './state/skillStore'
 import { ProjectPicker } from './components/ProjectPicker'
 import { useProfileStore } from './state/profileStore'
@@ -23,6 +26,7 @@ export function App() {
   const project = useRunStore(s => s.project)
   const { active, load, setProfiles, configOpen } = useProfileStore()
   const skillsOpen = useSkillStore(s => s.open)
+  const { open: voicesOpen, notice: voiceNotice } = useVoiceStore()
   // Perfil do projeto: carrega ao abrir o projeto e acompanha mudanças feitas na tela de perfis.
   useEffect(() => { if (project) void load(project.id) }, [project, load])
   useEffect(() => window.time.onProfiles(ps => { setProfiles(ps); if (project) void load(project.id) }), [project, load, setProfiles])
@@ -37,7 +41,8 @@ export function App() {
         <div className="head">
           <h1>Tutti</h1>
           <div className="sub">{busy ? <><b>{busy} de {total}</b> trabalhando</> : <><b>{total} agentes</b>, todos disponíveis</>}</div>
-          <div className="pickers"><ProjectPicker /><ProfilePicker /><StopAllButton /><UpdateBanner /></div>
+          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner /><StopAllButton /><MuteButton /></div>
+          {voiceNotice && <div className="voice-notice" role="status">{voiceNotice} <button className="link" onClick={() => useVoiceStore.setState({ notice: undefined })}>ok</button></div>}
         </div>
         <Stage />
         <UsagePanel />
@@ -46,6 +51,7 @@ export function App() {
       <ChatPanel />
       {configOpen && <ProfilesScreen />}
       {skillsOpen && <SkillsScreen />}
+      {voicesOpen && <VoicesScreen />}
     </div>
   )
 }

@@ -36,8 +36,12 @@ export class VoiceService {
   private warned = new Set<string>()
   constructor(private deps: VoiceDeps) {}
 
+  private macLoading?: Promise<VoiceOption[]>
+
+  /** `say -v ?` leva alguns segundos: o app chama isto ao abrir, e as chamadas seguintes reaproveitam. */
   async macVoices(all = false): Promise<VoiceOption[]> {
-    this.macCache ??= parseSayVoices(await this.deps.sayVoices())
+    this.macLoading ??= this.deps.sayVoices().then(parseSayVoices)
+    this.macCache ??= await this.macLoading
     return all ? this.macCache : this.macCache.filter(v => v.lang === 'pt_BR')
   }
 

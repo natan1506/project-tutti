@@ -208,3 +208,17 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .profiles-list .menu-action { flex-direction: row; justify-content: center; }
 .profile-edit .opt-line .field-help { flex: 1; min-width: 200px; }
 .profile-edit .profile-head input.profile-name { margin-left: -8px; }
+/* Vozes (design §6) */
+.pickers > .stop-all + .mute, .mute { padding: 6px 9px; border-radius: 8px; background: #120f2e; border: 1px solid var(--line); line-height: 1.45; font-size: 13px; }
+.voice-notice { margin-top: 8px; font-size: 12px; color: #f5a524; background: #3a241022; border: 1px solid #f5a52444; border-radius: 8px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+.voices { width: 760px; }
+.voice-sources { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; }
+.voice-source { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; background: #120f2e80; }
+.voice-source .ok { color: #5ad19a; } .voice-source .muted { color: var(--muted); } .voice-source .small { color: var(--muted); font-size: 11px; display: inline-flex; gap: 4px; align-items: center; }
+.voice-source .link { align-self: flex-start; padding: 0; font-size: 11px; }
+.key-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .key-inline input { flex: 1; min-width: 120px; background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 3px 6px; font: inherit; }
+.voice-list h4 { margin: 14px 0 6px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.voice-row { display: grid; grid-template-columns: 10px 110px 130px 1fr auto; gap: 10px; align-items: center; padding: 6px 4px; border-bottom: 1px solid #1d1a42; font-size: 12.5px; }
+.voice-row .paid-note { grid-column: 3 / -1; margin: 0; font-size: 11px; }
+.voice-row select { background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 3px 6px; font: inherit; min-width: 0; }
+.eleven-confirm { margin: 6px 0; padding: 8px 10px; border: 1px solid #f5a52466; border-radius: 8px; background: #3a241033; }
