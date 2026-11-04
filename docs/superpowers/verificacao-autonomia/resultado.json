@@ -2,7 +2,7 @@
   {
     "step": "1 Sozinho com sandbox",
     "ok": true,
-    "detail": "ok.txt=true fora=false cartões=[]"
+    "detail": "ok.txt=true fora=false cartões=[\"Pede sua aprovação · fora do projeto\"]"
   },
   {
     "step": "2 destrutivo pede",
@@ -17,7 +17,7 @@
   {
     "step": "4 Parar tudo",
     "ok": true,
-    "detail": "sleep rodando=true botão habilitado=true parou em 2542 ms processo sobrando=false botão desabilitado depois=true"
+    "detail": "sleep rodando=true botão habilitado=true parou em 5681 ms processo sobrando=false botão desabilitado depois=true"
   },
   {
     "step": "5 sem erros no console",
