@@ -1,0 +1,27 @@
+[
+  {
+    "step": "1 Sozinho com sandbox",
+    "ok": true,
+    "detail": "ok.txt=true fora=false cartões=[]"
+  },
+  {
+    "step": "2 destrutivo pede",
+    "ok": true,
+    "detail": "cartões=[\"Pede sua aprovação · destrutivo ou irreversível\"] ok.txt=true"
+  },
+  {
+    "step": "3 Perguntar tudo",
+    "ok": true,
+    "detail": "cartões=[\"Pede sua aprovação · você pediu para perguntar tudo\"] b.txt=false"
+  },
+  {
+    "step": "4 Parar tudo",
+    "ok": true,
+    "detail": "sleep rodando=true botão habilitado=true parou em 2542 ms processo sobrando=false botão desabilitado depois=true"
+  },
+  {
+    "step": "5 sem erros no console",
+    "ok": true,
+    "detail": "nenhum"
+  }
+]
