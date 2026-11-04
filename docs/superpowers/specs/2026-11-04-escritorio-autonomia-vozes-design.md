@@ -245,3 +245,11 @@ As três partes não dependem umas das outras. Proponho três planos, nesta orde
 - Como a interface toca o áudio (elemento `<audio>` ou Web Audio) e o formato do arquivo entre main e renderer.
 - O modelo da ElevenLabs a usar (multilíngue com bom português) e o modelo padrão do VoiceStudio.
 - Como garantir o fim dos processos no Parar tudo para cada ferramenta.
+
+## 11. Acréscimos pedidos pelo Natan em 2026-11-04 (depois da parte 1)
+
+- **Mascotes personalizáveis** (estilo do vídeo do Estúdio): por agente, **corpo** (os cinco corpos das ferramentas), **cor** (só nos corpos do Claude; os outros mantêm a cor da ferramenta) e **olhos** (normal, concentrado, feliz). Guardado por id de agente fora do perfil, como as vozes. Tela **Mascotes** com prévia 3D.
+- **Barra lateral** com os atalhos de configuração (Perfis, Skills, Vozes, Mascotes) em ícones do Lucide; a barra tem 72 px e os botões da janela do macOS ficam dentro dela.
+- **Painel do chat redimensionável** (arrastar a borda; duplo clique volta ao padrão).
+- **Sozinho** roda também comandos e ferramentas que o Tutti não reconhece (§4.1.1 atualizado).
+- **Tela de perfis redesenhada**: agentes em cartões resumidos, um aberto por vez, rodapé fixo com salvar/descartar.

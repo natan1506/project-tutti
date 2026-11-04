@@ -7,6 +7,10 @@ import { ProfilesScreen } from './components/ProfilesScreen'
 import { SkillsScreen } from './components/SkillsScreen'
 import { MuteButton } from './components/MuteButton'
 import { Rail } from './components/Rail'
+import { ViewToggle } from './components/ViewToggle'
+import { Office } from './stage/office/Office'
+import { hasWebGL } from './stage/Stage'
+import { useViewStore } from './state/viewStore'
 import { MascotsScreen } from './components/MascotsScreen'
 import { useLookStore } from './state/lookStore'
 import { VoicesScreen } from './components/VoicesScreen'
@@ -30,6 +34,7 @@ export function App() {
   const skillsOpen = useSkillStore(s => s.open)
   const { open: voicesOpen, notice: voiceNotice } = useVoiceStore()
   const mascotsOpen = useLookStore(s => s.open)
+  const view = useViewStore(s => s.view)
   useEffect(() => { void useLookStore.getState().load() }, [])
   // Perfil do projeto: carrega ao abrir o projeto e acompanha mudanças feitas na tela de perfis.
   useEffect(() => { if (project) void load(project.id) }, [project, load])
@@ -45,10 +50,10 @@ export function App() {
         <div className="head">
           <h1>Tutti</h1>
           <div className="sub">{busy ? <><b>{busy} de {total}</b> trabalhando</> : <><b>{total} agentes</b>, todos disponíveis</>}</div>
-          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner /><StopAllButton /><MuteButton /></div>
+          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner />{hasWebGL() && <ViewToggle />}<StopAllButton /><MuteButton /></div>
           {voiceNotice && <div className="voice-notice" role="status">{voiceNotice} <button className="link" onClick={() => useVoiceStore.setState({ notice: undefined })}>ok</button></div>}
         </div>
-        <Stage />
+        {view === 'escritorio' && hasWebGL() ? <Office /> : <Stage />}
         <UsagePanel />
         <Composer />
       </main>
