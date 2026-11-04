@@ -1,13 +1,24 @@
-# Tipos e testes a cada push na main e em pull requests.
+# Tipos e testes a cada push na main e em pull requests. Roda em Linux: os testes são só Node, e máquina Linux
+# quase nunca tem fila (a de Mac com chip Apple tem, e em repositório privado o minuto de Mac vale 10).
 name: CI
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Um push novo cancela o CI anterior que ainda estava na fila ou rodando.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Os testes não abrem o Electron: pular o download dele deixa o npm ci bem mais rápido.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

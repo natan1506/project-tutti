@@ -244,7 +244,23 @@ git push origin main
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-O workflow `.github/workflows/release.yml` confere se a tag bate com a versão do `package.json`, roda os testes e gera os `.dmg` **arm64** e **x64**, publicando os dois na release do GitHub.
+O workflow `.github/workflows/release.yml` confere se a tag bate com a versão do `package.json` e gera os `.dmg` em paralelo, cada um num Mac da própria arquitetura: **arm64** em `macos-latest` e **x64** em `macos-15-intel`. Depois publica os dois na release do GitHub. Se um dos instaladores falhar, o outro sai mesmo assim. Os testes rodam no CI, em Linux.
+
+**Se o GitHub ficar sem máquina macOS** (o job falha com *not acquired by Runner*), há duas saídas:
+
+- rodar de novo no GitHub, sem mudar código:
+
+```bash
+gh workflow run Release -f tag=vX.Y.Z
+```
+
+- ou montar e publicar daqui mesmo, no commit da tag. O script cria a release ou completa a que já existe, e no fim volta as dependências do seu Mac:
+
+```bash
+npm run release:local
+```
+
+Use `npm run release:local -- --arch x64` para um instalador só e `-- --dry-run` para montar sem enviar.
 
 O app não usa ASAR (os SDKs executam binários de `node_modules`) e é assinado *ad-hoc* por `build/adhoc-sign.cjs`.
 

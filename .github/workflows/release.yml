@@ -1,35 +1,76 @@
 # Release: ao enviar uma tag vX.Y.Z (igual à versão do package.json), gera um .dmg para Apple Silicon e outro
-# para Intel e publica os dois numa release do GitHub. Sem certificado de desenvolvedor: assinatura ad-hoc.
+# para Intel, cada um no seu Mac e em paralelo, e publica os dois na release do GitHub.
+# Os testes já rodam no CI; aqui só se monta o app. Se faltar máquina, `npm run release:local` faz o mesmo no Mac.
+# Sem certificado de desenvolvedor: assinatura ad-hoc (build/adhoc-sign.cjs).
 name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag já existente (ex. v0.4.0)
+        required: true
 
 permissions:
   contents: write
 
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
 jobs:
-  mac:
-    runs-on: macos-latest
+  dmg:
+    strategy:
+      # Um instalador que falhe (ex.: sem máquina daquele tipo) não derruba o outro.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - name: Tag igual à versão do package.json
-        run: test "${GITHUB_REF_NAME#v}" = "$(node -p "require('./package.json').version")"
+        run: test "${TAG#v}" = "$(node -p "require('./package.json').version")"
+      # Cada Mac instala as dependências da própria arquitetura (os SDKs do Claude e do Codex trazem binários).
       - run: npm ci
-      - run: npx tsc -b
-      - run: npx vitest run
       - run: npx electron-vite build
-      # Os SDKs do Claude e do Codex trazem binários por arquitetura: cada .dmg sai com as dependências daquela arquitetura.
-      - name: .dmg Apple Silicon
-        run: npx electron-builder --mac --arm64 --publish never
-      - run: npm ci --cpu=x64 --os=darwin
-      - name: .dmg Intel
-        run: npx electron-builder --mac --x64 --publish never
-      - name: Publicar a release
+      - run: npx electron-builder --mac --${{ matrix.arch }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: release/Tutti-*.dmg
+          if-no-files-found: error
+
+  publicar:
+    needs: dmg
+    # Publica o que saiu, mesmo que um dos dois instaladores tenha falhado.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dmg-*
+          merge-multiple: true
+          path: dmg
+      - name: Criar a release ou completar a que já existe
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/Tutti-*.dmg --title "Tutti ${GITHUB_REF_NAME#v}" --generate-notes
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls dmg/*.dmg
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dmg/*.dmg --clobber
+          else
+            gh release create "$TAG" dmg/*.dmg --title "Tutti ${TAG#v}" --generate-notes
+          fi
