@@ -1,3 +1,4 @@
+import type { ApprovalReason } from '@shared/autonomy'
 import { AGENTS, type AgentId } from '@shared/agents'
 import type { DiffFile, RunEvent, RunStatus } from '@shared/events'
 import type { RunRow } from '@shared/models'
@@ -5,7 +6,7 @@ import type { Confirmation, Lineup, TriageScore } from '@shared/team'
 
 export type AgentStatus = 'disponivel' | 'trabalhando' | 'esperando' | 'concluido'
 
-export interface Approval { id: string; toolName: string; summary: string; allowed?: boolean }
+export interface Approval { id: string; toolName: string; summary: string; reason?: ApprovalReason; allowed?: boolean }
 export interface LimitWarning { id: string; tool: import('@shared/agents').ToolKind; window: import('@shared/usage').WindowKind; utilization: number; to?: AgentId; paid?: { provider: string }; pass?: boolean }
 export interface AgentCall { to: AgentId; question: string; answer?: string }
 export interface Question { id: string; text: string; options?: string[]; answer?: string | null }
@@ -62,7 +63,7 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'text': return set({ text: run.text ? `${run.text}\n\n${ev.text}` : ev.text })
     case 'tool': return set({ steps: [...run.steps, { name: ev.name, summary: ev.summary }] })
     case 'approval_request':
-      return set({ approvals: [...run.approvals, { id: ev.id, toolName: ev.toolName, summary: ev.summary }] }, 'esperando')
+      return set({ approvals: [...run.approvals, { id: ev.id, toolName: ev.toolName, summary: ev.summary, ...(ev.reason ? { reason: ev.reason } : {}) }] }, 'esperando')
     case 'approval_resolved':
       return set({ approvals: run.approvals.map(a => (a.id === ev.id ? { ...a, allowed: ev.allowed } : a)) }, 'trabalhando')
     case 'question':

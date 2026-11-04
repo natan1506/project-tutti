@@ -148,3 +148,13 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 /* Barra de título escondida (windowOptions.ts): o topo arrasta a janela; o que é clicável não. */
 .rail, .head, .side .top { -webkit-app-region: drag; }
 .rail button, .head button, .head input, .head select, .head a, .pickers, .menu, .side .top button { -webkit-app-region: no-drag; }
+/* Autonomia e Parar tudo (design §4.3 e §5) */
+.autonomy { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; margin-right: 10px; vertical-align: middle; }
+.autonomy button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 11px; padding: 2px 8px; cursor: pointer; }
+.autonomy button + button { border-left: 1px solid var(--line); }
+.autonomy button.on { background: #1d1a42; color: var(--text); }
+.autonomy button.alert.on { background: #3a2410; color: #f5a524; }
+.autonomy button:disabled { cursor: default; opacity: .5; }
+.hint-right { display: inline-flex; align-items: center; }
+.stop-all { background: #2a1420; border: 1px solid #6b2a3f; color: #ff8fa8; border-radius: 9px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.stop-all:disabled { background: none; border-color: var(--line); color: var(--muted); opacity: .6; cursor: default; }

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { StopAllButton } from './components/StopAllButton'
 import { ChatPanel } from './components/ChatPanel'
 import { Composer } from './components/Composer'
 import { ProfilePicker } from './components/ProfilePicker'
@@ -36,7 +37,7 @@ export function App() {
         <div className="head">
           <h1>Tutti</h1>
           <div className="sub">{busy ? <><b>{busy} de {total}</b> trabalhando</> : <><b>{total} agentes</b>, todos disponíveis</>}</div>
-          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner /></div>
+          <div className="pickers"><ProjectPicker /><ProfilePicker /><StopAllButton /><UpdateBanner /></div>
         </div>
         <Stage />
         <UsagePanel />

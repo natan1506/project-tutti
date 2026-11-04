@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { AutonomyPicker } from './AutonomyPicker'
 import { getAgent } from '@shared/agents'
 import { activeAgents, useProfileStore } from '../state/profileStore'
 import { useRunStore } from '../state/runStore'
@@ -75,7 +76,7 @@ export function Composer() {
             </>
           ) : 'O pedido vai direto ao agente escolhido.'}
         </span>
-        <span>Enter envia · Shift+Enter nova linha</span>
+        <span className="hint-right"><AutonomyPicker /> Enter envia · Shift+Enter nova linha</span>
       </div>
     </div>
   )
