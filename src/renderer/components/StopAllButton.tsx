@@ -1,3 +1,4 @@
+import { Square } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 /** Parar tudo (design §5): todos os pedidos de todos os projetos, sem confirmação; atalho ⌘ + . */
@@ -19,7 +20,7 @@ export function StopAllButton() {
 
   return (
     <button className="stop-all" disabled={active === 0} title="Parar tudo (⌘ + .)" onClick={() => void window.time.stopAll()}>
-      ■ Parar tudo
+      <Square size={12} fill="currentColor" strokeWidth={0} /> Parar tudo
     </button>
   )
 }

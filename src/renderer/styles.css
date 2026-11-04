@@ -14,9 +14,13 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .row { display: flex; gap: 6px; margin-top: 8px; } .row.between { justify-content: space-between; align-items: center; margin: 0 0 8px; }
 .err { color: #f87171; }
 
-.app { display: grid; grid-template-columns: 52px 1fr var(--side-w, 380px); height: 100vh; overflow: hidden; }
-.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 50px 0 14px; }
-.rail .logo { width: 28px; height: 28px; border-radius: 7px; }
+.app { display: grid; grid-template-columns: 72px 1fr var(--side-w, 380px); height: 100vh; overflow: hidden; }
+.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 54px 0 14px; gap: 18px; background: #0a091b; }
+.rail-group { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.rail-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: none; border: 1px solid transparent; color: var(--muted); padding: 0; transition: background .15s, color .15s; }
+.rail-btn:hover { background: #1b1840; color: var(--text); }
+.rail-btn.on { background: #241f52; border-color: #3a3478; color: #fff; box-shadow: inset 2px 0 0 var(--accent); }
+.rail .logo { width: 32px; height: 32px; border-radius: 8px; }
 
 .stage { container-type: inline-size; position: relative; overflow: hidden; min-height: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse 80% 60% at 50% 20%, #2b2575 0%, #15133a 55%, #0c0b1f 100%); min-width: 0; }
 .head { padding: 40px 22px 0; }
@@ -222,3 +226,5 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .voice-row .paid-note { grid-column: 3 / -1; margin: 0; font-size: 11px; }
 .voice-row select { background: #120f2e; border: 1px solid #3a3478; border-radius: 6px; color: var(--text); padding: 3px 6px; font: inherit; min-width: 0; }
 .eleven-confirm { margin: 6px 0; padding: 8px 10px; border: 1px solid #f5a52466; border-radius: 8px; background: #3a241033; }
+.prof, .stop-all, .mute { display: inline-flex; align-items: center; gap: 6px; } .mute { padding: 7px 9px; color: var(--muted); } .mute:hover { color: var(--text); }
+.prof .caret, .proj .caret { color: var(--muted); }

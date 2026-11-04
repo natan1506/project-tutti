@@ -1,20 +1,17 @@
+import { ChevronDown, UsersRound } from 'lucide-react'
 import { useState } from 'react'
 import { useProfileStore } from '../state/profileStore'
 import { useRunStore } from '../state/runStore'
-import { useSkillStore } from '../state/skillStore'
-import { useVoiceStore } from '../state/voiceStore'
 
 /** Seletor de perfil ao lado do projeto; cada projeto lembra o seu (spec custos-e-perfis §6). */
 export function ProfilePicker() {
   const project = useRunStore(s => s.project)
   const { profiles, active, setActive, openConfig } = useProfileStore()
-  const openSkills = useSkillStore(s => s.setOpen)
-  const openVoices = useVoiceStore(s => s.setOpen)
   const [open, setOpen] = useState(false)
 
   return (
     <div className="proj-wrap">
-      <button className="prof" onClick={() => setOpen(o => !o)} disabled={!project}>👥 {active.nome} ▾</button>
+      <button className="prof" onClick={() => setOpen(o => !o)} disabled={!project}><UsersRound size={15} strokeWidth={1.8} aria-hidden /> {active.nome} <ChevronDown size={14} className="caret" aria-hidden /></button>
       {open && project && (
         <div className="menu">
           {profiles.map(p => (
@@ -22,9 +19,7 @@ export function ProfilePicker() {
               {p.nome}<small>{p.agents.length} agentes{p.coordinatorId ? '' : ' · sem coordenador'}</small>
             </button>
           ))}
-          <button className="menu-action" onClick={() => { setOpen(false); openConfig(true) }}>Configurar perfis…</button>
-          <button className="menu-action" onClick={() => { setOpen(false); openSkills(true) }}>Skills…</button>
-          <button className="menu-action" onClick={() => { setOpen(false); openVoices(true) }}>Vozes…</button>
+          <button className="menu-action" onClick={() => { setOpen(false); openConfig(true) }}>Editar perfis…</button>
         </div>
       )}
     </div>

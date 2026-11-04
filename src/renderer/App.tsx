@@ -6,6 +6,7 @@ import { ProfilePicker } from './components/ProfilePicker'
 import { ProfilesScreen } from './components/ProfilesScreen'
 import { SkillsScreen } from './components/SkillsScreen'
 import { MuteButton } from './components/MuteButton'
+import { Rail } from './components/Rail'
 import { VoicesScreen } from './components/VoicesScreen'
 import { useVoiceStore } from './state/voiceStore'
 import { useSkillStore } from './state/skillStore'
@@ -16,7 +17,6 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { UsagePanel } from './components/UsagePanel'
 import { useRunStore } from './state/runStore'
 import { startToolRefresh } from './state/toolRefresh'
-import icon from './assets/icon.png'
 import './styles.css'
 
 export function App() {
@@ -36,7 +36,7 @@ export function App() {
 
   return (
     <div className="app">
-      <nav className="rail"><img className="logo" src={icon} alt="Tutti" /></nav>
+      <Rail />
       <main className="stage">
         <div className="head">
           <h1>Tutti</h1>

@@ -1,3 +1,4 @@
+import { ChevronDown, FolderOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { Project } from '@shared/models'
 import { useRunStore } from '../state/runStore'
@@ -28,7 +29,7 @@ export function ProjectPicker() {
   return (
     <div className="proj-wrap">
       <button className="proj" title={project?.path.replace(/^\/Users\/[^/]+/, '~')} onClick={() => setOpen(o => !o)}>
-        <span aria-hidden>📁</span> <span className="proj-name">{project ? project.name : 'Abrir projeto'}</span> <span className="caret">▾</span>
+        <FolderOpen size={15} strokeWidth={1.8} aria-hidden /> <span className="proj-name">{project ? project.name : 'Abrir projeto'}</span> <ChevronDown size={14} className="caret" aria-hidden />
       </button>
       {open && (
         <div className="menu">

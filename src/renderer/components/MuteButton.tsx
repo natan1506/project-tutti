@@ -1,3 +1,4 @@
+import { Volume2, VolumeX } from 'lucide-react'
 import { useEffect } from 'react'
 import { useVoiceStore } from '../state/voiceStore'
 import { voicePlayer } from '../state/voiceBridge'
@@ -14,7 +15,7 @@ export function MuteButton() {
   }
   return (
     <button className="mute" aria-label={muted ? 'Ligar vozes' : 'Silenciar vozes'} title={muted ? 'Vozes desligadas' : 'Vozes ligadas'} onClick={toggle}>
-      {muted ? '🔇' : '🔊'}
+      {muted ? <VolumeX size={16} strokeWidth={1.8} /> : <Volume2 size={16} strokeWidth={1.8} />}
     </button>
   )
 }

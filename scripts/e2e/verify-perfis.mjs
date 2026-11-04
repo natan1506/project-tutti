@@ -38,7 +38,7 @@ async function waitEnd(n, ms = 240_000) {
     return s.length >= n && !s[n - 1].textContent.includes('trabalhando')
   }, n, { timeout: ms })
 }
-const openConfig = async () => { await page.click('.prof'); await page.click('.menu-action:has-text("Configurar perfis")'); await page.waitForSelector('.modal.profiles') }
+const openConfig = async () => { await page.click('.rail [aria-label="Perfis"]'); await page.waitForSelector('.modal.profiles') }
 const closeConfig = () => page.click('.modal.profiles .row.between button:has-text("Fechar")')
 const chooseProfile = async nome => { await page.click('.prof'); await page.click(`.menu button:has-text("${nome}")`); await page.waitForTimeout(800) }
 

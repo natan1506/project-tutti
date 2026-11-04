@@ -22,7 +22,7 @@ const r = await page.evaluate(() => window.time.saveProfile({
 try {
   await page.click('.prof'); await page.click('.menu button:has-text("Duo")'); await page.waitForTimeout(2000)
   await page.screenshot({ path: join(SHOTS, 'palco-3-agentes.png') })
-  await page.click('.prof'); await page.click('.menu-action:has-text("Configurar perfis")'); await page.waitForTimeout(800)
+  await page.click('.rail [aria-label="Perfis"]'); await page.waitForTimeout(800)
   await page.screenshot({ path: join(SHOTS, 'tela-perfis.png') })
 } finally {
   await page.evaluate(async ({ id, pid }) => { await window.time.setActiveProfile(pid, 'padrao'); await window.time.deleteProfile(id) }, { id: r.profile.id, pid: project.id })

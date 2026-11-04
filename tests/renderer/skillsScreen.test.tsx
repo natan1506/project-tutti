@@ -155,12 +155,11 @@ describe('tela de skills', () => {
 })
 
 describe('menu do perfil', () => {
-  it('Skills… abre a janela de skills', async () => {
-    const { ProfilePicker } = await import('../../src/renderer/components/ProfilePicker')
+  it('o botão Skills da barra abre a janela de skills', async () => {
+    const { Rail } = await import('../../src/renderer/components/Rail')
     useSkillStore.setState({ open: false })
-    const r = render(<ProfilePicker />)
-    fireEvent.click(r.getByText(/Padrão ▾/))
-    fireEvent.click(r.getByText('Skills…'))
+    const r = render(<Rail />)
+    fireEvent.click(r.getByRole('button', { name: 'Skills' }))
     expect(useSkillStore.getState().open).toBe(true)
   })
 })

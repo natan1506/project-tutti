@@ -41,8 +41,7 @@ try {
   await page.click('button:has-text("Nova conversa")').catch(() => {})
 
   // 1 — criar com o Curinga
-  await page.click('.prof')
-  await page.click('.menu-action:has-text("Skills")')
+  await page.click('.rail [aria-label="Skills"]')
   await page.waitForSelector('.modal.skills')
   await page.click('.skills .menu-action:has-text("Nova skill")')
   await page.fill('[aria-label="O que a skill deve fazer"]', 'Sempre que pedirem um resumo, responder em exatamente 3 tópicos curtos, começando cada um com um verbo.')
