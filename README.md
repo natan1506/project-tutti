@@ -193,7 +193,7 @@ npm ci
 npm run install-app
 ```
 
-Isso gera o `.app` e copia para `/Applications/Tutti.app`, substituindo o que estiver lá.
+Isso gera o `.app` na arquitetura do seu Node, fecha o Tutti se estiver aberto, substitui `/Applications/Tutti.app` e apaga as cópias de build em `release/`, para o macOS mostrar um Tutti só.
 
 ### Atualizações
 

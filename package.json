@@ -10,7 +10,7 @@
     "typecheck": "tsc -b",
     "postinstall": "node scripts/dev-app-name.mjs",
     "package": "electron-vite build && electron-builder --mac",
-    "install-app": "npm run package && rm -rf /Applications/Tutti.app && cp -R release/mac/Tutti.app /Applications/"
+    "install-app": "node scripts/install-app.mjs"
   },
   "keywords": [],
   "author": "Natan Souza",
