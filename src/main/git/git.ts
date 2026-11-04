@@ -23,6 +23,8 @@ export function runGit(cwd: string, args: string[], opts: GitOptions = {}): Prom
       if (code === 0) resolve(out)
       else reject(Object.assign(new Error(`git ${args[0]} falhou: ${err.trim()}`), { stderr: err }))
     })
+    // O git pode terminar sem ler a entrada (EPIPE): o resultado vem do código de saída no 'close', não daqui.
+    child.stdin.on('error', () => {})
     child.stdin.end(opts.input ?? '')
   })
 }
