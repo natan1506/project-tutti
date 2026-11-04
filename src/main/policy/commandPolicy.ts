@@ -26,7 +26,6 @@ const SCRIPT_READ = new Set(['test', 'lint', 'build', 'typecheck'])
 const NPX_READ = new Set(['tsc', 'vitest', 'eslint'])
 // Internet: livre só no Sozinho. `SandboxNetworkAccess` é a rede pedida de dentro do sandbox (spike-sandbox).
 const NETWORK_TOOLS = new Set(['WebFetch', 'WebSearch', 'SandboxNetworkAccess'])
-const GIT_SOLO = new Set(['add', 'commit', 'fetch', 'pull'])
 
 /**
  * Destrutivo ou irreversível (§4.1): pede em todos os níveis. Olha o texto inteiro, para pegar o que vem
@@ -67,16 +66,15 @@ export function decide(call: ToolCall, projectDir: string, ctx: PolicyContext): 
     const command = typeof input.command === 'string' ? input.command : ''
     if (isDestructive(command)) return ask('destructive')
     if (ctx.level === 'ask_all') return ask('ask_all')
-    // Ler fora do projeto pede em todos os níveis (§4.1); no sandbox as credenciais da home já ficam ilegíveis.
-    if (ctx.level === 'autonomous' && ctx.sandboxed) return bashTouchesOutside(command, projectDir) ? ask('outside') : { decision: 'allow' }
-    const solo = ctx.level === 'autonomous'
-    if (!hasShellMagic(command) && splitSegments(command).every(s => {
-      const tokens = tokenize(s)
-      return classifySegment(tokens, projectDir) === 'allow' || (solo && classifySolo(tokens, projectDir))
-    })) return { decision: 'allow' }
+    // Sozinho: qualquer comando roda, inclusive o que o Tutti não reconhece (decidido pelo Natan em 2026-11-04);
+    // ler ou escrever fora do projeto pede em todos os níveis (§4.1). No sandbox as credenciais da home ficam ilegíveis.
+    if (ctx.level === 'autonomous') return bashTouchesOutside(command, projectDir) ? ask('outside') : { decision: 'allow' }
+    if (!hasShellMagic(command) && splitSegments(command).every(s => classifySegment(tokenize(s), projectDir) === 'allow'))
+      return { decision: 'allow' }
     return ask(bashTouchesOutside(command, projectDir) ? 'outside' : 'unknown')
   }
-  return ask('unknown')
+  // Ferramenta que o Tutti não reconhece (Skill, BashOutput…): livre só no Sozinho.
+  return ctx.level === 'autonomous' ? { decision: 'allow' } : ask('unknown')
 }
 
 export function isInside(projectDir: string, p: string): boolean {
@@ -114,23 +112,6 @@ function classifyFileCall(call: ToolCall, projectDir: string): Decision {
   // `.git` também pelo caminho real (um atalho `g -> .git` não escapa).
   if (WRITE_TOOLS.has(toolName) && paths.some(p => touchesGitDir(p) || touchesGitDir(relative(realPath(projectDir), realPath(resolve(projectDir, p)))))) return 'ask'
   return [...paths, ...patterns].every(p => isInside(projectDir, p)) ? 'allow' : 'ask'
-}
-
-/** Sozinho sem sandbox (opencode): os comandos comuns de projeto além da lista de hoje (§4.1.1). */
-function classifySolo(tokens: string[], projectDir: string): boolean {
-  const [cmd, ...args] = tokens
-  if (!cmd || tokens.some(t => t.includes('>') || t.includes('<'))) return false
-  const pathsInside = args.every(a => !looksLikePath(a) || isInside(projectDir, a))
-  if (cmd === 'npm' || cmd === 'pnpm' || cmd === 'yarn') {
-    const [sub] = args
-    return pathsInside && (sub === 'run' || sub === 'install' || sub === 'i' || sub === 'ci')
-  }
-  if (cmd === 'node') {
-    const file = args.find(a => !a.startsWith('-'))
-    return !!file && !args.some(a => a === '-e' || a === '--eval' || a === '-p') && isInside(projectDir, file) && pathsInside
-  }
-  if (cmd === 'git') return GIT_SOLO.has(args[0]) && pathsInside && !args.some(a => GIT_DENY_FLAGS.test(a))
-  return false
 }
 
 function bashTouchesOutside(command: string, projectDir: string): boolean {

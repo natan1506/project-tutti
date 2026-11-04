@@ -217,7 +217,7 @@ export class OpencodeAdapter implements AgentAdapter {
     const calls = permissionToToolCalls(d, opts.cwd, source?.id ? toolInputs.get(source.id) : undefined)
     let allowed = false
     if (!opts.signal.aborted && opts.mode !== 'consult') {
-      // opencode não tem sandbox: no Sozinho vale a lista de comandos ampliada (design §4.1.1).
+      // opencode não tem sandbox: no Sozinho roda qualquer comando, menos destrutivo e fora do projeto (decidido pelo Natan).
       const ctx = { level: opts.autonomy?.() ?? 'accept_edits', sandboxed: false } as const
       const results = calls.map(c => decide(c, opts.cwd, ctx))
       allowed = results.every(r => r.decision === 'allow')

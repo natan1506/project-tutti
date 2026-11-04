@@ -35,10 +35,25 @@ describe('política por nível de autonomia', () => {
     for (const c of ['npm run deploy', 'node scripts/x.js', 'make', 'echo $HOME', 'npm install']) expect(d(bash(c), 'autonomous', true).decision).toBe('allow')
   })
 
-  it('Sozinho sem sandbox: lista ampliada; o resto pede', () => {
-    for (const c of ['npm run deploy', 'npm install', 'npx tsc', 'node scripts/x.js', 'git add -A', 'git commit -m "x"', 'git fetch', 'git pull'])
+  it('Sozinho sem sandbox: comando que o Tutti não reconhece também roda (decidido pelo Natan)', () => {
+    for (const c of ['npm run deploy', 'npm install', 'npx tsc', 'node scripts/x.js', 'git add -A', 'git commit -m "x"', 'git fetch', 'git pull',
+      'make', 'echo $HOME', 'python3 manage.py migrate', 'cargo build && ./target/x'])
       expect(d(bash(c), 'autonomous').decision).toBe('allow')
-    for (const c of ['make', 'echo $HOME', 'node /tmp/x.js']) expect(d(bash(c), 'autonomous').decision).toBe('ask')
+  })
+
+  it('Sozinho sem sandbox: fora do projeto e destrutivo continuam pedindo', () => {
+    expect(d(bash('node /tmp/x.js'), 'autonomous')).toEqual({ decision: 'ask', reason: 'outside' })
+    expect(d(bash('cp a.txt ~/b.txt'), 'autonomous')).toEqual({ decision: 'ask', reason: 'outside' })
+    expect(d(bash('make clean; rm -rf dist'), 'autonomous')).toEqual({ decision: 'ask', reason: 'destructive' })
+  })
+
+  it('Sozinho: ferramenta que o Tutti não reconhece roda; nos outros níveis pede', () => {
+    for (const toolName of ['Skill', 'BashOutput', 'KillShell', 'ToolSearch']) {
+      const call = { toolName, input: {} }
+      expect(d(call, 'autonomous', true).decision).toBe('allow')
+      expect(d(call, 'autonomous').decision).toBe('allow')
+      expect(d(call, 'accept_edits')).toEqual({ decision: 'ask', reason: 'unknown' })
+    }
   })
 
   it('destrutivo pede em todos os níveis, mesmo escondido no encadeamento ou em $( )', () => {

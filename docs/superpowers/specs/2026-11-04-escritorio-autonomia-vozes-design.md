@@ -78,7 +78,8 @@ Uma lista de comandos proibidos não garante isso: `npm run x`, `node script.js`
   - os comandos rodam sem perguntar, inclusive os que o analisador não entende (`$VAR`, `$(…)`, `&`), porque o sandbox é a barreira;
   - **continuam perguntando**: os destrutivos da lista acima (o texto do comando é conferido antes; apagar dentro do projeto também pergunta, mesmo com ponto de restauração) e qualquer `git push`;
   - se o sandbox não estiver disponível (o SDK avisa), o Sozinho desses agentes cai para "Aceitar edições" e a interface mostra: "Sozinho indisponível: usando Aceitar edições".
-- **Curinga e outros agentes opencode (sem sandbox):** no Sozinho, seguem a lista de comandos conhecidos de hoje, **ampliada** com os comuns de projeto: `npm test`, `npm run <script>`, `npx tsc`, `node <arquivo do projeto>`, `git add`, `git commit`, `git fetch`, `git pull` e `npm install` sem `-g`. O que o analisador não entende continua **pedindo**.
+- **Curinga e outros agentes opencode (sem sandbox):** no Sozinho, rodam **qualquer comando**, inclusive os que o Tutti não reconhece (decidido pelo Natan em 2026-11-04, depois da parte 1). Continuam pedindo os destrutivos e os que citam caminho fora do projeto. Sem sandbox, um script do projeto (`npm run x`, `make`) ainda pode escrever fora: é o custo aceito dessa escolha.
+- **Ferramentas que o Tutti não reconhece** (ex.: `Skill`, `BashOutput`) rodam no Sozinho; nos outros níveis pedem.
 - Nos níveis 1 e 2 nada muda: sem sandbox, com o analisador de hoje.
 
 ### 4.1.2 Internet (decidido pelo Natan)
