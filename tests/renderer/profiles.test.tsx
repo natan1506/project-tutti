@@ -29,6 +29,8 @@ const api = {
   setActiveProfile: vi.fn(async () => {}),
   agentStatus: vi.fn(async () => ({ claudinho: { ok: true }, kimi: { ok: false, hint: 'Sem chave da OpenRouter' }, gepeto: { ok: true } })),
   removedAgents: vi.fn(async () => [{ ...getAgent('forja'), id: 'velho', nome: 'Velho (removido)', profileId: 'removido:x' }]),
+  autonomy: vi.fn(async () => 'accept_edits'),
+  setAutonomy: vi.fn(async () => {}),
 }
 beforeEach(async () => {
   Object.assign(window, { time: api })
