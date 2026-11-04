@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAgent } from '@shared/agents'
@@ -31,10 +32,10 @@ describe('buildClaudeOptions', () => {
 
   it('sandbox do Sozinho: escrita só no projeto, .git/hooks e .git/config bloqueados', () => {
     const o = buildClaudeOptions(opts({ sandbox: true }), async () => ({ behavior: 'allow' }))
-    expect(o.sandbox).toEqual({
-      enabled: true, autoAllowBashIfSandboxed: false, failIfUnavailable: true,
-      filesystem: { allowWrite: [cwd], denyWrite: [cwd + '/.git/hooks', cwd + '/.git/config'] },
-    })
+    expect(o.sandbox).toMatchObject({ enabled: true, autoAllowBashIfSandboxed: false, failIfUnavailable: true, allowUnsandboxedCommands: false })
+    expect(o.sandbox!.filesystem!.allowWrite).toEqual([cwd])
+    for (const p of ['.git/hooks', '.git/config', '.git/commondir', '.git/info', '.git/config.worktree']) expect(o.sandbox!.filesystem!.denyWrite).toContain(cwd + '/' + p)
+    for (const p of ['.ssh', '.aws', '.gnupg', '.config/gh', '.netrc', 'Library/Keychains']) expect(o.sandbox!.filesystem!.denyRead).toContain(homedir() + '/' + p)
     expect(buildClaudeOptions(opts(), async () => ({ behavior: 'allow' }))).not.toHaveProperty('sandbox')
   })
 
@@ -120,6 +121,11 @@ describe('makeCanUseTool', () => {
     expect(await makeCanUseTool(preso)('Bash', { command: 'npm run deploy' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
     expect(preso.requestApproval).not.toHaveBeenCalled()
     expect(await makeCanUseTool(preso)('SandboxNetworkAccess', { host: 'example.com' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
+  })
+  it('C1: comando que pede para sair do sandbox não é tratado como dentro dele', async () => {
+    const o = opts({ autonomy: () => 'autonomous', sandbox: true })
+    await makeCanUseTool(o)('Bash', { command: 'npm run deploy', dangerouslyDisableSandbox: true }, { signal, toolUseID: 't' } as never)
+    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'npm run deploy', reason: 'unknown' })
   })
   it('respeita o não', async () => {
     const o = opts({ requestApproval: vi.fn(async () => false) })

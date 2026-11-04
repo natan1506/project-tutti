@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
 export interface GitOptions { env?: Record<string, string>; input?: string }
 
@@ -6,6 +8,9 @@ export interface GitOptions { env?: Record<string, string>; input?: string }
 export function runGit(cwd: string, args: string[], opts: GitOptions = {}): Promise<string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !k.startsWith('GIT_')) env[k] = v
+  // O repositório comum é sempre o .git do próprio projeto: um .git/commondir escrito por um agente seria ignorado.
+  const dotGit = join(cwd, '.git')
+  if (existsSync(dotGit) && statSync(dotGit).isDirectory()) Object.assign(env, { GIT_DIR: dotGit, GIT_COMMON_DIR: dotGit, GIT_WORK_TREE: cwd })
   Object.assign(env, opts.env)
   return new Promise((resolve, reject) => {
     // O git do app nunca executa fsmonitor nem hooks configurados no repositório (um agente poderia ter mexido neles).

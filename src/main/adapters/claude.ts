@@ -9,6 +9,10 @@ import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+/** Partes do .git que mudam o que o git executa (hooks, filtros, outro repositório comum). */
+const GIT_PROTECTED = ['.git/hooks', '.git/config', '.git/config.worktree', '.git/commondir', '.git/info']
+/** Credenciais na home que nenhum comando do Sozinho precisa ler. */
+const HOME_SECRETS = ['.ssh', '.aws', '.gnupg', '.config/gh', '.netrc', 'Library/Keychains', '.docker', '.kube']
 const CONSULT_BLOCKED = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task']
 const CONSULT_ALLOWED = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead', 'TodoWrite'])
 // Além das chaves de API (env.ts), tira as variáveis herdadas de uma sessão do Claude Code que esteja rodando o app.
@@ -27,9 +31,14 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },
     canUseTool,
     // Sozinho: escrita só no projeto, fora de .git/hooks e .git/config; falha alto se o sandbox não subir (spike-sandbox).
+    // O modelo não pode pedir para sair do sandbox (allowUnsandboxedCommands); segredos da home ficam ilegíveis.
     ...(opts.sandbox ? { sandbox: {
-      enabled: true, autoAllowBashIfSandboxed: false, failIfUnavailable: true,
-      filesystem: { allowWrite: [opts.cwd], denyWrite: [join(opts.cwd, '.git/hooks'), join(opts.cwd, '.git/config')] },
+      enabled: true, autoAllowBashIfSandboxed: false, failIfUnavailable: true, allowUnsandboxedCommands: false,
+      filesystem: {
+        allowWrite: [opts.cwd],
+        denyWrite: GIT_PROTECTED.map(p => join(opts.cwd, p)),
+        denyRead: HOME_SECRETS.map(p => join(homedir(), p)),
+      },
     } } : {}),
     ...(opts.mode === 'consult' ? { disallowedTools: CONSULT_BLOCKED } : {}),
   }
@@ -105,7 +114,8 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
     const call = { toolName, input }
     // Sozinho sem a barreira do sandbox age como Aceitar edições (design §4.1.1).
     const level = opts.autonomy?.() ?? 'accept_edits'
-    const sandboxed = !!opts.sandbox
+    // Comando que pede para rodar fora do sandbox não conta como protegido por ele.
+    const sandboxed = !!opts.sandbox && (input as { dangerouslyDisableSandbox?: unknown }).dangerouslyDisableSandbox !== true
     const r = decide(call, opts.cwd, { level: level === 'autonomous' && !sandboxed ? 'accept_edits' : level, sandboxed })
     if (r.decision === 'allow') return { behavior: 'allow', updatedInput: input }
     const allowed = await opts.requestApproval({ toolName, summary: summarizeToolCall(call, opts.cwd), ...(r.reason ? { reason: r.reason } : {}) })

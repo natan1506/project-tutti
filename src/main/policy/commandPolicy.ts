@@ -32,17 +32,21 @@ const GIT_SOLO = new Set(['add', 'commit', 'fetch', 'pull'])
  * Destrutivo ou irreversível (§4.1): pede em todos os níveis. Olha o texto inteiro, para pegar o que vem
  * encadeado ou dentro de `$( )`/crases; na dúvida (ex.: dentro de aspas depois de `;`), pede.
  */
+// Começo de palavra de comando: início, separadores, `$(`/crase, aspas (`bash -c "…"`), `\rm` e `/bin/rm`.
+const S = String.raw`(?:^|[\s;&|(\x60$"'\\/])`
 const DESTRUCTIVE: RegExp[] = [
-  /(?:^|[\s;&|(`$])(?:rm|rmdir|sudo|chmod|chown|brew)(?=\s|$)/,
-  /(?:^|[\s;&|(`$])git\s+(?:rm|clean|push|rebase|restore)\b/,
-  /(?:^|[\s;&|(`$])git\s+reset\b[^;&|]*--hard/,
-  /(?:^|[\s;&|(`$])git\s+checkout\s+(?:[^;&|]*\s)?--(?:\s|$)/,
-  /(?:^|[\s;&|(`$])git\s+branch\b[^;&|]*\s-D\b/,
-  /(?:^|[\s;&|(`$])find\b[^;&|]*\s-delete\b/,
-  /(?:^|[\s;&|(`$])(?:npm|pnpm|yarn)\s+(?:i|install|add)\b[^;&|]*\s(?:-g|--global)\b/,
-  /(?:^|[\s;&|(`$])yarn\s+global\b/,
-  /(?:^|[\s;&|(`$])pip3?\s+install\b/,
-  /(?:^|[\s;&|(`$])(?:curl|wget)\b[^;&]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b/,
+  new RegExp(String.raw`${S}(?:rm|rmdir|sudo|chmod|chown|brew)(?=\s|$)`),
+  new RegExp(String.raw`${S}git\s+(?:rm|clean|push|rebase|restore)\b`),
+  // `git` com opções no meio (`git -C . push`, `git --no-pager push`).
+  /\bgit\b[^;&|\n]*\spush\b/,
+  new RegExp(String.raw`${S}git\s+reset\b[^;&|]*--hard`),
+  new RegExp(String.raw`${S}git\s+checkout\s+(?:[^;&|]*\s)?--(?:\s|$)`),
+  new RegExp(String.raw`${S}git\s+branch\b[^;&|]*\s-D\b`),
+  new RegExp(String.raw`${S}find\b[^;&|]*\s-delete\b`),
+  new RegExp(String.raw`${S}(?:npm|pnpm|yarn)\s+(?:i|install|add)\b[^;&|]*\s(?:-g|--global)\b`),
+  new RegExp(String.raw`${S}yarn\s+global\b`),
+  new RegExp(String.raw`${S}pip3?\s+install\b`),
+  new RegExp(String.raw`${S}(?:curl|wget)\b[^;&]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b`),
 ]
 
 export function isDestructive(command: string): boolean {
@@ -63,7 +67,8 @@ export function decide(call: ToolCall, projectDir: string, ctx: PolicyContext): 
     const command = typeof input.command === 'string' ? input.command : ''
     if (isDestructive(command)) return ask('destructive')
     if (ctx.level === 'ask_all') return ask('ask_all')
-    if (ctx.level === 'autonomous' && ctx.sandboxed) return { decision: 'allow' }
+    // Ler fora do projeto pede em todos os níveis (§4.1); no sandbox as credenciais da home já ficam ilegíveis.
+    if (ctx.level === 'autonomous' && ctx.sandboxed) return bashTouchesOutside(command, projectDir) ? ask('outside') : { decision: 'allow' }
     const solo = ctx.level === 'autonomous'
     if (!hasShellMagic(command) && splitSegments(command).every(s => {
       const tokens = tokenize(s)
@@ -77,9 +82,10 @@ export function decide(call: ToolCall, projectDir: string, ctx: PolicyContext): 
 export function isInside(projectDir: string, p: string): boolean {
   if (/^~[^/]/.test(p)) return false // ~usuario/… aponta para a home de outro usuário
   const abs = resolve(projectDir, p.replace(/^~(?=$|\/)/, homedir()))
-  const within = (dir: string, x: string) => x === dir || x.startsWith(dir + sep)
-  // No macOS /var e /tmp são atalhos para /private/…: o agente pode usar o caminho real do projeto.
-  return within(projectDir, abs) || within(realPath(projectDir), realPath(abs))
+  // Pelo caminho real: /var e /tmp no macOS são atalhos para /private/…, e um atalho dentro do projeto
+  // pode apontar para fora (a escrita do Edit/Write não passa pelo sandbox).
+  const root = realPath(projectDir), real = realPath(abs)
+  return real === root || real.startsWith(root + sep)
 }
 
 /** Caminho real do trecho que existe, com o resto (arquivo ainda não criado) por cima. */
@@ -105,7 +111,8 @@ function classifyFileCall(call: ToolCall, projectDir: string): Decision {
   // Padrões de Glob/Grep também podem apontar para fora do projeto.
   const patterns = [toolName === 'Glob' ? input.pattern : undefined, toolName === 'Grep' ? input.glob : undefined]
     .filter((v): v is string => typeof v === 'string' && looksLikePath(v))
-  if (WRITE_TOOLS.has(toolName) && paths.some(touchesGitDir)) return 'ask'
+  // `.git` também pelo caminho real (um atalho `g -> .git` não escapa).
+  if (WRITE_TOOLS.has(toolName) && paths.some(p => touchesGitDir(p) || touchesGitDir(relative(realPath(projectDir), realPath(resolve(projectDir, p)))))) return 'ask'
   return [...paths, ...patterns].every(p => isInside(projectDir, p)) ? 'allow' : 'ask'
 }
 

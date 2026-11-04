@@ -64,10 +64,12 @@ try {
   // 1 — Sozinho: escreve no projeto sem perguntar; fora do projeto o sandbox barra
   await level('Sozinho')
   await ask("Rode exatamente `node -e \"require('fs').writeFileSync('ok.txt','1')\"` e depois `touch ~/tutti-e2e-fora.txt`, um comando por vez, e me diga o resultado de cada um.")
-  const l1 = await untilIdle()
+  // O comando dentro do projeto roda sem cartão; o de fora pede ("fora do projeto"). Mesmo permitido, o sandbox barra.
+  const l1 = await untilIdle('Permitir')
   const fora = existsSync(FORA)
   rmSync(FORA, { force: true })
-  log('1 Sozinho com sandbox', existsSync(join(T, 'ok.txt')) && !fora && l1.length === 0, `ok.txt=${existsSync(join(T, 'ok.txt'))} fora=${fora} cartões=${JSON.stringify(l1)}`)
+  log('1 Sozinho com sandbox', existsSync(join(T, 'ok.txt')) && !fora && l1.length === 1 && l1[0].includes('fora do projeto'),
+    `ok.txt=${existsSync(join(T, 'ok.txt'))} fora=${fora} cartões=${JSON.stringify(l1)}`)
   await shot(page, 'passo1-sozinho')
 
   // 2 — destrutivo pede mesmo no Sozinho
