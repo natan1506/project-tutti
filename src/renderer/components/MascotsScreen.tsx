@@ -71,7 +71,7 @@ export function MascotsScreen({ preview = hasWebGL() }: { preview?: boolean }) {
               </div>
               <div className="block">Olhos
                 <div className="autonomy eyes-pick" role="group" aria-label="Olhos">
-                  {EYES.map(e => <button key={e.id} className={(look.eyes ?? 'normal') === e.id ? 'on' : ''} onClick={() => change({ eyes: e.id })}>{e.nome}</button>)}
+                  {EYES.map(e => <button key={e.id} className={(look.eyes ?? (a.id === 'forja' ? 'squint' : 'normal')) === e.id ? 'on' : ''} onClick={() => change({ eyes: e.id })}>{e.nome}</button>)}
                 </div>
               </div>
               <button className="link" onClick={() => void set(a.id, null)}>Restaurar padrão</button>

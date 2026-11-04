@@ -1,5 +1,6 @@
 import { ChevronDown, FolderOpen } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useDismiss } from './useDismiss'
 import type { Project } from '@shared/models'
 import { useRunStore } from '../state/runStore'
 
@@ -7,6 +8,8 @@ export function ProjectPicker() {
   const project = useRunStore(s => s.project)
   const setProject = useRunStore(s => s.setProject)
   const [open, setOpen] = useState(false)
+  const wrap = useRef<HTMLDivElement>(null)
+  useDismiss(wrap, open, () => setOpen(false))
   const [recent, setRecent] = useState<Project[]>([])
   const [askGit, setAskGit] = useState<string>()
 
@@ -27,7 +30,7 @@ export function ProjectPicker() {
   }
 
   return (
-    <div className="proj-wrap">
+    <div className="proj-wrap" ref={wrap}>
       <button className="proj" title={project?.path.replace(/^\/Users\/[^/]+/, '~')} onClick={() => setOpen(o => !o)}>
         <FolderOpen size={15} strokeWidth={1.8} aria-hidden /> <span className="proj-name">{project ? project.name : 'Abrir projeto'}</span> <ChevronDown size={14} className="caret" aria-hidden />
       </button>

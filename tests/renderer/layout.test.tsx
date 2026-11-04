@@ -38,3 +38,22 @@ describe('largura do painel do chat', () => {
     expect(loadSideWidth(1440)).toBe(SIDE_DEFAULT)
   })
 })
+
+describe('menus', () => {
+  it('menu do perfil fecha com Esc e com clique fora', async () => {
+    const { ProfilePicker } = await import('../../src/renderer/components/ProfilePicker')
+    const { useRunStore } = await import('../../src/renderer/state/runStore')
+    const { useProfileStore } = await import('../../src/renderer/state/profileStore')
+    const { PADRAO } = await import('@shared/profiles')
+    useRunStore.setState({ project: { id: 'p', path: '/p', name: 'p', lastOpenedAt: 0 } })
+    useProfileStore.setState({ profiles: [PADRAO], active: PADRAO })
+    const r = render(<ProfilePicker />)
+    fireEvent.click(r.getByRole('button', { name: /Padrão/ }))
+    expect(r.container.querySelector('.menu')).toBeTruthy()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(r.container.querySelector('.menu')).toBeNull()
+    fireEvent.click(r.getByRole('button', { name: /Padrão/ }))
+    fireEvent.mouseDown(document.body)
+    expect(r.container.querySelector('.menu')).toBeNull()
+  })
+})
