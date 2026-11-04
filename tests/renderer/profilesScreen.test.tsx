@@ -98,3 +98,38 @@ describe('chaves', () => {
     expect(api.setProviderKey).toHaveBeenCalledWith('openai', 'sk-teste')
   })
 })
+
+describe('tela de perfis: redesenho (revisão de UI 2026-11-04)', () => {
+  const mine: Profile = { ...PADRAO, id: 'p_meu', nome: 'Meu', builtin: false }
+  beforeEach(() => useProfileStore.setState({ profiles: [PADRAO, mine], active: mine, configOpen: true }))
+
+  it('agentes salvos aparecem como cartões resumidos; Editar abre o formulário de um', () => {
+    const r = render(<ProfilesScreen />)
+    const cards = r.container.querySelectorAll('.agent-card')
+    expect(cards.length).toBe(PADRAO.agents.length)
+    expect(r.container.querySelectorAll('.agent-form').length).toBe(0)
+    const forja = within(cards[1] as HTMLElement)
+    expect(forja.getByText('Forja')).toBeTruthy()
+    expect(forja.getByText('Claude Code')).toBeTruthy()
+    fireEvent.click(forja.getByText('Editar'))
+    expect(r.container.querySelectorAll('.agent-form').length).toBe(1)
+    expect(r.getByLabelText('Prompt')).toBeTruthy()
+  })
+
+  it('mostra "alterações não salvas" e Descartar volta ao salvo', () => {
+    const r = render(<ProfilesScreen />)
+    expect(r.queryByText('Alterações não salvas')).toBeNull()
+    fireEvent.change(r.getByLabelText('Nome do perfil'), { target: { value: 'Outro' } })
+    expect(r.getByText('Alterações não salvas')).toBeTruthy()
+    fireEvent.click(r.getByText('Descartar'))
+    expect((r.getByLabelText('Nome do perfil') as HTMLInputElement).value).toBe('Meu')
+    expect(r.queryByText('Alterações não salvas')).toBeNull()
+  })
+
+  it('agente novo entra aberto para editar', () => {
+    const r = render(<ProfilesScreen />)
+    fireEvent.click(r.getByText('Adicionar agente'))
+    expect(r.container.querySelectorAll('.agent-form').length).toBe(1)
+    expect((within(r.container.querySelector('.agent-form') as HTMLElement).getByLabelText('Nome') as HTMLInputElement).value).toBe('')
+  })
+})

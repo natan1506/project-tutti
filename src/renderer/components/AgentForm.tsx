@@ -31,16 +31,16 @@ export function TransportFields({ transport, model, inherit, disabled, onChange,
   const kind = transport?.kind ?? 'inherit'
   return (
     <div className="opt-line wrap">
-      <label>Transporte{' '}
+      <label>Como roda{' '}
         <select aria-label="Transporte" value={kind} disabled={disabled} onChange={e => {
           const k = e.target.value
           if (k === 'inherit') onChange(undefined, undefined)
           else if (k === 'cli') onChange({ kind: 'cli', tool: 'claude' }, undefined)
           else onChange({ kind: 'api', provider: 'openrouter' }, undefined)
         }}>
-          {inherit && <option value="inherit">Herdar do perfil</option>}
-          <option value="cli">CLI (assinatura)</option>
-          <option value="api">API (chave)</option>
+          {inherit && <option value="inherit">Igual ao perfil</option>}
+          <option value="cli">Assinatura (ferramenta logada)</option>
+          <option value="api">Chave de API (pago por uso)</option>
         </select>
       </label>
       {transport?.kind === 'cli' && (
@@ -68,31 +68,38 @@ export function TransportFields({ transport, model, inherit, disabled, onChange,
   )
 }
 
-export function AgentForm({ agent, disabled, inheritsApi, onChange, onRemove }: {
-  agent: ProfileAgent; disabled?: boolean; inheritsApi: boolean
-  onChange(a: ProfileAgent): void; onRemove?(): void
+export function AgentForm({ agent, disabled, inheritsApi, color, onChange, onRemove, onCollapse }: {
+  agent: ProfileAgent; disabled?: boolean; inheritsApi: boolean; color?: string
+  onChange(a: ProfileAgent): void; onRemove?(): void; onCollapse?(): void
 }) {
   const set = (p: Partial<ProfileAgent>) => onChange({ ...agent, ...p })
   const api = agent.transport ? agent.transport.kind === 'api' : inheritsApi
   return (
     <div className="agent-form">
-      <div className="opt-line wrap">
-        <label>Nome <input aria-label="Nome" value={agent.nome} maxLength={40} disabled={disabled} onChange={e => set({ nome: e.target.value })} /></label>
-        <label>Função <input aria-label="Função" value={agent.funcao} maxLength={200} disabled={disabled} placeholder="ex.: Back-end, APIs, testes" onChange={e => set({ funcao: e.target.value })} /></label>
-        {onRemove && !disabled && <button className="link" onClick={onRemove}>Remover</button>}
+      <div className="agent-form-head">
+        <i className="agent-dot" style={{ background: color ?? '#8e8bb5' }} />
+        <b>{agent.nome || 'Novo agente'}</b>
+        <span className="grow" />
+        {onRemove && !disabled && <button className="link danger-link" onClick={onRemove}>Remover</button>}
+        {onCollapse && <button onClick={onCollapse}>{disabled ? 'Fechar' : 'Pronto'}</button>}
+      </div>
+      <div className="form-grid">
+        <label className="block">Nome <input aria-label="Nome" value={agent.nome} maxLength={40} disabled={disabled} placeholder="ex.: Forja" onChange={e => set({ nome: e.target.value })} /></label>
+        <label className="block">Função <input aria-label="Função" value={agent.funcao} maxLength={200} disabled={disabled} placeholder="ex.: Back-end, APIs, testes" onChange={e => set({ funcao: e.target.value })} />
+          <small>Uma linha. O coordenador usa para decidir quem faz o quê.</small></label>
       </div>
       <label className="block">Prompt
-        <textarea aria-label="Prompt" rows={3} value={agent.prompt} maxLength={8000} disabled={disabled} placeholder="Quem é este agente e como ele trabalha"
+        <textarea aria-label="Prompt" rows={4} value={agent.prompt} maxLength={8000} disabled={disabled} placeholder="Quem é este agente, como ele trabalha e o que evita"
           onChange={e => set({ prompt: e.target.value })} />
       </label>
       <TransportFields transport={agent.transport} model={agent.model} inherit disabled={disabled} listId={`models-${agent.id}`}
         onChange={(transport, model) => onChange({ ...agent, transport, model })} />
       {api && <p className="paid-note">Usa a sua chave: cada pedido é cobrado pelo provedor.</p>}
-      <div className="opt-line wrap">
-        <label><input type="checkbox" aria-label="Só lê" checked={agent.readOnly} disabled={disabled}
+      <div className="roles">
+        <label title="Não edita arquivos nem roda comandos que mudam o projeto"><input type="checkbox" aria-label="Só lê" checked={agent.readOnly} disabled={disabled}
           onChange={e => set({ readOnly: e.target.checked, ...(e.target.checked ? {} : { consultable: false }) })} /> Só lê</label>
-        <label><input type="checkbox" aria-label="Revisa o trabalho" checked={agent.reviewer} disabled={disabled} onChange={e => set({ reviewer: e.target.checked })} /> Revisa o trabalho</label>
-        <label><input type="checkbox" aria-label="Pode ser consultado" checked={agent.consultable} disabled={disabled || !agent.readOnly}
+        <label title="Entra no fim de um pedido do Time para revisar o que os outros fizeram"><input type="checkbox" aria-label="Revisa o trabalho" checked={agent.reviewer} disabled={disabled} onChange={e => set({ reviewer: e.target.checked })} /> Revisa o trabalho</label>
+        <label title="Outros agentes podem fazer perguntas a ele no meio do trabalho (só para quem só lê)"><input type="checkbox" aria-label="Pode ser consultado" checked={agent.consultable} disabled={disabled || !agent.readOnly}
           onChange={e => set({ consultable: e.target.checked })} /> Pode ser consultado</label>
       </div>
     </div>
