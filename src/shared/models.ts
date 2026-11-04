@@ -55,6 +55,11 @@ export interface TimeApi {
   /** Nível de autonomia do projeto (padrão: Aceitar edições). */
   autonomy(projectPath: string): Promise<AutonomyLevel>
   setAutonomy(projectPath: string, level: AutonomyLevel): Promise<void>
+  /** Parar tudo: cancela todo pedido ativo (todos os projetos e a fila) e as execuções de skill. */
+  stopAll(): Promise<void>
+  /** Quantos pedidos estão ativos agora. */
+  activity(): Promise<number>
+  onActivity(cb: (active: number) => void): () => void
   skills(): Promise<Skill[]>
   saveSkill(s: Skill): Promise<{ ok: true; skill: Skill } | { ok: false; errors: string[] }>
   deleteSkill(id: string): Promise<void>

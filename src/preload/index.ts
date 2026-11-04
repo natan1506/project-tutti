@@ -38,6 +38,13 @@ const api: TimeApi = {
   },
   autonomy: projectPath => ipcRenderer.invoke('autonomy', projectPath),
   setAutonomy: (projectPath, level) => ipcRenderer.invoke('setAutonomy', projectPath, level),
+  stopAll: () => ipcRenderer.invoke('stopAll'),
+  activity: () => ipcRenderer.invoke('activity'),
+  onActivity: cb => {
+    const listener = (_e: IpcRendererEvent, n: number) => cb(n)
+    ipcRenderer.on('activity', listener)
+    return () => { ipcRenderer.removeListener('activity', listener) }
+  },
   skills: () => ipcRenderer.invoke('skills'),
   saveSkill: s => ipcRenderer.invoke('saveSkill', s),
   deleteSkill: id => ipcRenderer.invoke('deleteSkill', id),

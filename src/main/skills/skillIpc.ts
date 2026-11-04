@@ -56,5 +56,7 @@ export function skillHandlers(svc: SkillService) {
       return r.ok ? { ok: true as const, skill: r.value } : r
     },
     cancelSkill: (draftId: unknown) => { running.get(z.string().parse(draftId))?.abort() },
+    /** Parar tudo: cancela toda execução de skill em andamento. */
+    cancelAllSkills: () => { for (const c of running.values()) c.abort() },
   }
 }

@@ -86,7 +86,11 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
     const p = pd.profiles.activeFor(text(projectId))
     return Object.fromEntries(await Promise.all(p.agents.map(async a => [a.id, await pd.runs.availability(a.id)])))
   })
-  for (const [name, fn] of Object.entries(skillHandlers(pd.skills))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
+  const skills = skillHandlers(pd.skills)
+  for (const [name, fn] of Object.entries(skills)) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
+  // Parar tudo (design §5): todos os pedidos, de todos os projetos, e as execuções de skill.
+  ipcMain.handle('stopAll', () => { runs.cancelAll(); skills.cancelAllSkills() })
+  ipcMain.handle('activity', () => runs.activeCount())
   // Autonomia por projeto (design §4.2): chave pelo caminho, que é o que o RunService conhece.
   ipcMain.handle('autonomy', (_e, p) => { const v = store.getSetting(`autonomy:${absolutePath(p)}`); return isAutonomyLevel(v) ? v : DEFAULT_AUTONOMY })
   ipcMain.handle('setAutonomy', (_e, p, level) => {

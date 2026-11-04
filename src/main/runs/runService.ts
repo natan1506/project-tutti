@@ -34,6 +34,8 @@ interface Deps {
   autonomyFor?: (projectPath: string) => AutonomyLevel
   /** O sandbox do macOS do Agent SDK existe nesta máquina? (padrão: sim) */
   sandboxAvailable?: () => boolean
+  /** Quantos pedidos estão ativos (rodando ou na fila), a cada mudança: liga o botão Parar tudo. */
+  onActivity?: (active: number) => void
 }
 
 /** Assinatura do agente para retomar sessão: trocar transporte ou modelo começa sessão nova (spec custos-e-perfis §6). */
@@ -145,6 +147,7 @@ export class RunService {
     })
     this.record(runId, { type: 'run_started', runId, agentId: input.agentId })
     this.controllers.set(runId, new AbortController())
+    this.deps.onActivity?.(this.controllers.size)
     return runId
   }
 
@@ -164,7 +167,7 @@ export class RunService {
   close(runId: string, status: RunStatus, sessionId?: string): void {
     this.record(runId, { type: 'run_finished', status })
     this.deps.store.finishRun(runId, status, sessionId)
-    this.controllers.delete(runId)
+    if (this.controllers.delete(runId)) this.deps.onActivity?.(this.controllers.size)
   }
 
   signalOf(runId: string): AbortSignal | undefined {
@@ -185,6 +188,20 @@ export class RunService {
 
   cancel(runId: string): void {
     this.controllers.get(runId)?.abort()
+  }
+
+  /**
+   * Parar tudo (design §5): aborta todo pedido ativo de todos os projetos, inclusive a fila e os do Time.
+   * Consultas e chamadas do coordenador seguem esses sinais. O que já foi feito fica (diff e Desfazer).
+   */
+  cancelAll(): number {
+    const all = [...this.controllers.values()]
+    for (const c of all) c.abort()
+    return all.length
+  }
+
+  activeCount(): number {
+    return this.controllers.size
   }
 
   async undo(runId: string, paths?: string[]): Promise<UndoResult> {

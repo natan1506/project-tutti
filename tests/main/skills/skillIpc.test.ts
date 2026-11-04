@@ -54,6 +54,16 @@ describe('IPC das skills', () => {
     expect(await setup(async () => { throw new Error('AGENT_ERROR') }).h.createSkill({ draftId: 'd', request: 'x', creatorId: 'forja' })).toEqual({ ok: false, error: 'AGENT_ERROR' })
   })
 
+  it('cancelAllSkills cancela todas as execuções de skill', async () => {
+    const { h } = setup(i => new Promise((_, rej) => i.signal.addEventListener('abort', () => rej(new Error('CANCELED')))))
+    const a = h.createSkill({ draftId: 'd1', request: 'x', creatorId: 'forja' })
+    const b = h.testSkill({ draftId: 'd2', skill: draft, agentId: 'pincel', task: 't' })
+    await new Promise(r => setTimeout(r, 10))
+    h.cancelAllSkills()
+    expect(await a).toEqual({ ok: false, error: 'CANCELED' })
+    expect(await b).toEqual({ ok: false, error: 'CANCELED' })
+  })
+
   it('salvar devolve erros de validação', async () => {
     const { h } = setup(async () => '')
     const ok = h.saveSkill({ id: '', ...draft, agentIds: ['forja'], updatedAt: 0 })

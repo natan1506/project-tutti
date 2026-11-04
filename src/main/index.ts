@@ -57,6 +57,7 @@ app.whenReady().then(async () => {
   const adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) }
   const toolReady = async (t: ToolKind) => { const s = (await tools())[t]; return s.installed && s.loggedIn }
   let pushUsage: (s: import('@shared/usage').UsageSnapshot) => void = () => {}
+  let pushActivity: (n: number) => void = () => {}
   const usage = new UsageService({ store, emit: s => pushUsage(s), pollClaude: async () => ((await toolReady('claude')) ? pollClaudeUsage() : []) })
   const runs = new RunService({
     store,
@@ -70,6 +71,7 @@ app.whenReady().then(async () => {
     autonomyFor: p => { const v = store.getSetting(`autonomy:${p}`); return isAutonomyLevel(v) ? v : DEFAULT_AUTONOMY },
     // O sandbox do Agent SDK no macOS usa o sandbox-exec do sistema (spike-sandbox).
     sandboxAvailable: () => process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
+    onActivity: n => pushActivity(n),
   })
   // Skills (plano skills): quem cria roda numa pasta vazia do app, em consulta.
   const skillWork = join(app.getPath('userData'), 'skill-work')
@@ -92,6 +94,7 @@ app.whenReady().then(async () => {
   await runs.recover()
   const win = createWindow()
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
+  pushActivity = n => { if (!win.isDestroyed()) win.webContents.send('activity', n) }
   pushProfiles = ps => { if (!win.isDestroyed()) win.webContents.send('profiles', ps) }
   send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [], skills })
   // Versão nova no GitHub (só no app empacotado): aviso com link para a release; a URL nunca vem da interface.

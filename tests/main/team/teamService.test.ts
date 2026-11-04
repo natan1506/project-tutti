@@ -414,5 +414,25 @@ describe('TeamService', () => {
       await t.team.whenFinished(id)
     })
   })
-})
 
+  it('Parar tudo (runs.cancelAll) fecha o pedido do Time e interrompe o coordenador no meio da triagem', async () => {
+    let brainAborted = false
+    const brain: Brain = {
+      triage: ({ signal }) => new Promise((_, reject) => {
+        const stop = () => { brainAborted = true; reject(new Error('abortado')) }
+        if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true })
+      }),
+      lineup: async () => LINEUP,
+    } as Brain
+    const { runs, store, start } = await setup({ brain })
+    const parent = await start()
+    await waitFor(() => runs.activeCount() > 0)
+    await sleep(50)
+    expect(runs.cancelAll()).toBeGreaterThan(0)
+    await runs.whenFinished(parent)
+    await waitFor(() => store.getRun(parent)!.status !== 'running')
+    expect(store.getRun(parent)!.status).toBe('cancelled')
+    expect(brainAborted).toBe(true)
+    expect(runs.activeCount()).toBe(0)
+  })
+})
