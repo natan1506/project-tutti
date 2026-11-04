@@ -2,6 +2,7 @@ import type { AgentDef, AgentId, ToolKind } from './agents'
 import type { Profile, ProviderId } from './profiles'
 import type { Skill, SkillDraft } from './skills'
 import type { AutonomyLevel } from './autonomy'
+import type { SynthResult, VoiceChoice, VoiceOption, VoiceSource, VoiceSourceStatus } from './voice'
 import type { UsageDetail, UsageSettings, UsageSettingsPatch, UsageSnapshot } from './usage'
 import type { RunEvent, RunStatus } from './events'
 
@@ -70,6 +71,16 @@ export interface TimeApi {
   providerKeys(): Promise<Record<ProviderId, boolean>>
   providerModels(provider: ProviderId): Promise<{ id: string; name: string }[]>
   agentStatus(projectId: string): Promise<Record<AgentId, { ok: boolean; hint?: string }>>
+  /** Vozes (design §6). */
+  voiceStatus(): Promise<VoiceSourceStatus>
+  voiceList(i: { source: VoiceSource; all?: boolean }): Promise<VoiceOption[]>
+  voiceChoice(agentId: AgentId): Promise<VoiceChoice>
+  setVoice(i: { agentId: AgentId; choice: VoiceChoice }): Promise<void>
+  synthesize(i: { agentId: AgentId; text: string; name?: string }): Promise<SynthResult>
+  setVoiceKey(key: string): Promise<void>
+  removeVoiceKey(): Promise<void>
+  voiceMuted(): Promise<boolean>
+  setVoiceMuted(muted: boolean): Promise<void>
   setProviderKey(provider: ProviderId, key: string): Promise<void>
   removeProviderKey(provider: ProviderId): Promise<void>
   updateInfo(): Promise<{ version: string; url: string } | null>

@@ -16,6 +16,8 @@ import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
 import { CodexAdapter } from './adapters/codex'
 import { OpencodeAdapter, OpencodeHost, startOpencodeServer } from './adapters/opencode'
 import { registerIpc } from './ipc'
+import { VoiceService } from './voice/voiceService'
+import { sayToWav, sayVoices } from './voice/say'
 import { RunService } from './runs/runService'
 import { openStore } from './store/db'
 import { ClaudeBrain } from './team/brain'
@@ -84,6 +86,11 @@ app.whenReady().then(async () => {
       return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
     })
   })
+  const voices = new VoiceService({
+    store, fetch: globalThis.fetch, sayVoices, sayToWav,
+    crypto: { isAvailable: () => safeStorage.isEncryptionAvailable(), encrypt: s => safeStorage.encryptString(s), decrypt: b => safeStorage.decryptString(b) },
+    profileAgents: id => agentsOfProfile(getAgent(id).profileId).map(a => a.id),
+  })
   const claudeBrain = new ClaudeBrain()
   const team = new TeamService({
     runs, store, brain: claudeBrain, adapters, toolReady, emit: (runId, ev) => send(runId, ev),
@@ -96,7 +103,7 @@ app.whenReady().then(async () => {
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
   pushActivity = n => { if (!win.isDestroyed()) win.webContents.send('activity', n) }
   pushProfiles = ps => { if (!win.isDestroyed()) win.webContents.send('profiles', ps) }
-  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [], skills })
+  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [], skills, voices })
   // Versão nova no GitHub (só no app empacotado): aviso com link para a release; a URL nunca vem da interface.
   let update: { version: string; url: string } | null = null
   ipcMain.handle('updateInfo', () => update)

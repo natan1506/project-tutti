@@ -15,6 +15,8 @@ import { PROVIDERS, type ProviderId } from '@shared/profiles'
 import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
 import type { SkillService } from './skills/skillService'
 import { skillHandlers } from './skills/skillIpc'
+import { voiceHandlers } from './voice/voiceIpc'
+import type { VoiceService } from './voice/voiceService'
 
 const absolutePath = (p: unknown): string => {
   if (typeof p !== 'string' || !isAbsolute(p)) throw new Error('Caminho inválido')
@@ -57,6 +59,7 @@ export interface ProfileDeps {
   runs: RunService
   models(provider: ProviderId): Promise<{ id: string; name: string }[]>
   skills: SkillService
+  voices: VoiceService
 }
 
 const provider = (p: unknown): ProviderId => {
@@ -89,6 +92,7 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
   const skills = skillHandlers(pd.skills)
   for (const [name, fn] of Object.entries(skills)) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   // Parar tudo (design §5): todos os pedidos, de todos os projetos, e as execuções de skill.
+  for (const [name, fn] of Object.entries(voiceHandlers(pd.voices))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   ipcMain.handle('stopAll', () => { runs.cancelAll(); skills.cancelAllSkills() })
   ipcMain.handle('activity', () => runs.activeCount())
   // Autonomia por projeto (design §4.2): chave pelo caminho, que é o que o RunService conhece.
