@@ -152,7 +152,7 @@ describe('OpencodeAdapter', () => {
     const o = opts()
     const evs = await collect(new OpencodeAdapter(new OpencodeHost(async () => ({ api, close() {} }))).run(o))
     expect(api.created).toEqual([expect.objectContaining({ directory: CWD })])
-    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'npm install left-pad' })
+    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'npm install left-pad', reason: 'unknown' })
     expect(api.replies).toEqual([{ sessionId: SID, requestId: 'per_192ae45dd001G61fpJKXWGNxRE', decision: 'reject', message: 'Natan negou este comando.' }])
     expect(evs.at(-1)).toEqual({ type: 'done', sessionId: SID })
     expect(api.prompts[0]).toContain(getAgent('curinga').persona)
@@ -165,6 +165,23 @@ describe('OpencodeAdapter', () => {
     await collect(new OpencodeAdapter(new OpencodeHost(async () => ({ api, close() {} }))).run(o))
     expect(o.requestApproval).not.toHaveBeenCalled()
     expect(api.replies).toEqual([{ sessionId: SID, requestId: 'per_1', decision: 'once', message: undefined }])
+  })
+
+  it('Sozinho: internet e comando comum de projeto sem perguntar; nos outros níveis a internet pede', async () => {
+    const asks: OcEvent[] = [
+      { type: 'permission.asked', data: { id: 'per_w', sessionID: SID, action: 'webfetch', resources: ['https://x.dev'] } },
+      { type: 'permission.asked', data: { id: 'per_s', sessionID: SID, action: 'shell', resources: ['npm run deploy'] } },
+      { type: 'session.execution.succeeded', data: { sessionID: SID } },
+    ]
+    const api = fakeApi(asks)
+    const solo = opts({ autonomy: () => 'autonomous' })
+    await collect(new OpencodeAdapter(new OpencodeHost(async () => ({ api, close() {} }))).run(solo))
+    expect(solo.requestApproval).not.toHaveBeenCalled()
+    expect(api.replies.map(r => (r as { decision: string }).decision)).toEqual(['once', 'once'])
+    const api2 = fakeApi(asks.slice(0, 1).concat(asks.slice(2)))
+    const normal = opts()
+    await collect(new OpencodeAdapter(new OpencodeHost(async () => ({ api: api2, close() {} }))).run(normal))
+    expect(normal.requestApproval).toHaveBeenCalledWith({ toolName: 'WebFetch', summary: 'WebFetch', reason: 'network' })
   })
 
   it('cancelar interrompe a sessão e o servidor continua servindo o próximo pedido', async () => {
@@ -288,7 +305,7 @@ describe('revisão final — Curinga', () => {
     const api = fakeApi([called, ask, { type: 'session.execution.succeeded', data: { sessionID: SID } }])
     const o = opts()
     await collect(new OpencodeAdapter(host(api)).run(o))
-    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'cd /Users/n && cat .ssh/id_rsa' })
+    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'cd /Users/n && cat .ssh/id_rsa', reason: 'outside' })
   })
 
   it('I4: retomar sessão que o servidor não conhece (prompt falha) vira erro emitido, não exceção', async () => {

@@ -12,6 +12,7 @@ import type { Store } from './store/db'
 import type { KeyStore } from './keys/keyStore'
 import type { ProfileService } from './profiles/profileService'
 import { PROVIDERS, type ProviderId } from '@shared/profiles'
+import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
 import type { SkillService } from './skills/skillService'
 import { skillHandlers } from './skills/skillIpc'
 
@@ -86,6 +87,12 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
     return Object.fromEntries(await Promise.all(p.agents.map(async a => [a.id, await pd.runs.availability(a.id)])))
   })
   for (const [name, fn] of Object.entries(skillHandlers(pd.skills))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
+  // Autonomia por projeto (design §4.2): chave pelo caminho, que é o que o RunService conhece.
+  ipcMain.handle('autonomy', (_e, p) => { const v = store.getSetting(`autonomy:${absolutePath(p)}`); return isAutonomyLevel(v) ? v : DEFAULT_AUTONOMY })
+  ipcMain.handle('setAutonomy', (_e, p, level) => {
+    if (!isAutonomyLevel(level)) throw new Error('nível inválido')
+    store.setSetting(`autonomy:${absolutePath(p)}`, level)
+  })
   ipcMain.handle('usageSnapshot', () => usage.snapshot())
   ipcMain.handle('usageDetail', (_e, conversationId) => ({
     byRun: typeof conversationId === 'string' ? store.tokensByRun(conversationId) : [],

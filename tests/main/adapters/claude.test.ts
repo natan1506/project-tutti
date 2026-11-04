@@ -29,6 +29,15 @@ describe('buildClaudeOptions', () => {
     expect(o.settingSources).toEqual([])
   })
 
+  it('sandbox do Sozinho: escrita só no projeto, .git/hooks e .git/config bloqueados', () => {
+    const o = buildClaudeOptions(opts({ sandbox: true }), async () => ({ behavior: 'allow' }))
+    expect(o.sandbox).toEqual({
+      enabled: true, autoAllowBashIfSandboxed: false, failIfUnavailable: true,
+      filesystem: { allowWrite: [cwd], denyWrite: [cwd + '/.git/hooks', cwd + '/.git/config'] },
+    })
+    expect(buildClaudeOptions(opts(), async () => ({ behavior: 'allow' }))).not.toHaveProperty('sandbox')
+  })
+
   it('isola a configuração pessoal e usa a assinatura', () => {
     const o = buildClaudeOptions(opts({ resumeSessionId: 's1' }), async () => ({ behavior: 'allow' }))
     expect(o).toMatchObject({
@@ -89,8 +98,28 @@ describe('makeCanUseTool', () => {
   it('pergunta ao Natan e respeita o sim', async () => {
     const o = opts()
     const r = await makeCanUseTool(o)('Bash', { command: 'npm install x' }, { signal, toolUseID: 't' } as never)
-    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'npm install x' })
+    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'npm install x', reason: 'unknown' })
     expect(r).toEqual({ behavior: 'allow', updatedInput: { command: 'npm install x' } })
+  })
+  it('nível de autonomia lido a cada permissão; motivo vai junto', async () => {
+    let level: 'ask_all' | 'accept_edits' | 'autonomous' = 'ask_all'
+    const o = opts({ autonomy: () => level })
+    const can = makeCanUseTool(o)
+    expect(await can('Edit', { file_path: cwd + '/a.ts' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
+    expect(o.requestApproval).toHaveBeenCalledWith({ toolName: 'Edit', summary: 'a.ts', reason: 'ask_all' })
+    level = 'accept_edits'
+    ;(o.requestApproval as ReturnType<typeof vi.fn>).mockClear()
+    await can('Edit', { file_path: cwd + '/a.ts' }, { signal, toolUseID: 't' } as never)
+    expect(o.requestApproval).not.toHaveBeenCalled()
+  })
+  it('Sozinho sem sandbox age como Aceitar edições; com sandbox, comando livre', async () => {
+    const solto = opts({ autonomy: () => 'autonomous' })
+    await makeCanUseTool(solto)('Bash', { command: 'npm run deploy' }, { signal, toolUseID: 't' } as never)
+    expect(solto.requestApproval).toHaveBeenCalledWith({ toolName: 'Bash', summary: 'npm run deploy', reason: 'unknown' })
+    const preso = opts({ autonomy: () => 'autonomous', sandbox: true })
+    expect(await makeCanUseTool(preso)('Bash', { command: 'npm run deploy' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
+    expect(preso.requestApproval).not.toHaveBeenCalled()
+    expect(await makeCanUseTool(preso)('SandboxNetworkAccess', { host: 'example.com' }, { signal, toolUseID: 't' } as never)).toMatchObject({ behavior: 'allow' })
   })
   it('respeita o não', async () => {
     const o = opts({ requestApproval: vi.fn(async () => false) })

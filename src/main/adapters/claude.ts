@@ -2,7 +2,8 @@ import { query, type CanUseTool, type Options, type SDKMessage } from '@anthropi
 import { homedir } from 'node:os'
 import type { AgentEvent } from '@shared/events'
 import type { LimitWindow, WindowKind } from '@shared/usage'
-import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
+import { classifyToolCall, decide, summarizeToolCall } from '../policy/commandPolicy'
+import { join } from 'node:path'
 import { AGENT_CALL_TOOL, makeAgentCallTool } from '../team/agentCalls'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
@@ -25,6 +26,11 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     permissionMode: 'default',
     systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },
     canUseTool,
+    // Sozinho: escrita só no projeto, fora de .git/hooks e .git/config; falha alto se o sandbox não subir (spike-sandbox).
+    ...(opts.sandbox ? { sandbox: {
+      enabled: true, autoAllowBashIfSandboxed: false, failIfUnavailable: true,
+      filesystem: { allowWrite: [opts.cwd], denyWrite: [join(opts.cwd, '.git/hooks'), join(opts.cwd, '.git/config')] },
+    } } : {}),
     ...(opts.mode === 'consult' ? { disallowedTools: CONSULT_BLOCKED } : {}),
   }
 }
@@ -97,8 +103,12 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
       return { behavior: 'allow', updatedInput: { ...input, answers } }
     }
     const call = { toolName, input }
-    if (classifyToolCall(call, opts.cwd) === 'allow') return { behavior: 'allow', updatedInput: input }
-    const allowed = await opts.requestApproval({ toolName, summary: summarizeToolCall(call, opts.cwd) })
+    // Sozinho sem a barreira do sandbox age como Aceitar edições (design §4.1.1).
+    const level = opts.autonomy?.() ?? 'accept_edits'
+    const sandboxed = !!opts.sandbox
+    const r = decide(call, opts.cwd, { level: level === 'autonomous' && !sandboxed ? 'accept_edits' : level, sandboxed })
+    if (r.decision === 'allow') return { behavior: 'allow', updatedInput: input }
+    const allowed = await opts.requestApproval({ toolName, summary: summarizeToolCall(call, opts.cwd), ...(r.reason ? { reason: r.reason } : {}) })
     return allowed ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: 'Natan negou este comando.' }
   }
 }

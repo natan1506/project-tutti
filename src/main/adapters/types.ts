@@ -1,4 +1,5 @@
 import type { AgentDef } from '@shared/agents'
+import type { ApprovalReason, AutonomyLevel } from '@shared/autonomy'
 import type { AgentEvent } from '@shared/events'
 import type { AskAgent } from '../team/agentCalls'
 
@@ -12,7 +13,11 @@ export interface AdapterRunOptions {
   /** `consult` = só leitura em qualquer ferramenta (triagem, confirmação, chamadas entre agentes). Padrão: `work`. */
   mode?: 'work' | 'consult'
   signal: AbortSignal
-  requestApproval(req: { toolName: string; summary: string }): Promise<boolean>
+  requestApproval(req: { toolName: string; summary: string; reason?: ApprovalReason }): Promise<boolean>
+  /** Nível de autonomia do projeto, lido a cada pedido de permissão (ausente = Aceitar edições). */
+  autonomy?: () => AutonomyLevel
+  /** Comandos no sandbox do macOS do Agent SDK (Sozinho nos agentes Claude); só o adaptador Claude usa. */
+  sandbox?: boolean
   /** Pergunta em texto livre ao Natan (spec §5.7.2); `null` = sem resposta (cancelado). */
   askUser?(q: { text: string; options?: string[] }): Promise<string | null>
   /** Pergunta ao Radar ou ao Lupa no meio do trabalho (spec §5.4); só o adaptador Claude usa. */

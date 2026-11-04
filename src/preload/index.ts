@@ -36,6 +36,8 @@ const api: TimeApi = {
     ipcRenderer.on('profiles', listener)
     return () => { ipcRenderer.removeListener('profiles', listener) }
   },
+  autonomy: projectPath => ipcRenderer.invoke('autonomy', projectPath),
+  setAutonomy: (projectPath, level) => ipcRenderer.invoke('setAutonomy', projectPath, level),
   skills: () => ipcRenderer.invoke('skills'),
   saveSkill: s => ipcRenderer.invoke('saveSkill', s),
   deleteSkill: id => ipcRenderer.invoke('deleteSkill', id),

@@ -1,6 +1,7 @@
 import type { AgentDef, AgentId, ToolKind } from './agents'
 import type { Profile, ProviderId } from './profiles'
 import type { Skill, SkillDraft } from './skills'
+import type { AutonomyLevel } from './autonomy'
 import type { UsageDetail, UsageSettings, UsageSettingsPatch, UsageSnapshot } from './usage'
 import type { RunEvent, RunStatus } from './events'
 
@@ -51,6 +52,9 @@ export interface TimeApi {
   activeProfile(projectId: string): Promise<Profile>
   setActiveProfile(projectId: string, profileId: string): Promise<void>
   onProfiles(cb: (profiles: Profile[]) => void): () => void
+  /** Nível de autonomia do projeto (padrão: Aceitar edições). */
+  autonomy(projectPath: string): Promise<AutonomyLevel>
+  setAutonomy(projectPath: string, level: AutonomyLevel): Promise<void>
   skills(): Promise<Skill[]>
   saveSkill(s: Skill): Promise<{ ok: true; skill: Skill } | { ok: false; errors: string[] }>
   deleteSkill(id: string): Promise<void>

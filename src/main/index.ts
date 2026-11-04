@@ -4,7 +4,8 @@ import { windowOptions } from './windowOptions'
 import { KeyStore } from './keys/keyStore'
 import { ProfileService } from './profiles/profileService'
 import { SkillService } from './skills/skillService'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
+import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
 import { TextBrain } from './team/textBrain'
 import { join } from 'node:path'
 import { agentsOfProfile, getAgent, type ToolKind } from '@shared/agents'
@@ -66,6 +67,9 @@ app.whenReady().then(async () => {
     onUsage: (runId, agentId, ev) => usage.onEvent(runId, agentId, ev),
     skillsFor: id => skills.skillsFor(id),
     skillPluginDir: id => join(app.getPath('userData'), 'skill-plugins', id),
+    autonomyFor: p => { const v = store.getSetting(`autonomy:${p}`); return isAutonomyLevel(v) ? v : DEFAULT_AUTONOMY },
+    // O sandbox do Agent SDK no macOS usa o sandbox-exec do sistema (spike-sandbox).
+    sandboxAvailable: () => process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
   })
   // Skills (plano skills): quem cria roda numa pasta vazia do app, em consulta.
   const skillWork = join(app.getPath('userData'), 'skill-work')

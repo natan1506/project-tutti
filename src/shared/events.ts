@@ -15,7 +15,7 @@ export type AgentEvent =
   | { type: 'text'; text: string }
   | { type: 'tool'; name: string; summary: string }
   | { type: 'file_changed'; path: string }
-  | { type: 'approval_request'; id: string; toolName: string; summary: string }
+  | { type: 'approval_request'; id: string; toolName: string; summary: string; reason?: import('./autonomy').ApprovalReason }
   | { type: 'approval_resolved'; id: string; allowed: boolean }
   | { type: 'question'; id: string; text: string; options?: string[] }
   | { type: 'question_answered'; id: string; answer: string | null }

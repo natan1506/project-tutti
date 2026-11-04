@@ -4,6 +4,7 @@ import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { WindowKind } from '@shared/usage'
 import { skillsInstructions, type SkillDraft } from '@shared/skills'
+import { DEFAULT_AUTONOMY, type AutonomyLevel } from '@shared/autonomy'
 import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
@@ -29,6 +30,10 @@ interface Deps {
   skillsFor?: (agentId: AgentId) => SkillDraft[]
   /** Pasta do plugin de skills de um agente Claude CLI. */
   skillPluginDir?: (agentId: AgentId) => string
+  /** Nível de autonomia do projeto (padrão: Aceitar edições). */
+  autonomyFor?: (projectPath: string) => AutonomyLevel
+  /** O sandbox do macOS do Agent SDK existe nesta máquina? (padrão: sim) */
+  sandboxAvailable?: () => boolean
 }
 
 /** Assinatura do agente para retomar sessão: trocar transporte ou modelo começa sessão nova (spec custos-e-perfis §6). */
@@ -229,9 +234,9 @@ export class RunService {
   }
 
   private requestApproval(runId: string, signal: AbortSignal): AdapterRunOptions['requestApproval'] {
-    return async ({ toolName, summary }) => {
+    return async ({ toolName, summary, reason }) => {
       const id = randomUUID()
-      this.record(runId, { type: 'approval_request', id, toolName, summary })
+      this.record(runId, { type: 'approval_request', id, toolName, summary, ...(reason ? { reason } : {}) })
       const allowed = await new Promise<boolean>(resolve => {
         if (signal.aborted) return resolve(false)
         this.approvals.set(id, resolve)
@@ -389,6 +394,12 @@ export class RunService {
       const byPlugin = skills.length > 0 && agent.transport.kind === 'cli' && agent.tool === 'claude' && !!this.deps.skillPluginDir
       const skillPlugin = byPlugin ? writeClaudePlugin(this.deps.skillPluginDir!(agent.id), skills) : undefined
       const instructions = byPlugin ? loaded : [loaded, skillsInstructions(skills)].filter(Boolean).join('\n\n')
+      // Autonomia (design §4): lida a cada permissão; o sandbox do Sozinho é decidido no começo do pedido, só para Claude CLI.
+      const autonomy = (): AutonomyLevel => this.deps.autonomyFor?.(input.projectPath) ?? DEFAULT_AUTONOMY
+      const claudeCli = agent.transport.kind === 'cli' && agent.tool === 'claude'
+      const wantsSandbox = input.mode !== 'consult' && claudeCli && autonomy() === 'autonomous'
+      const sandbox = wantsSandbox && (this.deps.sandboxAvailable?.() ?? true)
+      if (wantsSandbox && !sandbox) this.record(runId, { type: 'notice', text: 'Sozinho indisponível: usando Aceitar edições.' })
       // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
       let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id, agentSignature(agent)) ?? undefined
       // Agente por API usa sempre o modelo do perfil (o modelo escolhido no pedido é da lista das CLIs).
@@ -409,6 +420,7 @@ export class RunService {
           agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal), ...(skillPlugin ? { skillPlugin } : {}),
+          autonomy, ...(sandbox ? { sandbox } : {}),
           ...(input.mode !== 'consult' && consultable.length ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal), consultable } : {}),
         })
         try {

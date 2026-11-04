@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { AgentEvent } from '@shared/events'
 import { addTokens, zeroTokens, type TokenUsage } from '@shared/usage'
-import { classifyToolCall, summarizeToolCall } from '../policy/commandPolicy'
+import { decide, summarizeToolCall } from '../policy/commandPolicy'
 import { PROVIDERS, type ProviderId } from '@shared/profiles'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
@@ -217,10 +217,14 @@ export class OpencodeAdapter implements AgentAdapter {
     const calls = permissionToToolCalls(d, opts.cwd, source?.id ? toolInputs.get(source.id) : undefined)
     let allowed = false
     if (!opts.signal.aborted && opts.mode !== 'consult') {
-      allowed = calls.every(c => classifyToolCall(c, opts.cwd) === 'allow')
+      // opencode não tem sandbox: no Sozinho vale a lista de comandos ampliada (design §4.1.1).
+      const ctx = { level: opts.autonomy?.() ?? 'accept_edits', sandboxed: false } as const
+      const results = calls.map(c => decide(c, opts.cwd, ctx))
+      allowed = results.every(r => r.decision === 'allow')
       if (!allowed) {
-        const call = calls.find(c => classifyToolCall(c, opts.cwd) === 'ask') ?? calls[0]
-        allowed = await opts.requestApproval({ toolName: call.toolName, summary: calls.map(c => summarizeToolCall(c, opts.cwd)).join(', ') })
+        const i = Math.max(0, results.findIndex(r => r.decision === 'ask'))
+        const reason = results[i]?.reason
+        allowed = await opts.requestApproval({ toolName: calls[i].toolName, summary: calls.map(c => summarizeToolCall(c, opts.cwd)).join(', '), ...(reason ? { reason } : {}) })
       }
     }
     try {
