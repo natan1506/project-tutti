@@ -67,16 +67,16 @@ export function Composer() {
         <button className="send" onClick={() => void submit()} disabled={!project || !text.trim()}>↑</button>
       </div>
       <div className="hint">
-        <span>
+        <span className="hint-main">
           {error ? <b className="err">{error}</b> : selectedAgent === 'time' ? (
             <>
-              O time decide quem assume.
-              <label className="opt"><input type="checkbox" checked={fullRound} onChange={e => setTeamOptions({ fullRound: e.target.checked })} /> rodada completa</label>
-              <label className="opt"><input type="checkbox" checked={forcePlan} onChange={e => setTeamOptions({ forcePlan: e.target.checked })} /> forçar plano</label>
+              <span>O time decide quem assume.</span>
+              <label className="opt" title="Todos os agentes dão opinião antes de escalar"><input type="checkbox" checked={fullRound} onChange={e => setTeamOptions({ fullRound: e.target.checked })} /> rodada completa</label>
+              <label className="opt" title="O coordenador mostra um plano para você aprovar antes de começar"><input type="checkbox" checked={forcePlan} onChange={e => setTeamOptions({ forcePlan: e.target.checked })} /> forçar plano</label>
             </>
-          ) : 'O pedido vai direto ao agente escolhido.'}
+          ) : <span>O pedido vai direto ao agente escolhido.</span>}
         </span>
-        <span>Enter envia · Shift+Enter nova linha</span>
+        <span className="keys-hint">Enter envia · Shift+Enter nova linha</span>
       </div>
       <div className="autonomy-row"><span>Autonomia</span><AutonomyPicker /></div>
     </div>

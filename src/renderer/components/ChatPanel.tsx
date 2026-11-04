@@ -9,6 +9,7 @@ import { LimitWarningCard } from './LimitWarningCard'
 import { LineupCard } from './LineupCard'
 import { PlanCard } from './PlanCard'
 import { TeamRound } from './TeamRound'
+import { SideResizer } from './SideResizer'
 
 const FINISHED: Record<string, string> = { cancelled: 'cancelado', error: 'parou com erro', interrupted: 'interrompido (app fechado)' }
 
@@ -83,9 +84,10 @@ export function ChatPanel() {
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' }) }, [chat])
   return (
     <aside className="side">
+      <SideResizer />
       <div className="top">
-        <span className="ttl">{conversation?.title ?? 'Nova conversa'}</span>
-        {project && <button onClick={newConversation}>Nova conversa</button>}
+        <span className="ttl" title={conversation?.title}>{conversation?.title ?? 'Conversa'}</span>
+        {project && <button className="new-conv" title="Começar uma conversa nova" onClick={newConversation}>＋ Nova conversa</button>}
       </div>
       <div className="log" ref={log}>
         {chat.runs.length === 0 && (

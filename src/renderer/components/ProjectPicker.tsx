@@ -27,8 +27,8 @@ export function ProjectPicker() {
 
   return (
     <div className="proj-wrap">
-      <button className="proj" onClick={() => setOpen(o => !o)}>
-        📁 <code>{project ? project.path.replace(/^\/Users\/[^/]+/, '~') : 'Sem projeto'}</code> ▾
+      <button className="proj" title={project?.path.replace(/^\/Users\/[^/]+/, '~')} onClick={() => setOpen(o => !o)}>
+        <span aria-hidden>📁</span> <span className="proj-name">{project ? project.name : 'Abrir projeto'}</span> <span className="caret">▾</span>
       </button>
       {open && (
         <div className="menu">
