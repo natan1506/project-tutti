@@ -76,8 +76,9 @@ export function Composer() {
             </>
           ) : 'O pedido vai direto ao agente escolhido.'}
         </span>
-        <span className="hint-right"><AutonomyPicker /> Enter envia · Shift+Enter nova linha</span>
+        <span>Enter envia · Shift+Enter nova linha</span>
       </div>
+      <div className="autonomy-row"><span>Autonomia</span><AutonomyPicker /></div>
     </div>
   )
 }

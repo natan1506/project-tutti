@@ -1,5 +1,6 @@
+import { existsSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { relative, resolve, sep } from 'node:path'
+import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import type { ApprovalReason, AutonomyLevel } from '@shared/autonomy'
 
 // Política de comandos do spec §6.4: o que roda sozinho e o que pede aprovação ao Natan,
@@ -76,7 +77,21 @@ export function decide(call: ToolCall, projectDir: string, ctx: PolicyContext): 
 export function isInside(projectDir: string, p: string): boolean {
   if (/^~[^/]/.test(p)) return false // ~usuario/… aponta para a home de outro usuário
   const abs = resolve(projectDir, p.replace(/^~(?=$|\/)/, homedir()))
-  return abs === projectDir || abs.startsWith(projectDir + sep)
+  const within = (dir: string, x: string) => x === dir || x.startsWith(dir + sep)
+  // No macOS /var e /tmp são atalhos para /private/…: o agente pode usar o caminho real do projeto.
+  return within(projectDir, abs) || within(realPath(projectDir), realPath(abs))
+}
+
+/** Caminho real do trecho que existe, com o resto (arquivo ainda não criado) por cima. */
+function realPath(p: string): string {
+  let head = p
+  const rest: string[] = []
+  while (!existsSync(head) && dirname(head) !== head) { rest.unshift(basename(head)); head = dirname(head) }
+  try {
+    return join(realpathSync(head), ...rest)
+  } catch {
+    return p
+  }
 }
 
 export function classifyToolCall(call: ToolCall, projectDir: string): Decision {
