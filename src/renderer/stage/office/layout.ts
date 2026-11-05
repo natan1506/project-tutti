@@ -3,7 +3,7 @@
 
 export interface Spot { x: number; z: number }
 
-export const DESK_GAP = 2.8
+export const DESK_GAP = 3.1
 // Fileira de trás mais alta na tela; deslocada meia mesa para ninguém ficar escondido atrás de outro.
 export const ROW_Z = [-3.4, 1.6] as const
 export const CORRIDOR_Z = -0.9

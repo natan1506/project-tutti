@@ -29,7 +29,7 @@ const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(pre
 
 const SCREEN: Record<Pose, string> = { idle: '#2b2575', thinking: VIOLET, working: CYAN, waiting: '#f87171', done: '#3ecf8e', locked: '#0c0b1f' }
 /** A mesa fica na frente do mascote (entre ele e a câmera); ele trabalha de frente para nós. */
-const DESK_OFF = 0.85
+const DESK_OFF = 0.95
 
 function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot: Spot; pose: Pose; coordinator: boolean; name: string; onPhone(): void }) {
   const screen = useRef<MeshStandardMaterial>(null)
@@ -48,26 +48,29 @@ function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot
   return (
     <group name={`desk-${id}`} position={[spot.x, 0, spot.z + DESK_OFF]}>
       {/* Tampo baixo e painel frontal: o mascote aparece por cima. */}
-      <RoundedBox args={[1.9, 0.07, 0.7]} radius={0.03} position={[0, 0.42, 0]} castShadow receiveShadow>
+      <RoundedBox args={[2.4, 0.08, 0.95]} radius={0.03} position={[0, 0.46, 0]} castShadow receiveShadow>
         <meshStandardMaterial color={wood} roughness={0.55} />
       </RoundedBox>
-      <mesh position={[0, 0.385, 0.355]}><boxGeometry args={[1.9, 0.015, 0.01]} /><meshBasicMaterial color={coordinator ? VIOLET : CYAN} toneMapped={false} /></mesh>
-      {[-0.88, 0.88].map(x => <mesh key={x} position={[x, 0.21, 0]} castShadow><boxGeometry args={[0.05, 0.42, 0.64]} /><meshStandardMaterial color="#120f2e" /></mesh>)}
-      {/* Monitor de lado, virado meio para a câmera: dá para ver a tela e o mascote ao mesmo tempo. */}
-      <group position={[0.72, 0.455, -0.1]} rotation={[0, -0.85, 0]} scale={0.85}>
-        <mesh position={[0, 0.34, 0]} castShadow><boxGeometry args={[0.72, 0.46, 0.04]} /><meshStandardMaterial color="#0a091b" roughness={0.4} /></mesh>
-        <mesh position={[0, 0.34, 0.025]}><planeGeometry args={[0.66, 0.4]} />
+      <mesh position={[0, 0.42, 0.48]}><boxGeometry args={[2.4, 0.015, 0.01]} /><meshBasicMaterial color={coordinator ? VIOLET : CYAN} toneMapped={false} /></mesh>
+      {[-1.12, 1.12].map(x => <mesh key={x} position={[x, 0.23, 0]} castShadow><boxGeometry args={[0.06, 0.46, 0.88]} /><meshStandardMaterial color="#120f2e" /></mesh>)}
+      {/* Monitor virado para o agente; nós vemos a traseira, com uma faixa de luz na cor do estado. */}
+      <group position={[0.78, 0.5, 0.05]} rotation={[0, Math.atan2(-0.78, -(DESK_OFF + 0.05)), 0]}>
+        <mesh position={[0, 0.36, 0]} castShadow><boxGeometry args={[0.78, 0.5, 0.05]} /><meshStandardMaterial color="#0a091b" roughness={0.4} /></mesh>
+        <mesh position={[0, 0.36, 0.028]}><planeGeometry args={[0.72, 0.44]} />
           <meshStandardMaterial ref={screen} color="#0c0b1f" emissive={SCREEN[pose]} emissiveIntensity={1} toneMapped={false} />
         </mesh>
-        <mesh position={[0, 0.08, 0]}><boxGeometry args={[0.06, 0.14, 0.04]} /><meshStandardMaterial color="#0a091b" /></mesh>
-        <mesh position={[0, 0.015, 0]}><boxGeometry args={[0.26, 0.02, 0.16]} /><meshStandardMaterial color="#0a091b" /></mesh>
+        <mesh position={[0, 0.36, -0.028]} rotation={[0, Math.PI, 0]}><planeGeometry args={[0.6, 0.06]} />
+          <meshBasicMaterial color={pose === 'idle' ? '#3a3478' : SCREEN[pose]} toneMapped={false} />
+        </mesh>
+        <mesh position={[0, 0.09, 0]}><boxGeometry args={[0.06, 0.16, 0.04]} /><meshStandardMaterial color="#0a091b" /></mesh>
+        <mesh position={[0, 0.015, 0]}><boxGeometry args={[0.28, 0.02, 0.18]} /><meshStandardMaterial color="#0a091b" /></mesh>
       </group>
-      <mesh position={[0, 0.47, -0.12]}><boxGeometry args={[0.55, 0.02, 0.17]} /><meshStandardMaterial color="#3a3478" /></mesh>
-      <mesh ref={phone} name={`phone-${id}`} userData={{ ringing }} position={[-0.62, 0.48, 0.08]}
+      <mesh position={[-0.05, 0.51, -0.22]}><boxGeometry args={[0.6, 0.02, 0.18]} /><meshStandardMaterial color="#3a3478" /></mesh>
+      <mesh ref={phone} name={`phone-${id}`} userData={{ ringing }} position={[-0.8, 0.53, 0.12]}
         onClick={e => { e.stopPropagation(); onPhone() }}>
         <boxGeometry args={[0.22, 0.06, 0.15]} /><meshStandardMaterial color="#3a3478" emissive="#f87171" emissiveIntensity={0} />
       </mesh>
-      <mesh position={[-0.3, 0.51, 0.12]}><cylinderGeometry args={[0.05, 0.045, 0.12, 16]} /><meshStandardMaterial color={CYAN} roughness={0.3} /></mesh>
+      <mesh position={[-0.45, 0.56, 0.2]}><cylinderGeometry args={[0.05, 0.045, 0.12, 16]} /><meshStandardMaterial color={CYAN} roughness={0.3} /></mesh>
       {/* Cadeira atrás do mascote; a do coordenador tem encosto alto e violeta. */}
       <group position={[0, 0, -DESK_OFF - 0.35]}>
         <mesh position={[0, 0.32, 0]} castShadow><cylinderGeometry args={[0.34, 0.34, 0.07, 24]} /><meshStandardMaterial color={coordinator ? VIOLET : '#2f2b63'} /></mesh>
@@ -210,7 +213,7 @@ function OfficeMascot({ agent, view, home, place, onSelect, labels, portal }: {
   if (locked) return <group name={`office-mascot-${agent.id}`} position={[home.desk.x, 0, home.desk.z]} visible={false} />
   return (
     <group ref={g} name={`office-mascot-${agent.id}`} position={[home.desk.x, 0, home.desk.z]}>
-      <group ref={body} scale={SCALE} position={[0, 0.62 * SCALE + (place === 'desk' ? 0.3 : 0), 0]}
+      <group ref={body} scale={SCALE} position={[0, 0.62 * SCALE + (place === 'desk' ? 0.34 : 0), 0]}
         onClick={e => { e.stopPropagation(); onSelect(agent.id) }}
         onPointerOver={() => { document.body.style.cursor = 'pointer' }} onPointerOut={() => { document.body.style.cursor = '' }}>
         <MascotBody agentId={agent.id} look={look} frame={frame} t={t} />
