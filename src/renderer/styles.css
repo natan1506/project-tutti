@@ -257,3 +257,11 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .office-tag b { font-weight: 650; } .office-tag span { color: #c9c6ea; font-size: 10px; }
 .odot { width: 7px; height: 7px; border-radius: 50%; background: #5f5c87; } .odot.thinking { background: var(--accent); } .odot.working { background: var(--accent-2); }
 .odot.waiting { background: #f87171; box-shadow: 0 0 8px #f87171; } .odot.done { background: #3ecf8e; }
+/* Aprovações e perguntas pendentes, presas embaixo do chat */
+.pending-dock { border-top: 1px solid #5b4bb0; background: linear-gradient(#1a1645, #15123a); padding: 10px 14px 12px; box-shadow: 0 -8px 24px #0006; max-height: 45%; display: flex; flex-direction: column; animation: pop .2s ease-out; }
+.pending-head { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #ffb4c2; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.pending-head::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #f87171; box-shadow: 0 0 8px #f87171; animation: dot 1.2s infinite; }
+.pending-list { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.pending-item .who { font-size: 12px; font-weight: 650; margin-bottom: 3px; }
+.pending-item .approval code { word-break: break-all; }
+.waiting-note { color: #ffb4c2; }

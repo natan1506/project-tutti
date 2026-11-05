@@ -34,8 +34,11 @@ function RunView({ run, nested = false }: { run: RunBlock; nested?: boolean }) {
       {open && <ul className="steps">{run.steps.map((s, i) => <li key={i}><b>{s.name}</b> <code>{s.summary}</code></li>)}</ul>}
       {run.notices.map((n, i) => <div key={i} className="note">{n}</div>)}
       {run.status === 'running' && <button className="link" onClick={() => void window.time.cancelRun(run.runId)}>Cancelar</button>}
-      {run.approvals.map(a => <ApprovalCard key={a.id} approval={a} />)}
-      {run.questions.map(q => <QuestionCard key={q.id} question={q} />)}
+      {run.approvals.filter(a => a.allowed !== undefined).map(a => <ApprovalCard key={a.id} approval={a} />)}
+      {run.questions.filter(q => q.answer !== undefined).map(q => <QuestionCard key={q.id} question={q} />)}
+      {(run.approvals.some(a => a.allowed === undefined) || run.questions.some(q => q.answer === undefined)) && (
+        <div className="note waiting-note">↓ Esperando sua resposta embaixo</div>
+      )}
       {run.limitWarnings.map(w => <LimitWarningCard key={w.id} warning={w} agentName={nome} />)}
       {run.handoff && <div className="note">Trabalho passado para o {getAgent(run.handoff.to).nome}.</div>}
       {run.calls.map((c, i) => (
@@ -77,6 +80,23 @@ function TeamView({ run, all }: { run: RunBlock; all: RunBlock[] }) {
   )
 }
 
+/** Aprovações e perguntas sem resposta, presas embaixo do chat: nunca é preciso rolar para achar. */
+function PendingDock({ runs }: { runs: RunBlock[] }) {
+  const items = runs.flatMap(r => [
+    ...r.approvals.filter(a => a.allowed === undefined).map(a => ({ key: a.id, agent: r.agentId, node: <ApprovalCard approval={a} /> })),
+    ...r.questions.filter(q => q.answer === undefined).map(q => ({ key: q.id, agent: r.agentId, node: <QuestionCard question={q} /> })),
+  ])
+  if (!items.length) return null
+  return (
+    <div className="pending-dock" role="region" aria-label="Esperando você">
+      <div className="pending-head">Esperando você ({items.length})</div>
+      <div className="pending-list">
+        {items.map(i => <div key={i.key} className="pending-item"><div className={`who c-${i.agent}`}>{getAgent(i.agent).nome}</div>{i.node}</div>)}
+      </div>
+    </div>
+  )
+}
+
 export function ChatPanel() {
   const { chat, conversation, project, newConversation } = useRunStore()
   const log = useRef<HTMLDivElement>(null)
@@ -98,6 +118,7 @@ export function ChatPanel() {
         )}
         {chat.runs.filter(r => !r.parentRunId).map(r => (r.team ? <TeamView key={r.runId} run={r} all={chat.runs} /> : <RunView key={r.runId} run={r} />))}
       </div>
+      <PendingDock runs={chat.runs} />
     </aside>
   )
 }

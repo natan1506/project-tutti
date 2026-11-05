@@ -1,3 +1,4 @@
+import { approvalPhrase } from '@shared/voice'
 import { AGENTS, getAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
 import type { ToolStatus } from '@shared/models'
 import type { ChatState, RunBlock } from '../state/chat'
@@ -27,7 +28,7 @@ function viewFor(run: RunBlock | undefined, now: number): MascotView {
     if (run.questions.some(q => q.answer === undefined)) return { pose: 'waiting', label: 'Esperando você', bubble: 'Tenho uma pergunta', bubbleKind: 'alert' }
     if (run.limitWarnings.some(w => w.pass === undefined)) return { pose: 'waiting', label: 'Esperando você', bubble: 'Limite quase no fim', bubbleKind: 'alert' }
     const pending = run.approvals.find(a => a.allowed === undefined)
-    if (pending) return { pose: 'waiting', label: 'Esperando você', bubble: bubbleText(`Preciso da sua aprovação: ${pending.summary}`), bubbleKind: 'alert' }
+    if (pending) return { pose: 'waiting', label: 'Esperando você', bubble: approvalPhrase(pending.toolName, pending.reason), bubbleKind: 'alert' }
     const last = run.steps.at(-1)
     if (!last) return { pose: 'thinking', label: 'Pensando', bubbleKind: 'dots' }
     return { pose: 'working', label: 'Trabalhando', bubble: bubbleText(`${VERB[last.name] ?? last.name} ${last.summary}`), bubbleKind: 'text' }

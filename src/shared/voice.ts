@@ -13,6 +13,22 @@ export interface SynthResult { audio: string; mime: string; notice?: string }
 
 export const SPEECH_MAX = 200
 
+const READ = new Set(['Read', 'Glob', 'Grep', 'LS', 'NotebookRead'])
+const WRITE = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+const NET = new Set(['WebFetch', 'WebSearch', 'SandboxNetworkAccess'])
+const SHELL = new Set(['Bash', 'Shell'])
+
+/** Aprovação em frase curta, sem o comando nem o caminho (o cartão no chat mostra o detalhe). */
+export function approvalPhrase(toolName: string, reason?: string): string {
+  const where = reason === 'outside' ? ' fora do projeto' : ''
+  const what = SHELL.has(toolName) ? (reason === 'destructive' ? 'rodar um comando que apaga ou não tem volta' : `rodar um comando${where}`)
+    : READ.has(toolName) ? `ler um arquivo${where}`
+    : WRITE.has(toolName) ? `editar um arquivo${where}`
+    : NET.has(toolName) || reason === 'network' ? 'acessar a internet'
+    : 'continuar'
+  return `Preciso da sua aprovação para ${what}.`
+}
+
 /** Texto pronto para falar: sem código, markdown nem links; só a primeira frase, até `max` caracteres. */
 export function cleanForSpeech(text: string, max = SPEECH_MAX, whole = false): string {
   // Começa com um título curto (`# Título`)? Fala o título e a frase seguinte.
@@ -45,7 +61,7 @@ export function speechFor(ev: RunEvent, run: RunLike, ctx: SpeechCtx): SpeechIte
     return clean ? { agentId, text: clean, kind } : undefined
   }
   switch (ev.type) {
-    case 'approval_request': return say(`Preciso da sua aprovação: ${ev.summary}`, 'alert')
+    case 'approval_request': return say(approvalPhrase(ev.toolName, ev.reason), 'alert')
     case 'question': return say(`Tenho uma pergunta. ${ev.text}`, 'alert')
     case 'plan_request': return say('O plano está pronto. Pode aprovar?', 'alert', ctx.coordinatorId ?? run.agentId)
     case 'limit_warning': return say(`O ${ctx.toolName(ev.tool)} está em ${Math.round(ev.utilization)}% do limite.`, 'alert')

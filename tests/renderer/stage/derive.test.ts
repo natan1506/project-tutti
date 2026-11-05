@@ -51,7 +51,7 @@ describe('deriveStage', () => {
   it('aprovação pendente: esperando você com alerta', () => {
     const s = play([{ type: 'approval_request', id: 'p', toolName: 'Bash', summary: 'npm install x' }])
     expect(deriveStage(s, NOW).forja).toEqual({
-      pose: 'waiting', label: 'Esperando você', bubble: 'Preciso da sua aprovação: npm install x', bubbleKind: 'alert',
+      pose: 'waiting', label: 'Esperando você', bubble: 'Preciso da sua aprovação para rodar um comando.', bubbleKind: 'alert',
     })
   })
 
