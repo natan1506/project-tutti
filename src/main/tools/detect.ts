@@ -39,7 +39,7 @@ export async function detectTools(exec: Exec, home = homedir()): Promise<Record<
 }
 
 /** Detecta de novo no máximo a cada `ttlMs`; rodar quatro `--version` a cada pedido seria lento. */
-export function cachedDetector(exec: Exec, ttlMs = 60_000, now = Date.now, home = homedir()): () => Promise<Record<ToolKind, ToolStatus>> {
+export function cachedDetector(exec: Exec, ttlMs = 2 * 60_000, now = Date.now, home = homedir()): () => Promise<Record<ToolKind, ToolStatus>> {
   let cache: { at: number; value: Promise<Record<ToolKind, ToolStatus>> } | undefined
   return () => {
     if (!cache || now() - cache.at > ttlMs) cache = { at: now(), value: detectTools(exec, home) }

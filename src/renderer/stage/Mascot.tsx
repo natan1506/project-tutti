@@ -1,6 +1,6 @@
 import { Html } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useRef, type RefObject } from 'react'
+import { memo, useRef, type RefObject } from 'react'
 import type { Group } from 'three'
 import { getAgent, type AgentId } from '@shared/agents'
 import { providerName } from '@shared/profiles'
@@ -9,10 +9,10 @@ import { DimContext } from './materials'
 import { MascotBody } from './mascots'
 import { GROUND } from './mascots/types'
 import { motionFrame, type MotionFrame } from './motion'
+import { reducedMotion } from './reducedMotion'
 import { useLookStore } from '../state/lookStore'
 
 const TOOL = { claude: 'Claude Code', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode' }
-const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 export function MascotLabel({ id, view, onSelect }: { id: AgentId; view: MascotView; onSelect: () => void }) {
   const a = getAgent(id)
@@ -31,7 +31,7 @@ export function Bubble({ view }: { view: MascotView }) {
   return <div className={`bubble ${view.bubbleKind ?? 'text'}`}>{view.bubble}</div>
 }
 
-export function Mascot({ id, index, x, view, selected, onSelect, labels, portal }: {
+export const Mascot = memo(function Mascot({ id, index, x, view, selected, onSelect, labels, portal }: {
   id: AgentId; index: number; x: number; view: MascotView; selected: boolean; onSelect(id: AgentId): void; labels: boolean
   portal?: RefObject<HTMLElement | null>
 }) {
@@ -78,4 +78,4 @@ export function Mascot({ id, index, x, view, selected, onSelect, labels, portal 
       )}
     </group>
   )
-}
+})

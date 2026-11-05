@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
 import { AutonomyPicker } from './AutonomyPicker'
 import { getAgent } from '@shared/agents'
 import { activeAgents, useProfileStore } from '../state/profileStore'
+import { useShallow } from 'zustand/react/shallow'
 import { useRunStore } from '../state/runStore'
 import { agentColor } from '../stage/colors'
 
@@ -13,7 +14,10 @@ const ERRORS: Record<string, string> = {
 }
 
 export function Composer() {
-  const { project, selectedAgent, selectAgent, send, tools, fullRound, forcePlan, setTeamOptions } = useRunStore()
+  const { project, selectedAgent, selectAgent, send, tools, fullRound, forcePlan, setTeamOptions } = useRunStore(useShallow(s => ({
+    project: s.project, selectedAgent: s.selectedAgent, selectAgent: s.selectAgent, send: s.send, tools: s.tools,
+    fullRound: s.fullRound, forcePlan: s.forcePlan, setTeamOptions: s.setTeamOptions,
+  })))
   const [text, setText] = useState('')
   const [error, setError] = useState<string>()
   const { active, status } = useProfileStore()

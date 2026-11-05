@@ -5,7 +5,7 @@ import { resolveAgentDefs } from '@shared/profiles'
 import { agentColor } from '../stage/colors'
 import { MascotBody } from '../stage/mascots'
 import { motionFrame, type MotionFrame } from '../stage/motion'
-import { hasWebGL } from '../stage/Stage'
+import { hasWebGL } from '../stage/webgl'
 import { useLookStore } from '../state/lookStore'
 import { useProfileStore } from '../state/profileStore'
 

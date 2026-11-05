@@ -1,4 +1,4 @@
-import { RoundedBox } from '@react-three/drei'
+import { RoundedBox } from '../parts/Soft'
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import { Color, ExtrudeGeometry, Float32BufferAttribute, Shape, type Group } from 'three'
@@ -11,7 +11,7 @@ function starGeometry(): ExtrudeGeometry {
   const s = new Shape(), k = 0.14
   s.moveTo(0, 1); s.quadraticCurveTo(k, k, 1, 0); s.quadraticCurveTo(k, -k, 0, -1)
   s.quadraticCurveTo(-k, -k, -1, 0); s.quadraticCurveTo(-k, k, 0, 1)
-  const g = new ExtrudeGeometry(s, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.09, bevelSize: 0.06, bevelSegments: 6, curveSegments: 32 })
+  const g = new ExtrudeGeometry(s, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.09, bevelSize: 0.06, bevelSegments: 2, curveSegments: 12 })
   g.center()
   const pos = g.attributes.position, col: number[] = [], c = new Color()
   const A = new Color('#4a8cf7'), B = new Color('#9b72e8'), C = new Color('#e96b8a')

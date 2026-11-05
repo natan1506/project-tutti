@@ -1,27 +1,21 @@
 import { Environment, Lightformer } from '@react-three/drei'
 import { Canvas, useThree } from '@react-three/fiber'
-import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Component, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ACESFilmicToneMapping } from 'three'
 import { AGENTS, type AgentDef, type AgentId } from '@shared/agents'
 import { activeAgents, useProfileStore } from '../state/profileStore'
 import { agentColor } from './colors'
 import { useRunStore } from '../state/runStore'
-import { deriveStage, type MascotView } from './derive'
+import type { MascotView } from './derive'
 import { bubbleMaxWidth, fitCameraDistance, mascotX, SPACING } from './layout'
 import { Bubble, Mascot, MascotLabel } from './Mascot'
 import { GROUND } from './mascots/types'
+import { RenderPace } from './RenderPace'
+import { anyActive, useStageViews } from './useStageViews'
+import { hasWebGL } from './webgl'
 import './stage.css'
 
 const FOV = 28
-
-export function hasWebGL(): boolean {
-  try {
-    const c = document.createElement('canvas')
-    return !!(c.getContext('webgl2') ?? c.getContext('webgl'))
-  } catch {
-    return false
-  }
-}
 
 /** Qualquer erro dentro da cena 3D (renderer, shaders, mascotes) vira fallback 2D em vez de derrubar o app. */
 export class CanvasBoundary extends Component<{ onError(e: unknown): void; children: ReactNode }, { failed: boolean }> {
@@ -43,7 +37,7 @@ function CameraRig({ count }: { count: number }) {
 }
 
 /** `headless` desliga rótulos HTML e o reflexo de ambiente, que exigem DOM e WebGL reais (usado nos testes). */
-export function StageScene({ views, selected, onSelect, headless = false, portal, agents = AGENTS }: {
+export const StageScene = memo(function StageScene({ views, selected, onSelect, headless = false, portal, agents = AGENTS }: {
   agents?: readonly AgentDef[]
   views: Record<AgentId, MascotView>; selected: AgentId | 'time'; onSelect(id: AgentId): void; headless?: boolean
   portal?: RefObject<HTMLElement | null>
@@ -54,7 +48,7 @@ export function StageScene({ views, selected, onSelect, headless = false, portal
       <hemisphereLight args={['#e9e6ff', '#151238', 1.2]} />
       <directionalLight
         position={[3, 7, 8]} intensity={2.6} color="#fff1e6" castShadow
-        shadow-mapSize={[2048, 2048]} shadow-radius={8}
+        shadow-mapSize={[1024, 1024]} shadow-radius={8}
         shadow-camera-left={-10} shadow-camera-right={10} shadow-camera-top={6} shadow-camera-bottom={-4}
       />
       <directionalLight position={[-6, 3, -5]} intensity={1.1} color="#7b6cf6" />
@@ -75,7 +69,7 @@ export function StageScene({ views, selected, onSelect, headless = false, portal
       ))}
     </>
   )
-}
+})
 
 /** Fileira 2D da Fase 1, usada quando não há WebGL. */
 function FlatStage({ views, onSelect, agents }: { views: Record<AgentId, MascotView>; onSelect(id: AgentId): void; agents: readonly AgentDef[] }) {
@@ -97,18 +91,13 @@ function FlatStage({ views, onSelect, agents }: { views: Record<AgentId, MascotV
 }
 
 export function Stage({ webgl }: { webgl?: boolean } = {}) {
-  const { chat, selectedAgent, selectAgent, tools } = useRunStore()
-  const { active, status } = useProfileStore()
+  const selectedAgent = useRunStore(s => s.selectedAgent)
+  const selectAgent = useRunStore(s => s.selectAgent)
+  const active = useProfileStore(s => s.active)
   const agents = useMemo(() => activeAgents(active), [active])
   const [canUse] = useState(() => webgl ?? hasWebGL())
   const [lost, setLost] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
-  // Rederiva a cada meio segundo para os balões de "concluído" sumirem no tempo certo.
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(id)
-  }, [])
-  const views = useMemo(() => deriveStage(chat, now, tools, agents, status), [chat, now, tools, agents, status])
+  const views = useStageViews(agents)
   // Rótulos e balões vão para uma camada própria: o <Html> do drei não acha o pai do canvas no primeiro quadro.
   const overlay = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -126,10 +115,11 @@ export function Stage({ webgl }: { webgl?: boolean } = {}) {
     <div className="stage-3d" ref={box}>
       <CanvasBoundary onError={() => setLost(true)}>
         <Canvas
-          shadows dpr={[1, 2]} camera={{ fov: FOV, position: [0, 1.5, 12] }}
+          shadows dpr={[1, 1.5]} frameloop="demand" camera={{ fov: FOV, position: [0, 1.5, 12] }}
           gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping }}
           onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); setLost(true) })}
         >
+          <RenderPace active={anyActive(views)} tick={views} />
           <StageScene views={views} selected={selectedAgent} onSelect={selectAgent} portal={overlay} agents={agents} />
         </Canvas>
       </CanvasBoundary>

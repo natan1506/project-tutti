@@ -1,4 +1,4 @@
-import { RoundedBox } from '@react-three/drei'
+import { RoundedBox } from './Soft'
 import { useFrame } from '@react-three/fiber'
 import { useRef, type MutableRefObject } from 'react'
 import type { Group } from 'three'

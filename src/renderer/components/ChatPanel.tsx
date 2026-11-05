@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { getAgent } from '@shared/agents'
 import { useRunStore } from '../state/runStore'
 import type { RunBlock } from '../state/chat'
@@ -13,7 +13,7 @@ import { SideResizer } from './SideResizer'
 
 const FINISHED: Record<string, string> = { cancelled: 'cancelado', error: 'parou com erro', interrupted: 'interrompido (app fechado)' }
 
-function RunView({ run, nested = false }: { run: RunBlock; nested?: boolean }) {
+const RunView = memo(function RunView({ run, nested = false }: { run: RunBlock; nested?: boolean }) {
   const [open, setOpen] = useState(false)
   const nome = getAgent(run.agentId).nome
   const secs = run.finishedAt ? Math.max(1, Math.round((run.finishedAt - run.startedAt) / 1000)) : undefined
@@ -49,7 +49,7 @@ function RunView({ run, nested = false }: { run: RunBlock; nested?: boolean }) {
       {run.status !== 'running' && !nested && <DiffCard run={run} />}
     </>
   )
-}
+})
 
 function Queued({ run }: { run: RunBlock }) {
   return (
@@ -101,7 +101,7 @@ export function ChatPanel() {
   const { chat, conversation, project, newConversation } = useRunStore()
   const log = useRef<HTMLDivElement>(null)
   // Rola só a lista de mensagens; scrollIntoView rolaria também o palco e o app inteiro.
-  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' }) }, [chat])
+  useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'auto' }) }, [chat])
   return (
     <aside className="side">
       <SideResizer />

@@ -1,4 +1,4 @@
-import { RoundedBox } from '@react-three/drei'
+import { RoundedBox } from '../parts/Soft'
 import { useRef } from 'react'
 import type { Group } from 'three'
 import { Clay } from '../materials'
@@ -21,7 +21,7 @@ export function CodexCloud({ frame, t }: BodyProps) {
       <group ref={upper}>
         <group position={[0, 0.32, 0]}>
           {PUFFS.map(([x, y, z, r], i) => (
-            <mesh key={i} position={[x, y, z]} castShadow><sphereGeometry args={[r, 32, 20]} /><Clay color={BLUE} roughness={0.45} /></mesh>
+            <mesh key={i} position={[x, y, z]} castShadow><sphereGeometry args={[r, 18, 12]} /><Clay color={BLUE} roughness={0.45} /></mesh>
           ))}
           <RoundedBox args={[0.78, 0.5, 0.1]} radius={0.06} position={[0, -0.03, 0.47]}><Clay color="#0d2a8a" roughness={0.3} /></RoundedBox>
           <ScreenFace frame={frame} t={t} width={0.68} height={0.4} fg="#dbe6ff" bg="#0a1f6e" position={[0, -0.03, 0.525]} />

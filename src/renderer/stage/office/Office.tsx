@@ -1,17 +1,21 @@
-import { Html, RoundedBox, useTexture } from '@react-three/drei'
+import { Html, useTexture } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { memo, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { ACESFilmicToneMapping, type Group, type Mesh, type MeshStandardMaterial } from 'three'
 import { AGENTS, type AgentDef, type AgentId } from '@shared/agents'
 import icon from '../../assets/icon.png'
 import { useLookStore } from '../../state/lookStore'
 import { activeAgents, useProfileStore } from '../../state/profileStore'
 import { useRunStore } from '../../state/runStore'
-import { deriveStage, type MascotView, type Pose } from '../derive'
+import type { MascotView, Pose } from '../derive'
 import { Bubble } from '../Mascot'
 import { MascotBody } from '../mascots'
 import { motionFrame, type MotionFrame } from '../motion'
+import { RoundedBox } from '../parts/Soft'
+import { reducedMotion } from '../reducedMotion'
+import { RenderPace } from '../RenderPace'
 import { CanvasBoundary } from '../Stage'
+import { anyActive, useStageViews } from '../useStageViews'
 import { coffeeMachine, coffeeSpot, deskSpot, meetingCenter, meetingSeat, pathBetween, type Spot } from './layout'
 import { officeTargets, type Place, type TeamPhase } from './targets'
 
@@ -25,13 +29,12 @@ const CYAN = '#3fd8ee'
 const SCALE = 0.85
 const SPEED = 2.4
 const SEAT = 0.75 // distância da cadeira até a mesa
-const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const SCREEN: Record<Pose, string> = { idle: '#2b2575', thinking: VIOLET, working: CYAN, waiting: '#f87171', done: '#3ecf8e', locked: '#0c0b1f' }
 /** A mesa fica na frente do mascote (entre ele e a câmera); ele trabalha de frente para nós. */
 const DESK_OFF = 0.95
 
-function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot: Spot; pose: Pose; coordinator: boolean; name: string; onPhone(): void }) {
+const Desk = memo(function Desk({ id, spot, pose, coordinator, name, onSelect }: { id: AgentId; spot: Spot; pose: Pose; coordinator: boolean; name: string; onSelect(id: AgentId): void }) {
   const screen = useRef<MeshStandardMaterial>(null)
   const phone = useRef<Mesh>(null)
   const ringing = pose === 'waiting'
@@ -67,7 +70,7 @@ function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot
       </group>
       <mesh position={[-0.05, 0.51, -0.22]}><boxGeometry args={[0.6, 0.02, 0.18]} /><meshStandardMaterial color="#3a3478" /></mesh>
       <mesh ref={phone} name={`phone-${id}`} userData={{ ringing }} position={[-0.8, 0.53, 0.12]}
-        onClick={e => { e.stopPropagation(); onPhone() }}>
+        onClick={e => { e.stopPropagation(); onSelect(id) }}>
         <boxGeometry args={[0.22, 0.06, 0.15]} /><meshStandardMaterial color="#3a3478" emissive="#f87171" emissiveIntensity={0} />
       </mesh>
       <mesh position={[-0.45, 0.56, 0.2]}><cylinderGeometry args={[0.05, 0.045, 0.12, 16]} /><meshStandardMaterial color={CYAN} roughness={0.3} /></mesh>
@@ -84,7 +87,7 @@ function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot
       )}
     </group>
   )
-}
+})
 
 function Plant({ x, z, s = 1 }: { x: number; z: number; s?: number }) {
   return (
@@ -123,7 +126,7 @@ function Room({ headless }: { headless: boolean }) {
           <mesh position={[0, 0.4, 0]}><cylinderGeometry args={[0.01, 0.01, 0.8, 4]} /><meshBasicMaterial color="#2f2b63" /></mesh>
           <mesh><cylinderGeometry args={[0.18, 0.42, 0.25, 24, 1, true]} /><meshStandardMaterial color="#2a2462" side={2} /></mesh>
           <mesh position={[0, -0.1, 0]}><sphereGeometry args={[0.12, 12, 8]} /><meshBasicMaterial color="#fff1e6" toneMapped={false} /></mesh>
-          <pointLight position={[0, -0.3, 0]} intensity={6} distance={6} color="#ffe8d6" />
+          {x === 0 && <pointLight position={[0, -0.3, 0]} intensity={9} distance={11} color="#ffe8d6" />}
         </group>
       ))}
       {/* Mesa de reunião redonda com cadeiras. */}
@@ -164,7 +167,6 @@ function Logo() {
     <group position={[-0.6, 3.1, -6.88]}>
       <mesh position={[0, 0, -0.01]}><planeGeometry args={[1.9, 1.9]} /><meshBasicMaterial color="#120f2e" /></mesh>
       <mesh><planeGeometry args={[1.6, 1.6]} /><meshBasicMaterial map={tex} transparent toneMapped={false} /></mesh>
-      <pointLight position={[0, 0, 1]} intensity={5} distance={5} color={VIOLET} />
     </group>
   )
 }
@@ -197,7 +199,7 @@ function OfficeMascot({ agent, view, home, place, onSelect, labels, portal }: {
       const next = path.current[0]
       const dx = next.x - pos.current.x, dz = next.z - pos.current.z
       const d = Math.hypot(dx, dz)
-      const step = Math.min(d, SPEED * Math.min(dt, 0.1))
+      const step = Math.min(d, SPEED * Math.min(dt, 0.3))
       if (d < 1e-3) path.current.shift()
       else {
         pos.current = { x: pos.current.x + (dx / d) * step, z: pos.current.z + (dz / d) * step }
@@ -205,7 +207,7 @@ function OfficeMascot({ agent, view, home, place, onSelect, labels, portal }: {
       }
     } else if (body.current) {
       // Parado, sempre de frente para nós.
-      body.current.rotation.y += (0 - body.current.rotation.y) * Math.min(1, dt * 6)
+      body.current.rotation.y += (0 - body.current.rotation.y) * Math.min(1, Math.min(dt, 0.3) * 6)
     }
     if (g.current) g.current.position.set(pos.current.x, 0, pos.current.z)
   })
@@ -245,7 +247,7 @@ function OfficeCamera() {
 }
 
 /** `headless` desliga rótulos HTML e texturas (testes). */
-export function OfficeScene({ views, selected, onSelect, headless = false, portal, agents = AGENTS, team, coffeeAgent }: {
+export const OfficeScene = memo(function OfficeScene({ views, selected, onSelect, headless = false, portal, agents = AGENTS, team, coffeeAgent }: {
   agents?: readonly AgentDef[]; views: Record<AgentId, MascotView>; selected: AgentId | 'time'; onSelect(id: AgentId): void
   headless?: boolean; portal?: RefObject<HTMLElement | null>; team?: TeamPhase; coffeeAgent?: string
 }) {
@@ -259,7 +261,7 @@ export function OfficeScene({ views, selected, onSelect, headless = false, porta
     <>
       <OfficeCamera />
       {!headless && <fog attach="fog" args={['#0c0b1f', 22, 42]} />}
-      <hemisphereLight args={['#e9e6ff', '#151238', 1.0]} />
+      <hemisphereLight args={['#e9e6ff', '#151238', 1.25]} />
       <directionalLight position={[5, 10, 9]} intensity={1.9} color="#fff1e6" castShadow shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-15} shadow-camera-right={15} shadow-camera-top={10} shadow-camera-bottom={-10} />
       <directionalLight position={[-8, 4, -4]} intensity={0.9} color={VIOLET} />
@@ -273,7 +275,7 @@ export function OfficeScene({ views, selected, onSelect, headless = false, porta
         const desk = deskSpot(i, agents.length)
         return (
           <group key={a.id}>
-            <Desk id={a.id} spot={desk} pose={views[a.id]?.pose ?? 'idle'} coordinator={a.coordinator} name={a.nome} onPhone={() => onSelect(a.id)} />
+            <Desk id={a.id} spot={desk} pose={views[a.id]?.pose ?? 'idle'} coordinator={a.coordinator} name={a.nome} onSelect={onSelect} />
             <OfficeMascot agent={a} view={views[a.id]} place={targets[a.id]}
               home={{ desk, meeting: meetingSeat(Math.max(0, seatsTaken.indexOf(a.id)), Math.max(seatsTaken.length, 1)) }}
               onSelect={onSelect} labels={!headless} portal={portal} />
@@ -285,7 +287,7 @@ export function OfficeScene({ views, selected, onSelect, headless = false, porta
       })}
     </>
   )
-}
+})
 
 /** Fase de reunião do Time: triagem, confirmação ou plano esperando (design §7.3). */
 function teamPhase(chat: ReturnType<typeof useRunStore.getState>['chat'], ids: string[]): TeamPhase | undefined {
@@ -298,14 +300,14 @@ function teamPhase(chat: ReturnType<typeof useRunStore.getState>['chat'], ids: s
 }
 
 export function Office() {
-  const { chat, selectedAgent, selectAgent, tools } = useRunStore()
-  const { active, status } = useProfileStore()
+  const chat = useRunStore(s => s.chat)
+  const selectedAgent = useRunStore(s => s.selectedAgent)
+  const selectAgent = useRunStore(s => s.selectAgent)
+  const active = useProfileStore(s => s.active)
   const agents = useMemo(() => activeAgents(active), [active])
-  const [now, setNow] = useState(() => Date.now())
   const [coffee, setCoffee] = useState<string>()
   const [lost, setLost] = useState(0)
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 500); return () => clearInterval(id) }, [])
-  const views = useMemo(() => deriveStage(chat, now, tools, agents, status), [chat, now, tools, agents, status])
+  const views = useStageViews(agents)
   const team = teamPhase(chat, agents.map(a => a.id))
   // De vez em quando, um agente livre vai ao café e volta (no máximo um por vez, a cada 1–3 min).
   useEffect(() => {
@@ -326,8 +328,9 @@ export function Office() {
   return (
     <div className="stage-3d office">
       <CanvasBoundary key={lost} onError={() => setLost(n => n + 1)}>
-        <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 36, position: [0, 5.9, 14.6] }} gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping, powerPreference: 'high-performance' }}
+        <Canvas shadows dpr={[1, 1.25]} frameloop="demand" camera={{ fov: 36, position: [0, 5.9, 14.6] }} gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping }}
           onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); console.warn('escritório: contexto WebGL perdido'); setLost(n => n + 1) })}>
+          <RenderPace active={anyActive(views) || !!coffee || !!team} tick={views} />
           <OfficeScene views={views} selected={selectedAgent} onSelect={selectAgent} portal={overlay} agents={agents} team={team} coffeeAgent={coffee} />
         </Canvas>
       </CanvasBoundary>

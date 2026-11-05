@@ -22,6 +22,7 @@ interface UiState {
   openConversation(c: Conversation): Promise<void>
   send(prompt: string): Promise<void>
   receive(runId: string, ev: RunEvent): void
+  receiveMany(items: { runId: string; ev: RunEvent }[]): void
 }
 
 export const useRunStore = create<UiState>((set, get) => ({
@@ -71,5 +72,12 @@ export const useRunStore = create<UiState>((set, get) => ({
   receive(runId, ev) {
     set(s => ({ chat: applyEvent(s.chat, runId, ev) }))
     try { speakEvent(get().chat, runId, ev) } catch { /* voz nunca atrapalha o pedido */ }
+  },
+
+  receiveMany(items) {
+    set(s => ({ chat: items.reduce((chat, { runId, ev }) => applyEvent(chat, runId, ev), s.chat) }))
+    for (const { runId, ev } of items) {
+      try { speakEvent(get().chat, runId, ev) } catch { /* voz nunca atrapalha o pedido */ }
+    }
   },
 }))
