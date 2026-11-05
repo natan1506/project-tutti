@@ -14,8 +14,10 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .row { display: flex; gap: 6px; margin-top: 8px; } .row.between { justify-content: space-between; align-items: center; margin: 0 0 8px; }
 .err { color: #f87171; }
 
-.app { display: grid; grid-template-columns: 72px 1fr var(--side-w, 380px); height: 100vh; overflow: hidden; }
-.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 54px 0 14px; gap: 18px; background: #0a091b; }
+.app { display: grid; grid-template-columns: 72px 1fr var(--side-w, 380px); grid-template-rows: 38px minmax(0, 1fr); height: 100vh; overflow: hidden; }
+/* Barra de título na cor do fundo: os botões da janela ficam nela, acima da barra lateral (windowOptions.ts). */
+.titlebar { grid-column: 1 / -1; background: var(--bg); border-bottom: 1px solid #1a1840; -webkit-app-region: drag; }
+.rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding: 14px 0 14px; gap: 18px; background: #0a091b; }
 .rail-group { display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .rail-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: none; border: 1px solid transparent; color: var(--muted); padding: 0; transition: background .15s, color .15s; }
 .rail-btn:hover { background: #1b1840; color: var(--text); }
@@ -23,7 +25,7 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .rail .logo { width: 32px; height: 32px; border-radius: 8px; }
 
 .stage { container-type: inline-size; position: relative; overflow: hidden; min-height: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse 80% 60% at 50% 20%, #2b2575 0%, #15133a 55%, #0c0b1f 100%); min-width: 0; }
-.head { padding: 40px 22px 0; }
+.head { padding: 14px 22px 0; }
 .head h1 { font-size: 19px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
 .head h1 img { width: 22px; height: 22px; border-radius: 6px; }
 .head .sub { color: var(--muted); font-size: 12px; margin-top: 2px; } .head .sub b { color: #c9c6ea; font-weight: 500; }
@@ -247,8 +249,11 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .view-toggle button { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 10px; }
 .nameplate { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #0c0b1fcc; border: 1px solid var(--line); color: #c9c6ea; white-space: nowrap; }
 .nameplate.off { opacity: .5; }
-.office-tag .tag .tool { display: none; } .office-tag .tag .nm { font-size: 11px; } .office-tag .tag .pill { font-size: 10px; margin-top: 2px; }
 .team-panel { display: flex; flex-direction: column; gap: 1px; padding: 6px 12px; background: #0c0b1fe6; border: 1px solid var(--accent); border-radius: 9px; color: var(--text); font-size: 12px; box-shadow: 0 0 24px #8b6cf655; white-space: nowrap; }
 .team-panel span { color: var(--accent-2); font-size: 11px; }
 .office-off { flex: 1; display: grid; place-items: center; color: var(--muted); }
 .team-panel em { color: #f87171; font-style: normal; font-size: 11px; }
+.office-tag { pointer-events: auto; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; padding: 2px 8px; border-radius: 99px; background: #0c0b1fd9; border: 1px solid var(--line); font-size: 11px; }
+.office-tag b { font-weight: 650; } .office-tag span { color: #c9c6ea; font-size: 10px; }
+.odot { width: 7px; height: 7px; border-radius: 50%; background: #5f5c87; } .odot.thinking { background: var(--accent); } .odot.working { background: var(--accent-2); }
+.odot.waiting { background: #f87171; box-shadow: 0 0 8px #f87171; } .odot.done { background: #3ecf8e; }

@@ -39,7 +39,7 @@ try {
     await page.keyboard.press('Enter')
     await page.waitForSelector('.approval:not(.answered)', { timeout: 180_000 })
     await page.waitForTimeout(1500)
-    const pose = await page.locator('.office-tag [data-agent="forja"]').getAttribute('data-pose')
+    const pose = await page.locator('.office-tag[data-agent="forja"]').getAttribute('data-pose')
     log('2 Forja esperando no escritório', pose === 'waiting', `pose=${pose}`)
     await page.screenshot({ path: join(SHOTS, 'escritorio-telefone.png') })
     await page.click('.approval:not(.answered) button:has-text("Negar")')

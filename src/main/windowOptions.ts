@@ -1,7 +1,7 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
 
 /** Posição dos botões fechar/minimizar/ampliar do macOS; o CSS reserva esse canto (`.rail`, `.head`). */
-export const TRAFFIC_LIGHTS = { x: 14, y: 18 }
+export const TRAFFIC_LIGHTS = { x: 14, y: 13 }
 
 /** Janela sem a barra de título cinza: os botões do macOS ficam sobre o fundo do app, como nos apps atuais. */
 export function windowOptions(preload: string): BrowserWindowConstructorOptions {

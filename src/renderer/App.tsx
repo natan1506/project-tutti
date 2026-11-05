@@ -45,6 +45,7 @@ export function App() {
 
   return (
     <div className="app">
+      <div className="titlebar" />
       <Rail />
       <main className="stage">
         <div className="head">

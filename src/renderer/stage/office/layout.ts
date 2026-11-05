@@ -3,11 +3,12 @@
 
 export interface Spot { x: number; z: number }
 
-export const DESK_GAP = 2.6
-export const ROW_Z = [-2.2, 2.2] as const
-export const CORRIDOR_Z = 0
-const MEETING = { x: -7.2, z: 0, r: 1.5 }
-const COFFEE = { x: 7.4, z: -2.4 }
+export const DESK_GAP = 2.8
+// Fileira de trás mais alta na tela; deslocada meia mesa para ninguém ficar escondido atrás de outro.
+export const ROW_Z = [-3.4, 1.6] as const
+export const CORRIDOR_Z = -0.9
+const MEETING = { x: -7.1, z: -0.8, r: 1.5 }
+const COFFEE = { x: 7.3, z: -3.6 }
 
 /** Mesa `i` de `n`: metade em cada fileira, centralizadas. */
 export function deskSpot(i: number, n: number): Spot {
@@ -15,7 +16,7 @@ export function deskSpot(i: number, n: number): Spot {
   const row = i < perRow ? 0 : 1
   const col = row === 0 ? i : i - perRow
   const inRow = row === 0 ? perRow : n - perRow
-  return { x: (col - (inRow - 1) / 2) * DESK_GAP, z: ROW_Z[row] }
+  return { x: (col - (inRow - 1) / 2) * DESK_GAP + (row === 0 && n > 1 ? DESK_GAP / 4 : row === 1 ? -DESK_GAP / 4 : 0), z: ROW_Z[row] }
 }
 
 /** Cadeira `i` de `n` em volta da mesa redonda. */

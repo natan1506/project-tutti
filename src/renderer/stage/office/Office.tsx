@@ -8,7 +8,7 @@ import { useLookStore } from '../../state/lookStore'
 import { activeAgents, useProfileStore } from '../../state/profileStore'
 import { useRunStore } from '../../state/runStore'
 import { deriveStage, type MascotView, type Pose } from '../derive'
-import { Bubble, MascotLabel } from '../Mascot'
+import { Bubble } from '../Mascot'
 import { MascotBody } from '../mascots'
 import { motionFrame, type MotionFrame } from '../motion'
 import { CanvasBoundary } from '../Stage'
@@ -22,12 +22,14 @@ const NAVY = '#15133a'
 const WALL = '#1b1846'
 const VIOLET = '#8b6cf6'
 const CYAN = '#3fd8ee'
-const SCALE = 0.62
+const SCALE = 0.85
 const SPEED = 2.4
 const SEAT = 0.75 // distância da cadeira até a mesa
 const reducedMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const SCREEN: Record<Pose, string> = { idle: '#2b2575', thinking: VIOLET, working: CYAN, waiting: '#f87171', done: '#3ecf8e', locked: '#0c0b1f' }
+/** A mesa fica na frente do mascote (entre ele e a câmera); ele trabalha de frente para nós. */
+const DESK_OFF = 0.85
 
 function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot: Spot; pose: Pose; coordinator: boolean; name: string; onPhone(): void }) {
   const screen = useRef<MeshStandardMaterial>(null)
@@ -35,38 +37,45 @@ function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot
   const ringing = pose === 'waiting'
   useFrame(({ clock }) => {
     const t = clock.elapsedTime
-    if (screen.current) screen.current.emissiveIntensity = pose === 'thinking' ? 0.6 + Math.sin(t * 4) * 0.4 : pose === 'locked' ? 0 : 1
+    if (screen.current) screen.current.emissiveIntensity = pose === 'thinking' ? 0.7 + Math.sin(t * 4) * 0.4 : pose === 'locked' ? 0 : 1.1
     if (phone.current) {
       const m = phone.current.material as MeshStandardMaterial
-      m.emissiveIntensity = ringing ? (Math.floor(t * 4) % 2 ? 1.6 : 0.2) : 0
-      phone.current.rotation.z = ringing && !reducedMotion() ? Math.sin(t * 30) * 0.12 : 0
+      m.emissiveIntensity = ringing ? (Math.floor(t * 4) % 2 ? 1.8 : 0.2) : 0
+      phone.current.rotation.z = ringing && !reducedMotion() ? Math.sin(t * 30) * 0.14 : 0
     }
   })
+  const wood = coordinator ? '#3a3080' : '#2a2462'
   return (
-    <group name={`desk-${id}`} position={[spot.x, 0, spot.z - SEAT]}>
-      <RoundedBox args={[1.7, 0.08, 0.9]} radius={0.03} position={[0, 0.72, 0]} castShadow receiveShadow>
-        <meshStandardMaterial color={coordinator ? '#2a2462' : '#221e52'} roughness={0.6} />
+    <group name={`desk-${id}`} position={[spot.x, 0, spot.z + DESK_OFF]}>
+      {/* Tampo baixo e painel frontal: o mascote aparece por cima. */}
+      <RoundedBox args={[1.9, 0.07, 0.7]} radius={0.03} position={[0, 0.42, 0]} castShadow receiveShadow>
+        <meshStandardMaterial color={wood} roughness={0.55} />
       </RoundedBox>
-      {[-0.75, 0.75].map(x => <mesh key={x} position={[x, 0.36, 0]} castShadow><boxGeometry args={[0.06, 0.72, 0.8]} /><meshStandardMaterial color="#120f2e" /></mesh>)}
-      {/* Monitor virado para o mascote e para a câmera atrás dele. */}
-      <mesh position={[0, 1.12, -0.25]} castShadow><boxGeometry args={[0.9, 0.55, 0.05]} /><meshStandardMaterial color="#0a091b" /></mesh>
-      <mesh position={[0, 1.12, -0.22]}><planeGeometry args={[0.82, 0.47]} />
-        <meshStandardMaterial ref={screen} color="#0c0b1f" emissive={SCREEN[pose]} emissiveIntensity={1} toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 0.82, -0.25]}><boxGeometry args={[0.08, 0.16, 0.05]} /><meshStandardMaterial color="#0a091b" /></mesh>
-      <mesh position={[0, 0.77, 0.12]}><boxGeometry args={[0.6, 0.02, 0.18]} /><meshStandardMaterial color="#2f2b63" /></mesh>
-      <mesh ref={phone} name={`phone-${id}`} userData={{ ringing }} position={[0.6, 0.79, 0.05]}
+      <mesh position={[0, 0.385, 0.355]}><boxGeometry args={[1.9, 0.015, 0.01]} /><meshBasicMaterial color={coordinator ? VIOLET : CYAN} toneMapped={false} /></mesh>
+      {[-0.88, 0.88].map(x => <mesh key={x} position={[x, 0.21, 0]} castShadow><boxGeometry args={[0.05, 0.42, 0.64]} /><meshStandardMaterial color="#120f2e" /></mesh>)}
+      {/* Monitor de lado, virado meio para a câmera: dá para ver a tela e o mascote ao mesmo tempo. */}
+      <group position={[0.72, 0.455, -0.1]} rotation={[0, -0.85, 0]} scale={0.85}>
+        <mesh position={[0, 0.34, 0]} castShadow><boxGeometry args={[0.72, 0.46, 0.04]} /><meshStandardMaterial color="#0a091b" roughness={0.4} /></mesh>
+        <mesh position={[0, 0.34, 0.025]}><planeGeometry args={[0.66, 0.4]} />
+          <meshStandardMaterial ref={screen} color="#0c0b1f" emissive={SCREEN[pose]} emissiveIntensity={1} toneMapped={false} />
+        </mesh>
+        <mesh position={[0, 0.08, 0]}><boxGeometry args={[0.06, 0.14, 0.04]} /><meshStandardMaterial color="#0a091b" /></mesh>
+        <mesh position={[0, 0.015, 0]}><boxGeometry args={[0.26, 0.02, 0.16]} /><meshStandardMaterial color="#0a091b" /></mesh>
+      </group>
+      <mesh position={[0, 0.47, -0.12]}><boxGeometry args={[0.55, 0.02, 0.17]} /><meshStandardMaterial color="#3a3478" /></mesh>
+      <mesh ref={phone} name={`phone-${id}`} userData={{ ringing }} position={[-0.62, 0.48, 0.08]}
         onClick={e => { e.stopPropagation(); onPhone() }}>
-        <boxGeometry args={[0.2, 0.06, 0.14]} /><meshStandardMaterial color="#3a3478" emissive="#f87171" emissiveIntensity={0} />
+        <boxGeometry args={[0.22, 0.06, 0.15]} /><meshStandardMaterial color="#3a3478" emissive="#f87171" emissiveIntensity={0} />
       </mesh>
-      <mesh position={[-0.6, 0.82, 0.12]}><cylinderGeometry args={[0.05, 0.045, 0.12, 16]} /><meshStandardMaterial color={CYAN} roughness={0.3} /></mesh>
-      {/* Cadeira: a do coordenador tem encosto mais alto. */}
-      <group position={[0, 0, SEAT]}>
-        <mesh position={[0, 0.3, 0]} castShadow><cylinderGeometry args={[0.34, 0.34, 0.08, 24]} /><meshStandardMaterial color={coordinator ? VIOLET : '#2f2b63'} /></mesh>
-        <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.05, 0.05, 0.3, 8]} /><meshStandardMaterial color="#120f2e" /></mesh>
+      <mesh position={[-0.3, 0.51, 0.12]}><cylinderGeometry args={[0.05, 0.045, 0.12, 16]} /><meshStandardMaterial color={CYAN} roughness={0.3} /></mesh>
+      {/* Cadeira atrás do mascote; a do coordenador tem encosto alto e violeta. */}
+      <group position={[0, 0, -DESK_OFF - 0.35]}>
+        <mesh position={[0, 0.32, 0]} castShadow><cylinderGeometry args={[0.34, 0.34, 0.07, 24]} /><meshStandardMaterial color={coordinator ? VIOLET : '#2f2b63'} /></mesh>
+        <mesh position={[0, coordinator ? 0.95 : 0.78, -0.3]} castShadow><boxGeometry args={[0.62, coordinator ? 1.1 : 0.8, 0.07]} /><meshStandardMaterial color={coordinator ? VIOLET : '#2f2b63'} /></mesh>
+        <mesh position={[0, 0.16, 0]}><cylinderGeometry args={[0.05, 0.05, 0.3, 8]} /><meshStandardMaterial color="#120f2e" /></mesh>
       </group>
       {pose === 'locked' && (
-        <Html position={[0, 1.6, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
+        <Html position={[0, 1.4, -DESK_OFF]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
           <div className="nameplate off">{name} · indisponível</div>
         </Html>
       )}
@@ -74,36 +83,74 @@ function Desk({ id, spot, pose, coordinator, name, onPhone }: { id: string; spot
   )
 }
 
+function Plant({ x, z, s = 1 }: { x: number; z: number; s?: number }) {
+  return (
+    <group position={[x, 0, z]} scale={s}>
+      <mesh position={[0, 0.3, 0]} castShadow><cylinderGeometry args={[0.3, 0.24, 0.6, 18]} /><meshStandardMaterial color="#2f2b63" /></mesh>
+      <mesh position={[0, 0.95, 0]} castShadow><sphereGeometry args={[0.5, 18, 14]} /><meshStandardMaterial color="#2fbf7f" roughness={0.85} /></mesh>
+      <mesh position={[0.22, 1.25, 0.1]} castShadow><sphereGeometry args={[0.3, 14, 10]} /><meshStandardMaterial color="#3ecf8e" roughness={0.85} /></mesh>
+    </group>
+  )
+}
+
 function Room({ headless }: { headless: boolean }) {
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[24, 14]} /><meshStandardMaterial color={NAVY} roughness={0.9} /></mesh>
-      <mesh position={[0, 2, -7]} receiveShadow><boxGeometry args={[24, 4, 0.2]} /><meshStandardMaterial color={WALL} /></mesh>
-      <mesh position={[-12, 2, 0]} receiveShadow><boxGeometry args={[0.2, 4, 14]} /><meshStandardMaterial color={WALL} /></mesh>
-      {/* Faixa de luz violeta→ciano no rodapé. */}
-      <mesh position={[0, 0.05, -6.88]}><boxGeometry args={[24, 0.05, 0.02]} /><meshBasicMaterial color={VIOLET} toneMapped={false} /></mesh>
-      <mesh position={[-11.88, 0.05, 0]}><boxGeometry args={[0.02, 0.05, 14]} /><meshBasicMaterial color={CYAN} toneMapped={false} /></mesh>
-      {!headless && <Suspense fallback={null}><Logo /></Suspense>}
-      {/* Mesa de reunião redonda. */}
-      <group position={[meetingCenter().x, 0, meetingCenter().z]} name="meeting-table">
-        <mesh position={[0, 0.72, 0]} castShadow receiveShadow><cylinderGeometry args={[1.0, 1.0, 0.08, 40]} /><meshStandardMaterial color="#2a2462" /></mesh>
-        <mesh position={[0, 0.36, 0]}><cylinderGeometry args={[0.12, 0.2, 0.72, 16]} /><meshStandardMaterial color="#120f2e" /></mesh>
-      </group>
-      {/* Café: máquina e dois banquinhos. */}
-      <group position={[coffeeMachine().x, 0, coffeeMachine().z]} name="coffee">
-        <mesh position={[0, 0.5, -0.3]} castShadow><boxGeometry args={[1.4, 1, 0.6]} /><meshStandardMaterial color="#221e52" /></mesh>
-        <mesh position={[0, 1.25, -0.35]} castShadow><boxGeometry args={[0.45, 0.5, 0.4]} /><meshStandardMaterial color="#0a091b" /></mesh>
-        <mesh position={[0, 1.35, -0.14]}><boxGeometry args={[0.2, 0.06, 0.02]} /><meshBasicMaterial color={CYAN} toneMapped={false} /></mesh>
-        {[-0.8, 0.8].map(x => <mesh key={x} position={[x, 0.35, 0.7]} castShadow><cylinderGeometry args={[0.22, 0.18, 0.7, 20]} /><meshStandardMaterial color={VIOLET} /></mesh>)}
-      </group>
-      {/* Plantas e um quadro. */}
-      {[[-10.8, -6], [10.8, -6], [10.8, 5.5]].map(([x, z]) => (
-        <group key={`${x},${z}`} position={[x, 0, z]}>
-          <mesh position={[0, 0.25, 0]} castShadow><cylinderGeometry args={[0.28, 0.22, 0.5, 16]} /><meshStandardMaterial color="#2f2b63" /></mesh>
-          <mesh position={[0, 0.85, 0]} castShadow><sphereGeometry args={[0.45, 16, 12]} /><meshStandardMaterial color="#3ecf8e" roughness={0.8} /></mesh>
+      {/* Piso, tapete sob as mesas e rodapé com luz violeta→ciano. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[30, 18]} /><meshStandardMaterial color={NAVY} roughness={0.85} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, -0.9]} receiveShadow><planeGeometry args={[11.5, 8.5]} /><meshStandardMaterial color="#1d1950" roughness={1} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, -0.9]}><ringGeometry args={[5.9, 6, 4, 1, Math.PI / 4]} /><meshBasicMaterial color={VIOLET} transparent opacity={0.25} /></mesh>
+      <mesh position={[0, 2.5, -7]} receiveShadow><boxGeometry args={[30, 5, 0.2]} /><meshStandardMaterial color={WALL} roughness={0.9} /></mesh>
+      <mesh position={[-13, 2.5, 0]} receiveShadow><boxGeometry args={[0.2, 5, 18]} /><meshStandardMaterial color={WALL} roughness={0.9} /></mesh>
+      <mesh position={[0, 0.06, -6.88]}><boxGeometry args={[30, 0.05, 0.02]} /><meshBasicMaterial color={VIOLET} toneMapped={false} /></mesh>
+      <mesh position={[-12.88, 0.06, 0]}><boxGeometry args={[0.02, 0.05, 18]} /><meshBasicMaterial color={CYAN} toneMapped={false} /></mesh>
+      {/* Janelas iluminadas na parede do fundo. */}
+      {[-5.5, 4.5].map(x => (
+        <group key={x} position={[x, 2.7, -6.88]}>
+          <mesh><planeGeometry args={[3.2, 2]} /><meshStandardMaterial color="#0c0b1f" emissive="#3b3290" emissiveIntensity={0.9} toneMapped={false} /></mesh>
+          <mesh position={[0, 0, 0.01]}><planeGeometry args={[0.05, 2]} /><meshBasicMaterial color="#120f2e" /></mesh>
+          <mesh position={[0, 0, 0.01]}><planeGeometry args={[3.2, 0.05]} /><meshBasicMaterial color="#120f2e" /></mesh>
+          <mesh position={[0, -1.05, 0.08]}><boxGeometry args={[3.4, 0.08, 0.2]} /><meshStandardMaterial color="#2f2b63" /></mesh>
         </group>
       ))}
-      <mesh position={[6, 2.2, -6.88]}><planeGeometry args={[2.4, 1.4]} /><meshStandardMaterial color="#3a3478" emissive="#3fd8ee" emissiveIntensity={0.08} /></mesh>
+      {!headless && <Suspense fallback={null}><Logo /></Suspense>}
+      {/* Luminárias pendentes sobre as fileiras. */}
+      {[-4.5, 0, 4.5].map(x => (
+        <group key={x} position={[x, 4.2, -0.6]}>
+          <mesh position={[0, 0.4, 0]}><cylinderGeometry args={[0.01, 0.01, 0.8, 4]} /><meshBasicMaterial color="#2f2b63" /></mesh>
+          <mesh><cylinderGeometry args={[0.18, 0.42, 0.25, 24, 1, true]} /><meshStandardMaterial color="#2a2462" side={2} /></mesh>
+          <mesh position={[0, -0.1, 0]}><sphereGeometry args={[0.12, 12, 8]} /><meshBasicMaterial color="#fff1e6" toneMapped={false} /></mesh>
+          <pointLight position={[0, -0.3, 0]} intensity={6} distance={6} color="#ffe8d6" />
+        </group>
+      ))}
+      {/* Mesa de reunião redonda com cadeiras. */}
+      <group position={[meetingCenter().x, 0, meetingCenter().z]} name="meeting-table">
+        <mesh position={[0, 0.62, 0]} castShadow receiveShadow><cylinderGeometry args={[1.05, 1.05, 0.07, 48]} /><meshStandardMaterial color="#2a2462" roughness={0.5} /></mesh>
+        <mesh position={[0, 0.31, 0]}><cylinderGeometry args={[0.12, 0.25, 0.62, 16]} /><meshStandardMaterial color="#120f2e" /></mesh>
+        <mesh position={[0, 0.664, 0]}><ringGeometry args={[0.9, 0.95, 48]} /><meshBasicMaterial color={CYAN} transparent opacity={0.4} /></mesh>
+      </group>
+      {/* Canto do café: balcão, máquina, sofá e tapete redondo. */}
+      <group position={[coffeeMachine().x, 0, coffeeMachine().z]} name="coffee">
+        <mesh position={[0, 0.5, -0.6]} castShadow><boxGeometry args={[2.2, 1, 0.7]} /><meshStandardMaterial color="#221e52" /></mesh>
+        <mesh position={[-0.4, 1.28, -0.65]} castShadow><boxGeometry args={[0.5, 0.55, 0.42]} /><meshStandardMaterial color="#0a091b" /></mesh>
+        <mesh position={[-0.4, 1.38, -0.43]}><boxGeometry args={[0.22, 0.06, 0.02]} /><meshBasicMaterial color={CYAN} toneMapped={false} /></mesh>
+        <mesh position={[0.5, 1.08, -0.6]}><cylinderGeometry args={[0.07, 0.06, 0.14, 12]} /><meshStandardMaterial color={VIOLET} /></mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 1.4]}><circleGeometry args={[1.5, 40]} /><meshStandardMaterial color="#241f5c" /></mesh>
+        <group position={[0, 0, 2.6]}>
+          <mesh position={[0, 0.3, 0]} castShadow><boxGeometry args={[2.4, 0.4, 0.8]} /><meshStandardMaterial color={VIOLET} roughness={0.8} /></mesh>
+          <mesh position={[0, 0.7, 0.32]} castShadow><boxGeometry args={[2.4, 0.6, 0.18]} /><meshStandardMaterial color="#6f56d8" roughness={0.8} /></mesh>
+        </group>
+      </group>
+      {/* Estante com livros na parede da esquerda. */}
+      <group position={[-12.7, 0, -3.6]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh position={[0, 1.2, 0]} castShadow><boxGeometry args={[2.4, 2.4, 0.45]} /><meshStandardMaterial color="#221e52" /></mesh>
+        {[0.6, 1.3, 2.0].map((y, r) => [-0.8, -0.45, -0.1, 0.3, 0.7].map((x, i) => (
+          <mesh key={`${r}-${i}`} position={[x, y, 0.1]}><boxGeometry args={[0.22, 0.5, 0.3]} />
+            <meshStandardMaterial color={[VIOLET, CYAN, '#f5a524', '#3ecf8e', '#f472b6'][(i + r) % 5]} roughness={0.7} />
+          </mesh>
+        )))}
+      </group>
+      <Plant x={-12} z={-6.2} s={1.2} /><Plant x={11.8} z={-6.2} s={1.2} /><Plant x={-12} z={4.5} /><Plant x={6} z={-6.2} s={0.8} />
     </group>
   )
 }
@@ -111,9 +158,10 @@ function Room({ headless }: { headless: boolean }) {
 function Logo() {
   const tex = useTexture(icon)
   return (
-    <group position={[-3, 2.4, -6.88]}>
-      <mesh><planeGeometry args={[1.4, 1.4]} /><meshBasicMaterial map={tex} transparent toneMapped={false} /></mesh>
-      <pointLight position={[0, 0, 0.8]} intensity={4} distance={4} color={VIOLET} />
+    <group position={[-0.6, 3.1, -6.88]}>
+      <mesh position={[0, 0, -0.01]}><planeGeometry args={[1.9, 1.9]} /><meshBasicMaterial color="#120f2e" /></mesh>
+      <mesh><planeGeometry args={[1.6, 1.6]} /><meshBasicMaterial map={tex} transparent toneMapped={false} /></mesh>
+      <pointLight position={[0, 0, 1]} intensity={5} distance={5} color={VIOLET} />
     </group>
   )
 }
@@ -153,10 +201,8 @@ function OfficeMascot({ agent, view, home, place, onSelect, labels, portal }: {
         if (body.current) body.current.rotation.y = Math.atan2(dx, dz)
       }
     } else if (body.current) {
-      // Na mesa fica de costas para a câmera, olhando o monitor; esperando ou concluído, vira para a câmera.
-      const atDesk = place === 'desk'
-      const face = !atDesk || view.pose === 'waiting' || view.pose === 'done' ? 0 : Math.PI
-      body.current.rotation.y += (face - body.current.rotation.y) * Math.min(1, dt * 6)
+      // Parado, sempre de frente para nós.
+      body.current.rotation.y += (0 - body.current.rotation.y) * Math.min(1, dt * 6)
     }
     if (g.current) g.current.position.set(pos.current.x, 0, pos.current.z)
   })
@@ -164,16 +210,18 @@ function OfficeMascot({ agent, view, home, place, onSelect, labels, portal }: {
   if (locked) return <group name={`office-mascot-${agent.id}`} position={[home.desk.x, 0, home.desk.z]} visible={false} />
   return (
     <group ref={g} name={`office-mascot-${agent.id}`} position={[home.desk.x, 0, home.desk.z]}>
-      <group ref={body} scale={SCALE} position={[0, 0.62 * SCALE + (place === 'desk' ? 0.34 : 0), 0]}
+      <group ref={body} scale={SCALE} position={[0, 0.62 * SCALE + (place === 'desk' ? 0.3 : 0), 0]}
         onClick={e => { e.stopPropagation(); onSelect(agent.id) }}
         onPointerOver={() => { document.body.style.cursor = 'pointer' }} onPointerOut={() => { document.body.style.cursor = '' }}>
         <MascotBody agentId={agent.id} look={look} frame={frame} t={t} />
       </group>
       {labels && (
         <>
-          <Html position={[0, 1.9, 0]} zIndexRange={[20, 10]} portal={portal as RefObject<HTMLElement>} style={{ pointerEvents: 'none' }}><Bubble view={view} /></Html>
-          <Html center position={[0, 0, 1.05]} zIndexRange={[10, 0]} portal={portal as RefObject<HTMLElement>}>
-            <div className="office-tag"><MascotLabel id={agent.id} view={view} onSelect={() => onSelect(agent.id)} /></div>
+          <Html position={[0, 2.35, 0]} zIndexRange={[20, 10]} portal={portal as RefObject<HTMLElement>} style={{ pointerEvents: 'none' }}><Bubble view={view} /></Html>
+          <Html center position={[0, 1.75, 0]} zIndexRange={[10, 0]} portal={portal as RefObject<HTMLElement>}>
+            <div className="office-tag" data-agent={agent.id} data-pose={view.pose} onClick={() => onSelect(agent.id)} title={view.label}>
+              <i className={`odot ${view.pose}`} /><b>{agent.nome}</b>{view.pose !== 'idle' && <span>{view.label}</span>}
+            </div>
           </Html>
         </>
       )}
@@ -184,10 +232,10 @@ function OfficeMascot({ agent, view, home, place, onSelect, labels, portal }: {
 function OfficeCamera() {
   const { camera, size } = useThree()
   useLayoutEffect(() => {
-    // Sala inteira na tela: janela mais estreita afasta a câmera.
-    const far = Math.max(1, 1.75 / (size.width / size.height))
-    camera.position.set(3 * far, 15 * far, 17 * far)
-    camera.lookAt(0, 0, -0.6)
+    // Mais baixa e de frente: a sala aparece como um palco. Janela mais estreita afasta a câmera.
+    const far = Math.max(1, 1.8 / (size.width / size.height))
+    camera.position.set(0, 5.9 * far, 14.6 * far)
+    camera.lookAt(0, 0.9, -1.4)
     camera.updateProjectionMatrix()
   }, [camera, size])
   return null
@@ -207,13 +255,14 @@ export function OfficeScene({ views, selected, onSelect, headless = false, porta
   return (
     <>
       <OfficeCamera />
-      <hemisphereLight args={['#e9e6ff', '#151238', 1.1]} />
-      <directionalLight position={[6, 12, 8]} intensity={2.2} color="#fff1e6" castShadow shadow-mapSize={[1024, 1024]}
-        shadow-camera-left={-14} shadow-camera-right={14} shadow-camera-top={10} shadow-camera-bottom={-10} />
-      <pointLight position={[0, 3.5, 0]} intensity={8} distance={14} color={VIOLET} />
+      {!headless && <fog attach="fog" args={['#0c0b1f', 22, 42]} />}
+      <hemisphereLight args={['#e9e6ff', '#151238', 1.0]} />
+      <directionalLight position={[5, 10, 9]} intensity={1.9} color="#fff1e6" castShadow shadow-mapSize={[1024, 1024]}
+        shadow-camera-left={-15} shadow-camera-right={15} shadow-camera-top={10} shadow-camera-bottom={-10} />
+      <directionalLight position={[-8, 4, -4]} intensity={0.9} color={VIOLET} />
       <Room headless={headless} />
       {!headless && (
-        <Html position={[-8.4, 2.8, -6.85]} center zIndexRange={[4, 0]} portal={portal as RefObject<HTMLElement>}>
+        <Html position={[-8.6, 3.6, -6.85]} center zIndexRange={[4, 0]} portal={portal as RefObject<HTMLElement>}>
           <div className="team-panel"><b>Time</b><span>{busy} ocupados · {ids.length - busy - off} livres</span>{waiting > 0 && <em>{waiting} esperando você</em>}</div>
         </Html>
       )}
@@ -226,7 +275,7 @@ export function OfficeScene({ views, selected, onSelect, headless = false, porta
               home={{ desk, meeting: meetingSeat(Math.max(0, seatsTaken.indexOf(a.id)), Math.max(seatsTaken.length, 1)) }}
               onSelect={onSelect} labels={!headless} portal={portal} />
             {selected === a.id && (
-              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[desk.x, 0.01, desk.z]}><ringGeometry args={[0.5, 0.58, 40]} /><meshBasicMaterial color={VIOLET} transparent opacity={0.5} /></mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]} position={[desk.x, 0.012, desk.z]}><ringGeometry args={[0.55, 0.64, 40]} /><meshBasicMaterial color={VIOLET} transparent opacity={0.5} /></mesh>
             )}
           </group>
         )
@@ -274,7 +323,7 @@ export function Office() {
   return (
     <div className="stage-3d office">
       <CanvasBoundary key={lost} onError={() => setLost(n => n + 1)}>
-        <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 34, position: [3, 15, 17] }} gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping, powerPreference: 'high-performance' }}
+        <Canvas shadows dpr={[1, 1.5]} camera={{ fov: 36, position: [0, 5.9, 14.6] }} gl={{ alpha: true, antialias: true, toneMapping: ACESFilmicToneMapping, powerPreference: 'high-performance' }}
           onCreated={({ gl }) => gl.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); console.warn('escritório: contexto WebGL perdido'); setLost(n => n + 1) })}>
           <OfficeScene views={views} selected={selectedAgent} onSelect={selectAgent} portal={overlay} agents={agents} team={team} coffeeAgent={coffee} />
         </Canvas>
