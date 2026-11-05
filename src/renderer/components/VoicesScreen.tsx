@@ -9,6 +9,9 @@ import { useVoiceStore } from '../state/voiceStore'
 // Tela Vozes… (design §6.3): estado das três fontes e a voz de cada agente de todos os perfis.
 
 const fmt = (n: number) => n.toLocaleString('pt-BR')
+const elevenError = (e: string) => /HTTP_40[13]/.test(e)
+  ? 'A ElevenLabs recusou a chave. Confira se ela tem as permissões Voices (ler) e Text to Speech.'
+  : `Não consegui falar com a ElevenLabs (${e}).`
 
 export function VoicesScreen() {
   const { profiles } = useProfileStore()
@@ -20,15 +23,25 @@ export function VoicesScreen() {
   const [key, setKey] = useState('')
   const [allMac, setAllMac] = useState(false)
   const [playing, setPlaying] = useState<string>()
+  const [errors, setErrors] = useState<Partial<Record<VoiceSource, string>>>({})
 
   const agents = profiles.flatMap(p => resolveAgentDefs(p).map(d => ({ ...d, profile: p.nome })))
 
   async function loadList(source: VoiceSource, all = allMac): Promise<VoiceOption[]> {
-    const l = await window.time.voiceList({ source, all })
-    setLists(s => ({ ...s, [source]: l }))
-    return l
+    const { voices, error } = await window.time.voiceList({ source, all })
+    setLists(s => ({ ...s, [source]: voices }))
+    setErrors(e => ({ ...e, [source]: error }))
+    return voices
   }
-  const refresh = () => window.time.voiceStatus().then(setStatus)
+  const refresh = () => window.time.voiceStatus().then(st => { setStatus(st); if (st.elevenlabs.hasKey) void loadList('elevenlabs') })
+
+  /** Uma voz diferente da ElevenLabs para cada agente, na ordem (repete se houver mais agentes que vozes). */
+  async function useElevenForAll() {
+    const list = lists.elevenlabs?.length ? lists.elevenlabs : await loadList('elevenlabs')
+    if (!list.length) return
+    useVoiceStore.setState({ elevenAck: true })
+    for (const [i, a] of agents.entries()) await choose(a.id, { source: 'elevenlabs', voiceId: list[i % list.length].id })
+  }
 
   useEffect(() => {
     void refresh()
@@ -79,6 +92,9 @@ export function VoicesScreen() {
             {status?.elevenlabs.hasKey ? (
               <>
                 <span className="ok">{credits ? `${fmt(credits.limit - credits.used)} de ${fmt(credits.limit)} créditos${credits.resetsAt ? ` · renova em ${new Date(credits.resetsAt).toLocaleDateString('pt-BR')}` : ''}` : 'Chave salva'}</span>
+                {errors.elevenlabs ? <span className="err-note">{elevenError(errors.elevenlabs)}</span>
+                  : <button className="primary small" disabled={!lists.elevenlabs?.length} onClick={() => void useElevenForAll()}>Usar em todos os agentes</button>}
+                {!errors.elevenlabs && <small className="muted">{lists.elevenlabs ? `${lists.elevenlabs.length} vozes · ou escolha por agente na lista abaixo` : 'carregando vozes…'}</small>}
                 <button className="link" onClick={async () => { await window.time.removeVoiceKey(); await refresh() }}>Remover chave</button>
               </>
             ) : (
@@ -110,7 +126,7 @@ export function VoicesScreen() {
                   {VOICE_SOURCES.map(s => <option key={s} value={s}>{VOICE_SOURCE_LABEL[s]}</option>)}
                 </select>
                 <select aria-label={`Voz do ${a.nome}`} value={c?.voiceId ?? ''} disabled={!list.length} onChange={e => void choose(a.id, { source: c!.source, voiceId: e.target.value })}>
-                  {!list.length && <option value="">{!c || c.source === 'macos' ? 'carregando…' : 'indisponível'}</option>}
+                  {!list.length && <option value="">{!c || (c.source === 'macos' && !errors.macos) ? 'carregando…' : errors[c.source] ? 'erro ao listar' : 'indisponível'}</option>}
                   {list.map(v => <option key={v.id} value={v.id}>{v.name}{v.lang && v.lang !== 'pt_BR' ? ` (${v.lang})` : ''}</option>)}
                 </select>
                 <button disabled={playing !== undefined} onClick={() => void preview(a)}>{playing === a.id ? 'Falando…' : '▶ Ouvir'}</button>

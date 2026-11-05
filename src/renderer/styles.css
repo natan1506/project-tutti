@@ -265,3 +265,5 @@ ul.err { color: #f87171; font-size: 12px; margin: 8px 0; padding-left: 18px; }
 .pending-item .who { font-size: 12px; font-weight: 650; margin-bottom: 3px; }
 .pending-item .approval code { word-break: break-all; }
 .waiting-note { color: #ffb4c2; }
+button.primary.small { font-size: 11.5px; padding: 4px 10px; align-self: flex-start; }
+.err-note { color: #ff8fa8; font-size: 11.5px; }

@@ -14,7 +14,7 @@ export function voiceHandlers(svc: VoiceService) {
     voiceStatus: () => svc.status(),
     voiceList: (arg: unknown) => {
       const { source: s, all } = z.object({ source, all: z.boolean().optional() }).parse(arg)
-      return svc.list(s, all).catch(() => [])
+      return svc.list(s, all).then(voices => ({ voices }), (e: unknown) => ({ voices: [], error: e instanceof Error ? e.message : 'FALHOU' }))
     },
     voiceChoice: (arg: unknown) => svc.choiceFor(agent.parse(arg)),
     setVoice: (arg: unknown) => { const { agentId, choice: c } = z.object({ agentId: agent, choice }).parse(arg); svc.setChoice(agentId, c) },

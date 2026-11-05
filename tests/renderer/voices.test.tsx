@@ -12,7 +12,9 @@ afterEach(cleanup)
 
 const api = {
   voiceStatus: vi.fn(async (): Promise<import('@shared/voice').VoiceSourceStatus> => ({ macos: true, voicestudio: false, elevenlabs: { hasKey: false } })),
-  voiceList: vi.fn(async ({ source }: { source: string }) => (source === 'macos' ? [{ id: 'Luciana', name: 'Luciana', lang: 'pt_BR' }, { id: 'Eddy', name: 'Eddy', lang: 'pt_BR' }] : [])),
+  voiceList: vi.fn(async ({ source }: { source: string }): Promise<{ voices: { id: string; name: string; lang?: string }[]; error?: string }> => ({
+    voices: source === 'macos' ? [{ id: 'Luciana', name: 'Luciana', lang: 'pt_BR' }, { id: 'Eddy', name: 'Eddy', lang: 'pt_BR' }] : [],
+  })),
   voiceChoice: vi.fn(async () => ({ source: 'macos', voiceId: 'Luciana' })),
   setVoice: vi.fn(async () => {}),
   synthesize: vi.fn(async () => ({ audio: 'QUJD', mime: 'audio/wav' })),
@@ -100,5 +102,27 @@ describe('tela de vozes', () => {
     await act(async () => { fireEvent.change(forja.getByLabelText('Fonte do Forja'), { target: { value: 'elevenlabs' } }) })
     expect(r.getByText(/o texto falado vai para a ElevenLabs/)).toBeTruthy()
     expect(api.setVoice).not.toHaveBeenCalled()
+  })
+
+  it('com chave da ElevenLabs: "Usar em todos os agentes" dá uma voz diferente a cada um', async () => {
+    api.voiceStatus.mockResolvedValue({ macos: true, voicestudio: false, elevenlabs: { hasKey: true } })
+    api.voiceList.mockImplementation(async ({ source }) => ({ voices: source === 'elevenlabs' ? [{ id: 'v1', name: 'Ana' }, { id: 'v2', name: 'Bia' }, { id: 'v3', name: 'Caio' }] : [] }))
+    const r = render(<VoicesScreen />)
+    await act(async () => {})
+    await act(async () => { fireEvent.click(r.getByText('Usar em todos os agentes')) })
+    const calls = api.setVoice.mock.calls.map(c => (c as unknown as [{ agentId: string; choice: { voiceId: string } }])[0])
+    expect(calls).toHaveLength(PADRAO.agents.length)
+    expect(calls.every(c => (c as { choice: { source?: string } }).choice.source === 'elevenlabs')).toBe(true)
+    expect(calls.slice(0, 3).map(c => c.choice.voiceId)).toEqual(['v1', 'v2', 'v3'])
+    api.voiceStatus.mockReset(); api.voiceList.mockReset()
+  })
+
+  it('chave recusada: mostra o motivo em vez de "indisponível"', async () => {
+    api.voiceStatus.mockResolvedValue({ macos: true, voicestudio: false, elevenlabs: { hasKey: true } })
+    api.voiceList.mockImplementation(async ({ source }) => (source === 'elevenlabs' ? { voices: [], error: 'HTTP_401' } : { voices: [] }))
+    const r = render(<VoicesScreen />)
+    await act(async () => {})
+    expect(r.getByText(/A ElevenLabs recusou a chave/)).toBeTruthy()
+    api.voiceStatus.mockReset(); api.voiceList.mockReset()
   })
 })

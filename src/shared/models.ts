@@ -76,7 +76,7 @@ export interface TimeApi {
   setLook(i: { agentId: AgentId; look: import('./look').Look | null }): Promise<Record<string, import('./look').Look>>
   /** Vozes (design §6). */
   voiceStatus(): Promise<VoiceSourceStatus>
-  voiceList(i: { source: VoiceSource; all?: boolean }): Promise<VoiceOption[]>
+  voiceList(i: { source: VoiceSource; all?: boolean }): Promise<{ voices: VoiceOption[]; error?: string }>
   voiceChoice(agentId: AgentId): Promise<VoiceChoice>
   setVoice(i: { agentId: AgentId; choice: VoiceChoice }): Promise<void>
   synthesize(i: { agentId: AgentId; text: string; name?: string }): Promise<SynthResult>

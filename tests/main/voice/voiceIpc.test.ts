@@ -12,7 +12,7 @@ describe('IPC das vozes', () => {
     expect(() => h.synthesize({ agentId: 'forja', text: 'x'.repeat(1000) })).toThrow()
     expect(() => h.setVoiceKey('curta')).toThrow()
   })
-  it('lista que falha vira lista vazia', async () => {
-    expect(await h.voiceList({ source: 'voicestudio' })).toEqual([])
+  it('lista que falha vira lista vazia com o motivo', async () => {
+    expect(await h.voiceList({ source: 'voicestudio' })).toEqual({ voices: [], error: 'x' })
   })
 })
