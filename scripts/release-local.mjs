@@ -9,6 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { cleanStrayApps } from './lib/stray-apps.mjs'
 
 const args = process.argv.slice(2)
 const dry = args.includes('--dry-run')
@@ -55,6 +56,8 @@ try {
     files.push(dmg)
   }
 } finally {
+  // O electron-builder deixa um Tutti.app em release/mac*: sem isso o macOS passa a listar mais um Tutti.
+  cleanStrayApps()
   if (swapped) {
     step(`Voltando as dependências para ${native}`)
     run('npm', ['ci'])

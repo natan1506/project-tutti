@@ -9,7 +9,8 @@
     "build": "electron-vite build",
     "typecheck": "tsc -b",
     "postinstall": "node scripts/dev-app-name.mjs",
-    "package": "electron-vite build && electron-builder --mac",
+    "package": "electron-vite build && electron-builder --mac && node scripts/clean-stray-apps.mjs",
+    "clean-apps": "node scripts/clean-stray-apps.mjs",
     "install-app": "node scripts/install-app.mjs",
     "release:local": "node scripts/release-local.mjs"
   },
