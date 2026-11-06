@@ -1,6 +1,7 @@
 import type { AgentDef } from '@shared/agents'
 import type { ApprovalReason, AutonomyLevel } from '@shared/autonomy'
 import type { AgentEvent } from '@shared/events'
+import type { BrowserService } from '../browser/browserService'
 import type { AskAgent } from '../team/agentCalls'
 
 export interface AdapterRunOptions {
@@ -26,6 +27,8 @@ export interface AdapterRunOptions {
   consultable?: AgentDef[]
   /** Skills marcadas para o agente, como plugin local (só o adaptador Claude usa; os outros recebem nas instruções). */
   skillPlugin?: { path: string; names: string[] }
+  /** Navegador do Tutti (só o adaptador Claude usa, no modo de trabalho). */
+  browser?: BrowserService
 }
 
 export interface AgentAdapter {

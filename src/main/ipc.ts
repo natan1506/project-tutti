@@ -17,6 +17,8 @@ import type { SkillService } from './skills/skillService'
 import { skillHandlers } from './skills/skillIpc'
 import { voiceHandlers } from './voice/voiceIpc'
 import { lookHandlers } from './lookIpc'
+import { browserHandlers } from './browser/browserIpc'
+import type { BrowserService } from './browser/browserService'
 import type { VoiceService } from './voice/voiceService'
 
 const absolutePath = (p: unknown): string => {
@@ -61,6 +63,7 @@ export interface ProfileDeps {
   models(provider: ProviderId): Promise<{ id: string; name: string }[]>
   skills: SkillService
   voices: VoiceService
+  browser: BrowserService
 }
 
 const provider = (p: unknown): ProviderId => {
@@ -95,6 +98,7 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
   // Parar tudo (design §5): todos os pedidos, de todos os projetos, e as execuções de skill.
   for (const [name, fn] of Object.entries(voiceHandlers(pd.voices))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   for (const [name, fn] of Object.entries(lookHandlers(store))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
+  for (const [name, fn] of Object.entries(browserHandlers(pd.browser))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   ipcMain.handle('stopAll', () => { runs.cancelAll(); skills.cancelAllSkills() })
   ipcMain.handle('activity', () => runs.activeCount())
   // Autonomia por projeto (design §4.2): chave pelo caminho, que é o que o RunService conhece.

@@ -72,6 +72,17 @@ export interface TimeApi {
   providerModels(provider: ProviderId): Promise<{ id: string; name: string }[]>
   agentStatus(projectId: string): Promise<Record<AgentId, { ok: boolean; hint?: string }>>
   /** Aparência dos mascotes por agente. */
+  browserState(): Promise<import('./browser').BrowserState>
+  browserBounds(b: import('./browser').BrowserBounds | null): Promise<void>
+  browserSelect(id: AgentId): Promise<void>
+  browserTakeover(id: AgentId): Promise<void>
+  browserRelease(): Promise<void>
+  browserNavigate(url: string): Promise<void>
+  browserBack(): Promise<void>
+  browserReload(): Promise<void>
+  browserClose(id: AgentId): Promise<void>
+  browserReset(): Promise<void>
+  onBrowser(cb: (s: import('./browser').BrowserState) => void): () => void
   looks(): Promise<Record<string, import('./look').Look>>
   setLook(i: { agentId: AgentId; look: import('./look').Look | null }): Promise<Record<string, import('./look').Look>>
   /** Vozes (design §6). */

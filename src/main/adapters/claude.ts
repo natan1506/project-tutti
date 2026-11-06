@@ -5,6 +5,8 @@ import type { LimitWindow, WindowKind } from '@shared/usage'
 import { classifyToolCall, decide, summarizeToolCall } from '../policy/commandPolicy'
 import { join } from 'node:path'
 import { AGENT_CALL_TOOL, makeAgentCallTool } from '../team/agentCalls'
+import { BROWSER_TOOL_PREFIX, browserToolEvent } from '../browser/browserPolicy'
+import { BROWSER_HINT, makeBrowserServer } from '../browser/browserTools'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
@@ -26,9 +28,14 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     env: safeEnv(dropEnv),
     settingSources: [], strictMcpConfig: true,
     plugins: opts.skillPlugin ? [{ type: 'local', path: opts.skillPlugin.path }] : [], skills: opts.skillPlugin?.names ?? [],
-    mcpServers: opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent, opts.consultable) } : {},
+    mcpServers: {
+      ...(opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent, opts.consultable) } : {}),
+      ...(opts.browser && opts.mode !== 'consult' ? { navegador: makeBrowserServer(opts.browser, opts.agent.id, {
+        autonomy: () => opts.autonomy?.() ?? 'accept_edits', requestApproval: opts.requestApproval, signal: opts.signal,
+      }, opts.askUser) } : {}),
+    },
     permissionMode: 'default',
-    systemPrompt: { type: 'preset', preset: 'claude_code', append: systemAppend(opts.agent, opts.instructions) },
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: [systemAppend(opts.agent, opts.instructions), opts.browser && opts.mode !== 'consult' ? BROWSER_HINT : ''].filter(Boolean).join('\n\n') },
     canUseTool,
     // Sozinho: escrita só no projeto, fora de .git/hooks e .git/config; falha alto se o sandbox não subir (spike-sandbox).
     // O modelo não pode pedir para sair do sandbox (allowUnsandboxedCommands); segredos da home ficam ilegíveis.
@@ -67,6 +74,8 @@ export function mapClaudeMessage(msg: SDKMessage, cwd: string): AgentEvent[] {
       if (block.type === 'text') out.push({ type: 'text', text: block.text })
       else if (block.type === 'tool_use') {
         const call = { toolName: block.name, input: block.input as Record<string, unknown> }
+        const browser = browserToolEvent(call.toolName, call.input)
+        if (browser) { out.push({ type: 'tool', ...browser }); continue }
         const summary = summarizeToolCall(call, cwd)
         out.push({ type: 'tool', name: block.name, summary })
         if (FILE_TOOLS.has(block.name)) out.push({ type: 'file_changed', path: summary })
@@ -101,7 +110,10 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
         : { behavior: 'deny', message: 'Modo consulta: só leitura.' }
     }
     // A ferramenta do app é carregada sob demanda: o Claude Code passa por ToolSearch antes (spike da Fase 3B).
-    if (opts.askAgent && (toolName === AGENT_CALL_TOOL || toolName === 'ToolSearch')) return { behavior: 'allow', updatedInput: input }
+    if (opts.askAgent && toolName === AGENT_CALL_TOOL) return { behavior: 'allow', updatedInput: input }
+    if ((opts.askAgent || opts.browser) && toolName === 'ToolSearch') return { behavior: 'allow', updatedInput: input }
+    // Cada ação no navegador é decidida lá dentro, olhando o site de verdade (browserService).
+    if (opts.browser && toolName.startsWith(BROWSER_TOOL_PREFIX)) return { behavior: 'allow', updatedInput: input }
     if (toolName === 'AskUserQuestion') {
       const answers: Record<string, string> = {}
       for (const q of (input as AskInput).questions ?? []) {

@@ -48,6 +48,8 @@ describe('o que é falado (§6.2)', () => {
 describe('aprovação em frase curta (sem comando nem caminho)', () => {
   it.each([
     ['Read', 'outside', 'Preciso da sua aprovação para ler um arquivo fora do projeto.'],
+    ['Navegador', 'network', 'Preciso da sua aprovação para abrir um site.'],
+    ['Navegador', 'ask_all', 'Preciso da sua aprovação para mexer em uma página.'],
     ['Edit', undefined, 'Preciso da sua aprovação para editar um arquivo.'],
     ['WebFetch', 'network', 'Preciso da sua aprovação para acessar a internet.'],
     ['Bash', 'outside', 'Preciso da sua aprovação para rodar um comando fora do projeto.'],

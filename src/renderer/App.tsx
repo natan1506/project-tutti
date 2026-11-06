@@ -19,6 +19,8 @@ import { useProfileStore } from './state/profileStore'
 import { UpdateBanner } from './components/UpdateBanner'
 import { UsagePanel } from './components/UsagePanel'
 import { useRunStore } from './state/runStore'
+import { BrowserPanel } from './components/BrowserPanel'
+import { applyBrowserState } from './state/browserStore'
 import { createEventBatcher } from './state/eventBatcher'
 import { startToolRefresh } from './state/toolRefresh'
 import './styles.css'
@@ -38,6 +40,10 @@ export function App() {
     return () => { off(); batch.stop() }
   }, [receiveMany])
   useEffect(() => startToolRefresh(loadTools), [loadTools])
+  useEffect(() => {
+    void window.time.browserState?.().then(applyBrowserState)
+    return window.time.onBrowser?.(applyBrowserState)
+  }, [])
   const project = useRunStore(s => s.project)
   const { active, load, setProfiles, configOpen } = useProfileStore()
   const skillsOpen = useSkillStore(s => s.open)
@@ -60,11 +66,11 @@ export function App() {
         <div className="head">
           <h1>Tutti</h1>
           <div className="sub">{busy ? <><b>{busy} de {total}</b> trabalhando</> : <><b>{total} agentes</b>, todos disponíveis</>}</div>
-          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner />{hasWebGL() && <ViewToggle />}<StopAllButton /><MuteButton /></div>
+          <div className="pickers"><ProjectPicker /><ProfilePicker /><UpdateBanner /><ViewToggle /><StopAllButton /><MuteButton /></div>
           {voiceNotice && <div className="voice-notice" role="status">{voiceNotice} <button className="link" onClick={() => useVoiceStore.setState({ notice: undefined })}>ok</button></div>}
         </div>
-        <Suspense fallback={<div className="stage-3d" />}>{view === 'escritorio' && hasWebGL() ? <Office /> : <Stage />}</Suspense>
-        <UsagePanel />
+        {view === 'navegador' ? <BrowserPanel /> : <Suspense fallback={<div className="stage-3d" />}>{view === 'escritorio' && hasWebGL() ? <Office /> : <Stage />}</Suspense>}
+        {view !== 'navegador' && <UsagePanel />}
         <Composer />
       </main>
       <ChatPanel />

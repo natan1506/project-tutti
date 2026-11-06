@@ -5,6 +5,7 @@ import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { WindowKind } from '@shared/usage'
 import { skillsInstructions, type SkillDraft } from '@shared/skills'
 import { DEFAULT_AUTONOMY, type AutonomyLevel } from '@shared/autonomy'
+import type { BrowserService } from '../browser/browserService'
 import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
@@ -34,6 +35,8 @@ interface Deps {
   autonomyFor?: (projectPath: string) => AutonomyLevel
   /** O sandbox do macOS do Agent SDK existe nesta máquina? (padrão: sim) */
   sandboxAvailable?: () => boolean
+  /** Navegador do Tutti, oferecido aos agentes Claude por CLI. */
+  browser?: BrowserService
   /** Quantos pedidos estão ativos (rodando ou na fila), a cada mudança: liga o botão Parar tudo. */
   onActivity?: (active: number) => void
 }
@@ -437,7 +440,7 @@ export class RunService {
           agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal), ...(skillPlugin ? { skillPlugin } : {}),
-          autonomy, ...(sandbox ? { sandbox } : {}),
+          autonomy, ...(sandbox ? { sandbox } : {}), ...(claudeCli && input.mode !== 'consult' && this.deps.browser ? { browser: this.deps.browser } : {}),
           ...(input.mode !== 'consult' && consultable.length ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal), consultable } : {}),
         })
         try {

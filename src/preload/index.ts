@@ -55,6 +55,21 @@ const api: TimeApi = {
   providerKeys: () => ipcRenderer.invoke('providerKeys'),
   providerModels: provider => ipcRenderer.invoke('providerModels', provider),
   agentStatus: projectId => ipcRenderer.invoke('agentStatus', projectId),
+  browserState: () => ipcRenderer.invoke('browserState'),
+  browserBounds: b => ipcRenderer.invoke('browserBounds', b),
+  browserSelect: id => ipcRenderer.invoke('browserSelect', id),
+  browserTakeover: id => ipcRenderer.invoke('browserTakeover', id),
+  browserRelease: () => ipcRenderer.invoke('browserRelease'),
+  browserNavigate: url => ipcRenderer.invoke('browserNavigate', url),
+  browserBack: () => ipcRenderer.invoke('browserBack'),
+  browserReload: () => ipcRenderer.invoke('browserReload'),
+  browserClose: id => ipcRenderer.invoke('browserClose', id),
+  browserReset: () => ipcRenderer.invoke('browserReset'),
+  onBrowser: cb => {
+    const h = (_e: IpcRendererEvent, s: import('@shared/browser').BrowserState) => cb(s)
+    ipcRenderer.on('browser', h)
+    return () => ipcRenderer.removeListener('browser', h)
+  },
   looks: () => ipcRenderer.invoke('looks'),
   setLook: i => ipcRenderer.invoke('setLook', i),
   voiceStatus: () => ipcRenderer.invoke('voiceStatus'),

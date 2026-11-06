@@ -20,6 +20,7 @@ const SHELL = new Set(['Bash', 'Shell'])
 
 /** Aprovação em frase curta, sem o comando nem o caminho (o cartão no chat mostra o detalhe). */
 export function approvalPhrase(toolName: string, reason?: string): string {
+  if (toolName === 'Navegador') return `Preciso da sua aprovação para ${reason === 'network' ? 'abrir um site' : 'mexer em uma página'}.`
   const where = reason === 'outside' ? ' fora do projeto' : ''
   const what = SHELL.has(toolName) ? (reason === 'destructive' ? 'rodar um comando que apaga ou não tem volta' : `rodar um comando${where}`)
     : READ.has(toolName) ? `ler um arquivo${where}`

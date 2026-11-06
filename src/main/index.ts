@@ -22,6 +22,8 @@ import { RunService } from './runs/runService'
 import { openStore } from './store/db'
 import { ClaudeBrain } from './team/brain'
 import { TeamService } from './team/teamService'
+import { BrowserService } from './browser/browserService'
+import { ElectronPage } from './browser/electronPage'
 import { cachedDetector, realExec } from './tools/detect'
 import { pickReplacement } from './usage/handoff'
 import { UsageService } from './usage/usageService'
@@ -61,8 +63,18 @@ app.whenReady().then(async () => {
   let pushUsage: (s: import('@shared/usage').UsageSnapshot) => void = () => {}
   let pushActivity: (n: number) => void = () => {}
   const usage = new UsageService({ store, emit: s => pushUsage(s), pollClaude: async () => ((await toolReady('claude')) ? pollClaudeUsage() : []) })
+  // A janela nasce depois dos serviços; a página só é criada quando um agente pede, e aí ela já existe.
+  let mainWindow: BrowserWindow | undefined
+  const browser = new BrowserService({
+    createPage: hooks => new ElectronPage(mainWindow!, hooks),
+    emit: s => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('browser', s) },
+  })
+  const sweepBrowser = setInterval(() => browser.sweep(), 60_000)
+  app.on('will-quit', () => clearInterval(sweepBrowser))
+  if (process.env.TUTTI_E2E) (globalThis as { __tuttiBrowser?: BrowserService }).__tuttiBrowser = browser
   const runs = new RunService({
     store,
+    browser,
     adapters,
     emit: (runId, ev) => send(runId, ev),
     toolReady,
@@ -101,10 +113,11 @@ app.whenReady().then(async () => {
   })
   await runs.recover()
   const win = createWindow()
+  mainWindow = win
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
   pushActivity = n => { if (!win.isDestroyed()) win.webContents.send('activity', n) }
   pushProfiles = ps => { if (!win.isDestroyed()) win.webContents.send('profiles', ps) }
-  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [], skills, voices })
+  send = registerIpc(win, store, runs, team, usage, tools, { profiles, keys, keysChanged: () => void opencode.restart(), runs, models: async p => (await opencode.api()).models?.(p) ?? [], skills, voices, browser })
   // Versão nova no GitHub (só no app empacotado): aviso com link para a release; a URL nunca vem da interface.
   let update: { version: string; url: string } | null = null
   ipcMain.handle('updateInfo', () => update)

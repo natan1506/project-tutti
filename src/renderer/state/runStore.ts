@@ -34,6 +34,7 @@ export const useRunStore = create<UiState>((set, get) => ({
 
   async setProject(project) {
     set({ project, conversation: undefined, chat: emptyChat() })
+    void window.time.browserReset?.()
     const [latest] = await window.time.listConversations(project.id)
     if (latest) await get().openConversation(latest)
   },
@@ -47,9 +48,13 @@ export const useRunStore = create<UiState>((set, get) => ({
     if (project) await useProfileStore.getState().refreshStatus(project.id)
   },
 
-  newConversation: () => set({ conversation: undefined, chat: emptyChat() }),
+  newConversation: () => {
+    set({ conversation: undefined, chat: emptyChat() })
+    void window.time.browserReset?.() // as abas são da conversa: cada uma pesa em memória
+  },
 
   async openConversation(conversation) {
+    if (get().conversation && get().conversation?.id !== conversation.id) void window.time.browserReset?.()
     const { runs, events } = await window.time.loadConversation(conversation.id)
     set({ conversation, chat: chatFromHistory(runs, events) })
   },

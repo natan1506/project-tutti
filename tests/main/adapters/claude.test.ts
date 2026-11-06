@@ -198,3 +198,33 @@ describe('uso e limite do Claude', () => {
     ])
   })
 })
+
+describe('navegador do Tutti', () => {
+  const browser = {} as never
+  it('só entra no modo de trabalho, com a instrução de não abrir navegador externo', () => {
+    const on = buildClaudeOptions(opts({ browser }), vi.fn() as never)
+    expect(Object.keys(on.mcpServers ?? {})).toContain('navegador')
+    expect(JSON.stringify(on.systemPrompt)).toContain('navegador externo')
+    const consult = buildClaudeOptions(opts({ browser, mode: 'consult' }), vi.fn() as never)
+    expect(Object.keys(consult.mcpServers ?? {})).not.toContain('navegador')
+    expect(Object.keys(buildClaudeOptions(opts(), vi.fn() as never).mcpServers ?? {})).not.toContain('navegador')
+  })
+  it('as ferramentas passam direto: a permissão é decidida dentro do navegador, olhando o site', async () => {
+    const requestApproval = vi.fn(async () => false)
+    const can = makeCanUseTool(opts({ browser, requestApproval }))
+    for (const t of ['mcp__navegador__clicar', 'ToolSearch']) expect(await can(t, {}, {} as never)).toMatchObject({ behavior: 'allow' })
+    expect(requestApproval).not.toHaveBeenCalled()
+  })
+  it('sem navegador no pedido, a mesma ferramenta não passa direto', async () => {
+    const requestApproval = vi.fn(async () => false)
+    expect(await makeCanUseTool(opts({ requestApproval }))('mcp__navegador__clicar', {}, {} as never)).toMatchObject({ behavior: 'deny' })
+  })
+  it('em consulta, navegador nunca', async () => {
+    expect(await makeCanUseTool(opts({ browser, mode: 'consult' }))('mcp__navegador__clicar', {}, {} as never)).toMatchObject({ behavior: 'deny' })
+  })
+  it('no chat aparece em português e sem o texto digitado', () => {
+    const msg = { type: 'assistant', message: { content: [{ type: 'tool_use', name: 'mcp__navegador__digitar', input: { ref: 'e1', texto: 'segredo' } }] } } as unknown as SDKMessage
+    const [ev] = mapClaudeMessage(msg, cwd)
+    expect(ev).toEqual({ type: 'tool', name: 'Navegador', summary: 'Digitando em e1' })
+  })
+})

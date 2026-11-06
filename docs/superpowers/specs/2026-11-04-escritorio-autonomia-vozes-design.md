@@ -253,3 +253,18 @@ As três partes não dependem umas das outras. Proponho três planos, nesta orde
 - **Painel do chat redimensionável** (arrastar a borda; duplo clique volta ao padrão).
 - **Sozinho** roda também comandos e ferramentas que o Tutti não reconhece (§4.1.1 atualizado).
 - **Tela de perfis redesenhada**: agentes em cartões resumidos, um aberto por vez, rodapé fixo com salvar/descartar.
+
+## 12. Navegador dentro do Tutti (aprovado em 2026-11-06)
+
+Uma aba por agente, na vista **Navegador**. Você assiste ao vivo e pode **Assumir**; o agente espera até você **Devolver**.
+
+| Nível | Ler a página aberta | Abrir site novo | Clicar e digitar |
+|---|---|---|---|
+| Perguntar tudo | livre | pede | pede |
+| Aceitar edições | livre | pede uma vez por site | livre nos sites aprovados |
+| Sozinho | livre | livre | livre |
+
+Em todos os níveis: o agente nunca digita em campo de senha, cartão ou código; downloads sempre pedem; só `http` e `https`.
+Sessão própria (`persist:tutti-browser`), sem preload nem Node. As abas fecham ao trocar de conversa ou depois de 15 minutos paradas.
+
+Por agora, só agentes Claude por CLI (Bússola, Forja, Pincel). Curinga, Radar e Lupa ficam para depois: o Lupa roda no Codex, que não deixa o Tutti interceptar ações, então a aprovação teria de ficar dentro do próprio navegador.
