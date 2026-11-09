@@ -37,7 +37,7 @@ Hoje o Tutti só usa um MCP: o Linear, que o cérebro da esteira pega do `~/.cla
 | **Claude** (CLI) | livre | pede aprovação a cada uso (cartão no app; caixa "1. Permitir / 2. Negar" no terminal), via `canUseTool` |
 | **Codex** | só as ferramentas de leitura, via `enabled_tools` na config do MCP | nunca recebe |
 | **opencode** | só as de leitura (ferramentas de escrita desligadas na config que o Tutti gera) | nunca recebe |
-| **Antigravity** | só se um teste provar que dá para ligar MCP **por sessão** (ex.: `--settings`) sem tocar na config global e limitando às de leitura; senão, fica sem MCP | nunca recebe |
+| **Antigravity** | **sem MCP** — testado em 2026-11-09: `--settings` recusa `mcpServers` ("unknown setting"); o único caminho é `agy mcp add`, que grava na config global | nunca recebe |
 | **Agentes por API** (via opencode) | como o opencode | nunca recebe |
 
 - A autonomia vale para as ferramentas do MCP no Claude como para os comandos de hoje: no nível **Sozinho**, a escrita **ainda pede aprovação** (escrever fora do projeto é o tipo de coisa que o "Sozinho" não cobre).
@@ -69,6 +69,12 @@ Hoje o Tutti só usa um MCP: o Linear, que o cérebro da esteira pega do `~/.cla
 - **opencode**: um servidor só para todos os agentes opencode (Curinga e API); o MCP vai para o servidor se ao menos um agente opencode estiver marcado, só com as ferramentas de leitura. Mudança na lista reinicia o servidor só quando nenhum pedido opencode estiver rodando (senão, no próximo).
 - **Cérebro**: recebe os MCPs marcados para o agente dele, **só leitura** (no meio do plano/revisão não há aprovação). Cérebro que não é Claude por CLI (TextBrain) fica sem MCP.
 - **"Todos os agentes"** é dinâmico (agentes novos e outros perfis entram). É seguro porque escrita sempre pede aprovação por uso.
+
+### Verificado em 2026-11-09
+- Linear real importado pelo `McpService` (OAuth do `mcp-remote`): 70 ferramentas, 38 de leitura e 32 de escrita (`whoami` caiu em escrita pelo nome; dá para mover).
+- Codex leu o título do DOKZ-2166 pelo Linear e só enxergou as 38 de leitura (`enabled_tools` funciona).
+- Claude tentou `save_comment`: o Tutti pediu aprovação (motivo "ação de um MCP"), foi negada e nada foi escrito.
+- opencode aceitou a config (servidor `fake` reconhecido; `fake_*` negado e `fake_get_thing` liberado nas permissões). A conexão ao vivo do MCP no opencode não foi vista sem um pedido.
 
 ## 7. O que fica com o construtor
 - Layout da tela MCPs (seguir a de Skills) e do painel `/mcp`.

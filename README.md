@@ -19,6 +19,7 @@
 - [Como um pedido funciona](#como-um-pedido-funciona)
 - [Perfis: monte o seu time](#perfis-monte-o-seu-time)
 - [Skills criadas no Tutti](#skills-criadas-no-tutti)
+- [MCPs](#mcps)
 - [Uso e limites das assinaturas](#uso-e-limites-das-assinaturas)
 - [Segurança e privacidade](#segurança-e-privacidade)
 - [Instalação](#instalação)
@@ -102,6 +103,7 @@ Na esteira, o Codex escreve **só dentro da pasta do projeto e sem internet** (c
 |---|---|
 | `/config` | Escolher quem é cérebro, executor, tester e reserva; autonomia e voltas (também direto: `/config executor Curinga`) |
 | `/agents` | O time do perfil: IA, modelo, papel e uso de cada um |
+| `/mcp` | MCPs instalados: ligar/desligar, importar do Claude Code (`i`) e `/mcp add nome comando…` |
 | `/usage` | Quanto cada agente gastou nesta conversa e quando cada limite volta |
 | `/history` | Escolher e retomar uma conversa do projeto, inclusive as do app |
 | `/new` | Conversa nova |
@@ -171,12 +173,14 @@ Com o chip **Time** escolhido, o coordenador do perfil (o Bússola, no Padrão):
 
 ### Instruções que os agentes recebem
 
-Além da persona de cada agente, entram só as suas instruções:
+Além da persona de cada agente, entram as suas instruções e o que você já ensinou ao Claude Code:
 
-- `~/.claude/CLAUDE.md` e `~/.codex/AGENTS.md` (globais)
-- `CLAUDE.md` e `AGENTS.md` na raiz do projeto
+- `~/.claude/CLAUDE.md` e `~/.codex/AGENTS.md` (globais) e `CLAUDE.md`/`AGENTS.md` na raiz do projeto, para todos, inclusive o cérebro da esteira.
+- **Memória do projeto** do Claude Code (`~/.claude/projects/<projeto>/memory`): o `MEMORY.md` e as memórias que ele lista.
+- **Suas skills** de `~/.claude/skills`: os agentes Claude recebem como skill (com a pasta inteira: template, exemplos, scripts); o Codex recebe o texto e o caminho da pasta.
+- **MCPs** instalados no Tutti (veja [MCPs](#mcps)).
 
-Plugins, hooks, MCP e configurações pessoais das CLIs **não** entram.
+Memória e skills vão só para Claude e Codex (pela assinatura): modelos gratuitos do opencode e agentes por API não recebem dados do seu trabalho. Plugins, hooks e permissões do Claude Code continuam de fora.
 
 ## Perfis: monte o seu time
 
@@ -197,6 +201,34 @@ Em **Configurar perfis… → Chaves de API**:
 - **API é cobrada por uso.** No Time, todo passo com agente por API exige que você aprove o plano. Agentes por API não são consultados no meio do trabalho.
 
 Para usar DeepSeek ou Kimi: salve a chave, crie um agente com **Transporte = API (chave)**, escolha o provedor e o modelo, e selecione o perfil no 👥.
+
+## MCPs
+
+<p align="center">
+  <img src="docs/img/app-mcps.png" alt="A tela de MCPs com o Linear importado: ferramentas separadas em leitura e escrita" width="900" />
+</p>
+
+Um MCP dá ferramentas externas aos agentes (ler um card no Linear, consultar um banco, abrir um navegador). Instale pelo app (ícone de tomada na barra da esquerda) ou pelo terminal (`/mcp`):
+
+- **Importar do Claude Code**: traz os MCPs do seu `~/.claude.json` com um clique. O Linear entra sozinho na primeira vez que o Tutti abre; o Playwright entra desligado (os agentes Claude já usam o navegador do Tutti).
+- **Adicionar**: nome, comando (ex.: `npx -y mcp-remote https://mcp.linear.app/mcp`) ou URL, variáveis secretas (vão para o Keychain), modo e quais agentes usam.
+- Ao salvar, o Tutti conecta, lista as ferramentas e separa **leitura** (`get_`, `list_`, `search_`…) de **escrita**. Dá para mover qualquer uma de lado.
+
+**Quem pode fazer o quê:**
+
+| Agente | Ferramentas de leitura | Ferramentas de escrita |
+|---|---|---|
+| Claude | livres | só em MCP marcado "pode escrever", e **cada uso pede a sua aprovação** (até no nível Sozinho) |
+| Codex | só as de leitura (o Codex nem enxerga as outras) | nunca |
+| opencode e APIs | só as de leitura | nunca |
+| Antigravity | sem MCP (o `agy` não aceita MCP por sessão sem mexer na config global dele) | nunca |
+| Cérebro da esteira | só as de leitura (lê o card do Linear e usa os critérios de aceite no plano) | nunca |
+
+Segredos de MCP ficam no Keychain e nunca aparecem na linha de comando: o Tutti inicia o MCP por um lançador que lê o segredo de um arquivo temporário e o apaga. No terminal, que não lê o Keychain do app, MCP com segredo fica disponível só pelo app.
+
+<p align="center">
+  <img src="docs/img/terminal-mcp.png" alt="O painel /mcp no terminal: o Linear ligado, só leitura, com 38 ferramentas de leitura e 32 de escrita" width="760" />
+</p>
 
 ## Skills criadas no Tutti
 
@@ -382,6 +414,7 @@ Cada ferramenta tem um **adaptador** com a mesma interface (`run(opts) → event
 - `docs/superpowers/specs/2026-10-30-time-de-agentes-design.md`: design original (elenco, fluxo, segurança, interface).
 - `docs/superpowers/specs/2026-11-01-custos-e-perfis-design.md`: uso, limites e perfis.
 - `docs/superpowers/specs/2026-11-09-tutti-terminal-design.md`: o terminal e a esteira.
+- `docs/superpowers/specs/2026-11-09-mcps-design.md`: MCPs no Tutti.
 - `docs/superpowers/plans/`: o plano de cada fase.
 - `docs/mockups/`: mockup aprovado da tela principal.
 
@@ -393,7 +426,8 @@ Cada ferramenta tem um **adaptador** com a mesma interface (`run(opts) → event
 - Ainda não implementado do design original: rodada de testes com correção automática, correção a partir da revisão da Lupa e notas/caderno de lições por pedido.
 - Skills são só texto (`SKILL.md`), sem scripts nem arquivos extras.
 - No terminal, a troca de agente é só por disponibilidade; ainda não escolhe pelo histórico de quem se saiu melhor em cada tipo de tarefa.
-- O Antigravity não escreve na esteira (a cerca dele não segura a escrita dentro da pasta).
+- O Antigravity não escreve na esteira (a cerca dele não segura a escrita dentro da pasta) e não recebe MCPs.
+- No opencode, a conexão do MCP só foi verificada pela configuração aceita, não com um pedido real.
 
 ---
 
