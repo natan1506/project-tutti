@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { getAgent, registerAgents } from '@shared/agents'
@@ -10,6 +10,7 @@ import type { AdapterRunOptions, AgentAdapter } from '../../../src/main/adapters
 import { runGit } from '../../../src/main/git/git'
 import { snapshot } from '../../../src/main/git/checkpoint'
 import { openStore } from '../../../src/main/store/db'
+import { claudeProjectSlug } from '../../../src/main/instructions/userContext'
 import { consultableFor, RunService } from '../../../src/main/runs/runService'
 
 type Script = (opts: AdapterRunOptions) => AsyncGenerator<AgentEvent>
@@ -26,6 +27,7 @@ async function setup(script: Script, { git = true, toolReady, radar = false, all
     await runGit(dir, ['init', '-q'])
     writeFileSync(join(dir, 'a.txt'), 'a\n')
   }
+  const home = mkdtempSync(join(tmpdir(), 'home-'))
   const store = openStore(':memory:')
   const project = store.upsertProject(dir)
   const conv = store.createConversation(project.id, 't')
@@ -33,12 +35,12 @@ async function setup(script: Script, { git = true, toolReady, radar = false, all
   const fake = new FakeAdapter(script)
   const svc = new RunService({
     store, adapters: { claude: fake, codex: all ? fake : undefined, gemini: radar || all ? fake : undefined, opencode: all ? fake : undefined },
-    emit: (_id, ev) => emitted.push(ev), homeDir: mkdtempSync(join(tmpdir(), 'home-')), toolReady, keyReady,
+    emit: (_id, ev) => emitted.push(ev), homeDir: home, toolReady, keyReady, skillPluginDir: id => join(home, 'plugins', id),
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
   // Espera o agente ser chamado (o ponto de restauração usa git e pode passar de 300 ms numa máquina carregada).
   const untilRunning = () => waitFor(() => fake.calls.length > 0)
-  return { dir, store, conv, emitted, fake, svc, start, untilRunning }
+  return { dir, home, store, conv, emitted, fake, svc, start, untilRunning }
 }
 const types = (evs: RunEvent[]) => evs.map(e => e.type)
 const waitFor = async (cond: () => boolean) => { for (let i = 0; i < 200 && !cond(); i++) await new Promise(r => setTimeout(r, 10)) }
@@ -74,6 +76,50 @@ describe('RunService', () => {
     await svc.whenFinished(runId)
     expect(types(emitted)).toEqual(['run_started', 'done', 'run_finished'])
     expect(store.listRuns(conv.id)[0]).toMatchObject({ status: 'done', hasCheckpoint: false })
+  })
+
+  it('memórias e skills do Claude Code chegam ao Claude (skill como plugin, com os arquivos da pasta)', async () => {
+    const { dir, home, fake, svc, start } = await setup(async function* () { yield { type: 'done' } })
+    const mem = join(home, '.claude', 'projects', claudeProjectSlug(dir), 'memory')
+    mkdirSync(mem, { recursive: true })
+    writeFileSync(join(mem, 'MEMORY.md'), '- [Pnpm](pnpm.md) — gerenciador')
+    writeFileSync(join(mem, 'pnpm.md'), 'Use pnpm.')
+    const sk = join(home, '.claude', 'skills', 'entregar-card')
+    mkdirSync(sk, { recursive: true })
+    writeFileSync(join(sk, 'SKILL.md'), '---\nname: entregar-card\ndescription: Use ao entregar um card\n---\nLeia o card.')
+    writeFileSync(join(sk, 'template.md'), 'modelo')
+    await svc.whenFinished(await start())
+    expect(fake.seen!.instructions).toContain('Use pnpm.')
+    expect(fake.seen!.skillPlugin!.names).toContain('tutti:entregar-card')
+    expect(readFileSync(join(fake.seen!.skillPlugin!.path, 'skills', 'entregar-card', 'template.md'), 'utf8')).toBe('modelo')
+  })
+
+  it('o Codex recebe memórias e skills como texto, com a pasta da skill', async () => {
+    const { dir, home, fake, svc, conv } = await setup(async function* () { yield { type: 'done' } }, { all: true })
+    const mem = join(home, '.claude', 'projects', claudeProjectSlug(dir), 'memory')
+    mkdirSync(mem, { recursive: true })
+    writeFileSync(join(mem, 'MEMORY.md'), 'regra do time')
+    const sk = join(home, '.claude', 'skills', 'qa')
+    mkdirSync(sk, { recursive: true })
+    writeFileSync(join(sk, 'SKILL.md'), '---\nname: qa\ndescription: validar no TestFlight\n---\npassos do qa')
+    await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'lupa', prompt: 'x' }))
+    expect(fake.seen!.agent.id).toBe('lupa')
+    expect(fake.seen!.instructions).toContain('regra do time')
+    expect(fake.seen!.instructions).toContain('passos do qa')
+    expect(fake.seen!.instructions).toContain(`Arquivos desta skill: ${sk}`)
+  })
+
+  it('o Curinga (opencode) não recebe memórias nem skills do Claude Code', async () => {
+    const { dir, home, fake, svc, conv } = await setup(async function* () { yield { type: 'done' } }, { all: true })
+    const mem = join(home, '.claude', 'projects', claudeProjectSlug(dir), 'memory')
+    mkdirSync(mem, { recursive: true })
+    writeFileSync(join(mem, 'MEMORY.md'), 'segredo da empresa')
+    mkdirSync(join(home, '.claude', 'skills', 'x'), { recursive: true })
+    writeFileSync(join(home, '.claude', 'skills', 'x', 'SKILL.md'), '---\nname: x\ndescription: usar sempre\n---\ncorpo da skill')
+    await svc.whenFinished(await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'curinga', prompt: 'x' }))
+    expect(fake.seen!.agent.id).toBe('curinga')
+    expect(fake.seen!.instructions).not.toContain('segredo da empresa')
+    expect(fake.seen!.instructions).not.toContain('corpo da skill')
   })
 
   it('recusa agente cuja ferramenta não tem adaptador', async () => {

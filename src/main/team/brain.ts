@@ -2,7 +2,10 @@ import { query, type Options } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentId } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
 import type { Confirmation, EsteiraPlan, Triage } from '@shared/team'
+import { homedir } from 'node:os'
 import { safeEnv } from '../adapters/env'
+import { linearReadOnly, loadUserSkills, userMcpServers } from '../instructions/userContext'
+import { writeClaudePlugin } from '../skills/claudePlugin'
 import { esteiraPlanPrompt, lineupPrompt, reviewPrompt, triagePrompt } from './prompts'
 
 // O "cérebro" do Bússola: duas chamadas por pedido de time, saída JSON validada por esquema (spike da Fase 3B).
@@ -15,9 +18,9 @@ export interface Brain {
   triage(input: { cwd: string; prompt: string; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
   lineup(input: { cwd: string; prompt: string; triage: Triage; confirmations: Confirmation[]; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
   /** Esteira: o que o executor deve fazer → `{ tarefa, pronto }`. */
-  plan(input: { cwd: string; prompt: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
+  plan(input: { cwd: string; prompt: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink; instructions?: string }): Promise<unknown>
   /** Esteira: ficou pronto? → `{ pronto, falta }`. */
-  review(input: { cwd: string; prompt: string; plan: EsteiraPlan; executor: string; tester: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
+  review(input: { cwd: string; prompt: string; plan: EsteiraPlan; executor: string; tester: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink; instructions?: string }): Promise<unknown>
 }
 
 const obj = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', additionalProperties: false, required, properties })
@@ -45,8 +48,29 @@ const BRAIN_MODEL = 'claude-sonnet-5-5'
 
 type QueryFn = typeof query
 
+/** Instruções do projeto (CLAUDE.md, AGENTS.md, memória) antes do pedido ao cérebro. */
+export const withInstructions = (prompt: string, instructions?: string) =>
+  instructions?.trim() ? `Instruções do Natan para este projeto (siga-as):\n\n${instructions.trim()}\n\n---\n\n${prompt}` : prompt
+
 export class ClaudeBrain implements Brain {
-  constructor(private queryFn: QueryFn = query) {}
+  /** `ctx`: onde ficam a config do Claude Code (home) e o plugin com as skills do Natan para o cérebro. */
+  constructor(private queryFn: QueryFn = query, private ctx?: { homeDir?: string; pluginDir?: string }) {}
+
+  /** Na esteira, o cérebro lê cards do Linear (só leitura) e conhece as skills do Natan. Triagem e escalação não. */
+  private esteiraOptions(cwd: string, schema: object, signal: AbortSignal): Options {
+    const o = this.options(cwd, schema, signal)
+    const home = this.ctx?.homeDir ?? homedir()
+    const skills = loadUserSkills(home)
+    const plugin = skills.length && this.ctx?.pluginDir ? writeClaudePlugin(this.ctx.pluginDir, [], skills) : undefined
+    return {
+      ...o,
+      mcpServers: userMcpServers(home, ['linear']) as Options['mcpServers'],
+      canUseTool: async (toolName, input) => (linearReadOnly(toolName) || toolName === 'Skill'
+        ? { behavior: 'allow', updatedInput: input }
+        : { behavior: 'deny', message: 'O cérebro só lê cards do Linear e usa skills; não altera nada.' }),
+      ...(plugin ? { plugins: [{ type: 'local', path: plugin.path }], skills: plugin.names } : {}),
+    }
+  }
 
   options(cwd: string, schema: object, signal: AbortSignal): Options {
     const abortController = new AbortController()
@@ -81,10 +105,10 @@ export class ClaudeBrain implements Brain {
   }
 
   plan(i: Parameters<Brain['plan']>[0]) {
-    return this.ask(esteiraPlanPrompt(i.prompt, i.cerebro), this.options(i.cwd, PLAN_SCHEMA, i.signal), i.onUsage)
+    return this.ask(withInstructions(esteiraPlanPrompt(i.prompt, i.cerebro), i.instructions), this.esteiraOptions(i.cwd, PLAN_SCHEMA, i.signal), i.onUsage)
   }
 
   review(i: Parameters<Brain['review']>[0]) {
-    return this.ask(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro), this.options(i.cwd, REVIEW_SCHEMA, i.signal), i.onUsage)
+    return this.ask(withInstructions(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro), i.instructions), this.esteiraOptions(i.cwd, REVIEW_SCHEMA, i.signal), i.onUsage)
   }
 }

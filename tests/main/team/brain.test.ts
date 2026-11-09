@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import { ClaudeBrain, LINEUP_SCHEMA, TRIAGE_SCHEMA } from '../../../src/main/team/brain'
@@ -41,5 +44,41 @@ describe('ClaudeBrain', () => {
   it('falha de saída estruturada vira exceção', async () => {
     const q = fakeQuery({ subtype: 'error_max_structured_output_retries' })
     await expect(new ClaudeBrain(q.fn).triage({ ...input, available: [...input.available] })).rejects.toThrow(/error_max_structured_output_retries/)
+  })
+})
+
+describe('ClaudeBrain na esteira: o que o Natan configurou no Claude Code', () => {
+  function home() {
+    const h = mkdtempSync(join(tmpdir(), 'home-'))
+    writeFileSync(join(h, '.claude.json'), JSON.stringify({ mcpServers: { linear: { type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'] }, playwright: { command: 'npx' } } }))
+    const sk = join(h, '.claude', 'skills', 'entregar-card')
+    mkdirSync(sk, { recursive: true })
+    writeFileSync(join(sk, 'SKILL.md'), '---\nname: entregar-card\ndescription: Use ao entregar um card\n---\nLeia o card.')
+    return h
+  }
+  const signal = new AbortController().signal
+
+  it('plano: instruções do projeto no pedido, Linear ligado só para leitura, skills como plugin', async () => {
+    const h = home()
+    const q = fakeQuery({ subtype: 'success', structured_output: { tarefa: 't', pronto: 'p' } })
+    await new ClaudeBrain(q.fn, { homeDir: h, pluginDir: join(h, 'plug') }).plan({ cwd: '/p', prompt: 'entrega o DOKZ-1', cerebro: 'bussola', signal, instructions: 'use pnpm sempre' })
+    const { prompt, options: o } = q.seen[0]
+    expect(prompt).toContain('use pnpm sempre')
+    expect(prompt).toContain('Linear')
+    expect(Object.keys(o.mcpServers!)).toEqual(['linear'])
+    const ask = (name: string) => o.canUseTool!(name, {}, { signal } as never)
+    expect(await ask('mcp__linear__get_issue')).toMatchObject({ behavior: 'allow' })
+    expect(await ask('mcp__linear__save_issue')).toMatchObject({ behavior: 'deny' })
+    expect(await ask('Bash')).toMatchObject({ behavior: 'deny' })
+    expect(o.skills).toContain('tutti:entregar-card')
+    expect(o.plugins).toHaveLength(1)
+  })
+
+  it('triagem continua sem Linear e sem skills', async () => {
+    const h = home()
+    const q = fakeQuery({ subtype: 'success', structured_output: { scores: [], candidates: [], big: false } })
+    await new ClaudeBrain(q.fn, { homeDir: h, pluginDir: join(h, 'plug') }).triage({ ...input, available: [...input.available] })
+    expect(q.seen[0].options.mcpServers).toEqual({})
+    expect(q.seen[0].options.plugins).toEqual([])
   })
 })

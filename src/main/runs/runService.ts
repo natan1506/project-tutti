@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { homedir } from 'node:os'
 import { agentsOfProfile, getAgent, knownAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
 import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
@@ -13,6 +14,7 @@ import { isGitRepo, runGit } from '../git/git'
 import { tryLock, unlock, waitLock } from './projectLock'
 import { buildContext, collectEntries } from '../context/conversationContext'
 import { loadInstructions } from '../instructions/loadInstructions'
+import { loadProjectMemory, loadUserSkills } from '../instructions/userContext'
 import type { Store } from '../store/db'
 import { ProjectQueue } from './projectQueue'
 import { writeClaudePlugin } from '../skills/claudePlugin'
@@ -437,14 +439,22 @@ export class RunService {
     let sessionId: string | undefined
     this.executing.add(runId)
     try {
-      const loaded = await loadInstructions(input.projectPath, this.deps.homeDir)
+      const home = this.deps.homeDir ?? homedir()
+      const base = await loadInstructions(input.projectPath, home)
       if (signal.aborted) return
       const agent = getAgent(input.agentId)
+      // O que o Natan ensinou ao Claude Code (memórias do projeto e skills de ~/.claude/skills) vai só para Claude e
+      // Codex pela assinatura: modelos gratuitos e APIs de terceiros não recebem dados do trabalho.
+      const trusted = agent.transport.kind === 'cli' && (agent.tool === 'claude' || agent.tool === 'codex')
+      const memory = trusted ? loadProjectMemory(input.projectPath, home) : ''
+      const loaded = [base, memory && `## Memória do projeto (Claude Code)\n\n${memory}`].filter(Boolean).join('\n\n')
       // Skills (plano skills, Design §6): Claude CLI por plugin local; as outras ferramentas nas instruções. Consulta não recebe.
       const skills = input.mode === 'consult' ? [] : this.deps.skillsFor?.(agent.id) ?? []
-      const byPlugin = skills.length > 0 && agent.transport.kind === 'cli' && agent.tool === 'claude' && !!this.deps.skillPluginDir
-      const skillPlugin = byPlugin ? writeClaudePlugin(this.deps.skillPluginDir!(agent.id), skills) : undefined
-      const instructions = byPlugin ? loaded : [loaded, skillsInstructions(skills)].filter(Boolean).join('\n\n')
+      const userSkills = trusted && input.mode !== 'consult' ? loadUserSkills(home).filter(u => !skills.some(s => s.name === u.name)) : []
+      const byPlugin = skills.length + userSkills.length > 0 && agent.transport.kind === 'cli' && agent.tool === 'claude' && !!this.deps.skillPluginDir
+      const skillPlugin = byPlugin ? writeClaudePlugin(this.deps.skillPluginDir!(agent.id), skills, userSkills) : undefined
+      const asText = [...skills, ...userSkills.map(u => ({ ...u, body: `${u.body}\n\n(Arquivos desta skill: ${u.dir})` }))]
+      const instructions = byPlugin ? loaded : [loaded, skillsInstructions(asText)].filter(Boolean).join('\n\n')
       // Autonomia (design §4): lida a cada permissão; o sandbox do Sozinho é decidido no começo do pedido, só para Claude CLI.
       const autonomy = (): AutonomyLevel => this.deps.autonomyFor?.(input.projectPath) ?? DEFAULT_AUTONOMY
       const claudeCli = agent.transport.kind === 'cli' && agent.tool === 'claude'

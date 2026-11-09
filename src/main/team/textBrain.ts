@@ -1,7 +1,7 @@
 import type { AgentDef } from '@shared/agents'
 import type { AgentAdapter } from '../adapters/types'
 import { effectiveModel } from '../runs/runService'
-import { LINEUP_SCHEMA, PLAN_SCHEMA, REVIEW_SCHEMA, TRIAGE_SCHEMA, type Brain, type UsageSink } from './brain'
+import { LINEUP_SCHEMA, PLAN_SCHEMA, REVIEW_SCHEMA, TRIAGE_SCHEMA, withInstructions, type Brain, type UsageSink } from './brain'
 import { extractJson } from './parse'
 import { esteiraPlanPrompt, lineupPrompt, reviewPrompt, triagePrompt } from './prompts'
 
@@ -34,10 +34,10 @@ export class TextBrain implements Brain {
   }
 
   plan(i: Parameters<Brain['plan']>[0]) {
-    return this.ask(esteiraPlanPrompt(i.prompt, this.coordinator.id), PLAN_SCHEMA, i.cwd, i.signal, i.onUsage)
+    return this.ask(withInstructions(esteiraPlanPrompt(i.prompt, this.coordinator.id), i.instructions), PLAN_SCHEMA, i.cwd, i.signal, i.onUsage)
   }
 
   review(i: Parameters<Brain['review']>[0]) {
-    return this.ask(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, this.coordinator.id), REVIEW_SCHEMA, i.cwd, i.signal, i.onUsage)
+    return this.ask(withInstructions(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, this.coordinator.id), i.instructions), REVIEW_SCHEMA, i.cwd, i.signal, i.onUsage)
   }
 }

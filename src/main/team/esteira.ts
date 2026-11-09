@@ -1,9 +1,12 @@
+import { homedir } from 'node:os'
 import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
 import type { AutonomyLevel } from '@shared/autonomy'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { Esteira, Profile } from '@shared/profiles'
 import type { EsteiraPlan, EsteiraReview } from '@shared/team'
 import type { LimitWindow } from '@shared/usage'
+import { loadInstructions } from '../instructions/loadInstructions'
+import { loadProjectMemory } from '../instructions/userContext'
 import type { RunService } from '../runs/runService'
 import type { Store } from '../store/db'
 import type { Brain, UsageSink } from './brain'
@@ -55,6 +58,8 @@ export interface EsteiraCtx {
   /** Espera o filho (e quem o substituiu por limite); devolve o id final. */
   settle(id: string): Promise<string>
   now?: () => number
+  /** Pasta pessoal (instruções globais e memória do Claude Code); padrão: a do usuário. */
+  homeDir?: string
 }
 
 const childText = (store: Store, id: string) =>
@@ -91,7 +96,11 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
 
   const out = checkBrain()
   if (out) return failed(out)
-  const plan = await askBrain<EsteiraPlan>(() => brain.plan({ cwd, prompt: input.prompt, cerebro, signal, onUsage }), parseEsteiraPlan, signal)
+  // O cérebro planeja com as mesmas regras do projeto que o executor recebe (CLAUDE.md, AGENTS.md e, se for Claude ou Codex, a memória).
+  const trusted = brainAgent.transport.kind === 'cli' && (brainAgent.tool === 'claude' || brainAgent.tool === 'codex')
+  const memory = trusted ? loadProjectMemory(cwd, ctx.homeDir ?? homedir()) : ''
+  const instructions = [await loadInstructions(cwd, ctx.homeDir ?? homedir()), memory && `## Memória do projeto (Claude Code)\n\n${memory}`].filter(Boolean).join('\n\n')
+  const plan = await askBrain<EsteiraPlan>(() => brain.plan({ cwd, prompt: input.prompt, cerebro, signal, onUsage, instructions }), parseEsteiraPlan, signal)
   if (plan === 'abort') return 'cancelled'
   if (!plan) return brainFailed()
   say({ type: 'esteira_plan', plan, volta: 0 })
@@ -144,7 +153,7 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
     const outNow = checkBrain()
     if (outNow) return failed(outNow)
     const review = await askBrain<EsteiraReview>(
-      () => brain.review({ cwd, prompt: input.prompt, plan, executor: ex.text, tester: te.text, cerebro, signal, onUsage }), parseEsteiraReview, signal)
+      () => brain.review({ cwd, prompt: input.prompt, plan, executor: ex.text, tester: te.text, cerebro, signal, onUsage, instructions }), parseEsteiraReview, signal)
     if (review === 'abort') return 'cancelled'
     if (!review) return brainFailed()
     say({ type: 'esteira_review', pronto: review.pronto, falta: review.falta, volta })

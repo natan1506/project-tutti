@@ -29,7 +29,8 @@ function fakeBrain(reviews: Review[] = [{ pronto: true, falta: '' }]) {
     plans: [] as (string | undefined)[], reviewCalls: 0,
     async triage() { throw new Error('esteira não faz triagem') },
     async lineup() { throw new Error('esteira não faz escalação') },
-    async plan(i: { feedback?: string }) { b.plans.push(i.feedback); return { tarefa: 'Criar soma.js', pronto: 'teste de soma passa' } },
+    instructions: [] as (string | undefined)[],
+    async plan(i: { feedback?: string; instructions?: string }) { b.plans.push(i.feedback); b.instructions.push(i.instructions); return { tarefa: 'Criar soma.js', pronto: 'teste de soma passa' } },
     async review() { return reviews[Math.min(b.reviewCalls++, reviews.length - 1)] },
   }
   return b as typeof b & Brain
@@ -84,6 +85,13 @@ describe('esteira', () => {
     const work = t.fake.calls.filter(c => c.mode !== 'consult')
     expect(work.every(c => c.write === true)).toBe(true)
     expect(work[1].prompt).toContain('Fiz soma.js.')
+  })
+
+  it('o cérebro recebe as instruções do projeto (CLAUDE.md)', async () => {
+    const t = await setup()
+    writeFileSync(join(t.dir, 'CLAUDE.md'), 'Regra do repo: use pnpm.')
+    await t.team.whenFinished(await t.start())
+    expect(t.brain.instructions[0]).toContain('Regra do repo: use pnpm.')
   })
 
   it('revisão pede mais: volta ao executor com o que falta', async () => {

@@ -59,7 +59,8 @@ export function esteiraPlanPrompt(prompt: string, cerebro: AgentId): string {
   return [
     `Você é o ${coordName(cerebro)}, o cérebro do time. Você não implementa: escreve para o executor exatamente o que fazer.`,
     `Pedido do Natan: """${prompt}"""`,
-    'Leia o projeto só o necessário. Em `tarefa`: o que fazer, passo a passo, com os arquivos prováveis. Em `pronto`: um critério de pronto verificável (que teste ou comando prova que ficou certo).',
+    'Se o pedido citar um card do Linear (ex.: DOKZ-1234), leia o card pelo Linear (descrição, comentários e anexos) antes de planejar; os critérios de aceite do card entram no critério de pronto. Se houver uma skill para o tipo de pedido, siga-a.',
+    'Em `tarefa`: o que fazer, passo a passo, com os arquivos prováveis. Em `pronto`: um critério de pronto verificável (que teste ou comando prova que ficou certo).',
   ].join('\n\n')
 }
 

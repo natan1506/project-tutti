@@ -95,7 +95,7 @@ export async function createCore(o: CoreOptions): Promise<Core> {
       return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
     })
   })
-  const claudeBrain: Brain = o.brain ?? new ClaudeBrain()
+  const claudeBrain: Brain = o.brain ?? new ClaudeBrain(undefined, { pluginDir: join(o.dataDir, 'skill-plugins', 'cerebro') })
   const team = new TeamService({
     runs, store, brain: claudeBrain, adapters, toolReady, emit: o.emit,
     profileOf: id => (id && profiles.get(id)) || PADRAO,
