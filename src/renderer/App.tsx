@@ -5,6 +5,8 @@ import { Composer } from './components/Composer'
 import { ProfilePicker } from './components/ProfilePicker'
 import { ProfilesScreen } from './components/ProfilesScreen'
 import { SkillsScreen } from './components/SkillsScreen'
+import { McpsScreen } from './components/McpsScreen'
+import { useMcpStore } from './state/mcpStore'
 import { MuteButton } from './components/MuteButton'
 import { Rail } from './components/Rail'
 import { ViewToggle } from './components/ViewToggle'
@@ -47,6 +49,7 @@ export function App() {
   const project = useRunStore(s => s.project)
   const { active, load, setProfiles, configOpen } = useProfileStore()
   const skillsOpen = useSkillStore(s => s.open)
+  const mcpsOpen = useMcpStore(s => s.open)
   const { open: voicesOpen, notice: voiceNotice } = useVoiceStore()
   const mascotsOpen = useLookStore(s => s.open)
   const view = useViewStore(s => s.view)
@@ -76,6 +79,7 @@ export function App() {
       <ChatPanel />
       {configOpen && <ProfilesScreen />}
       {skillsOpen && <SkillsScreen />}
+      {mcpsOpen && <McpsScreen />}
       {voicesOpen && <VoicesScreen />}
       {mascotsOpen && <Suspense fallback={null}><MascotsScreen /></Suspense>}
     </div>

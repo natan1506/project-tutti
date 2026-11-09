@@ -1,5 +1,6 @@
-import { AudioLines, Palette, Sparkles, UsersRound, type LucideIcon } from 'lucide-react'
+import { AudioLines, Palette, Plug, Sparkles, UsersRound, type LucideIcon } from 'lucide-react'
 import { useLookStore } from '../state/lookStore'
+import { useMcpStore } from '../state/mcpStore'
 import { useProfileStore } from '../state/profileStore'
 import { useSkillStore } from '../state/skillStore'
 import { useVoiceStore } from '../state/voiceStore'
@@ -20,6 +21,8 @@ export function Rail() {
   const openProfiles = useProfileStore(s => s.openConfig)
   const skillsOpen = useSkillStore(s => s.open)
   const openSkills = useSkillStore(s => s.setOpen)
+  const mcpsOpen = useMcpStore(s => s.open)
+  const openMcps = useMcpStore(s => s.setOpen)
   const voicesOpen = useVoiceStore(s => s.open)
   const openVoices = useVoiceStore(s => s.setOpen)
   const mascotsOpen = useLookStore(s => s.open)
@@ -30,6 +33,7 @@ export function Rail() {
       <div className="rail-group">
         <RailButton label="Perfis" Icon={UsersRound} on={profilesOpen} onClick={() => openProfiles(true)} />
         <RailButton label="Skills" Icon={Sparkles} on={skillsOpen} onClick={() => openSkills(true)} />
+        <RailButton label="MCPs" Icon={Plug} on={mcpsOpen} onClick={() => openMcps(true)} />
         <RailButton label="Vozes" Icon={AudioLines} on={voicesOpen} onClick={() => openVoices(true)} />
         <RailButton label="Mascotes" Icon={Palette} on={mascotsOpen} onClick={() => openMascots(true)} />
       </div>

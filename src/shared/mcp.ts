@@ -61,3 +61,11 @@ export function validateMcp(raw: unknown, others: McpServerDef[]): { ok: true; d
   if (def.transport.kind === 'http' && !/^https?:\/\//.test(def.transport.url)) errors.push('A URL precisa começar com http:// ou https://.')
   return errors.length ? { ok: false, errors } : { ok: true, def }
 }
+
+/** Linha "comando arg1 arg2" do formulário, separada como no shell (aspas simples e duplas agrupam). */
+export function splitCommandLine(line: string): string[] {
+  const out: string[] = []
+  const re = /"([^"]*)"|'([^']*)'|(\S+)/g
+  for (const m of line.matchAll(re)) out.push(m[1] ?? m[2] ?? m[3])
+  return out
+}

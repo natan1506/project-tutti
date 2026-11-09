@@ -296,3 +296,12 @@ button.primary.small { font-size: 11.5px; padding: 4px 10px; align-self: flex-st
 .spin { animation: browser-spin 1s linear infinite; }
 @keyframes browser-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* MCPs (spec mcps) */
+.mcps .profiles-list button small { display: block; color: var(--muted); font-size: 11px; }
+.mcps .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; }
+.mcps .error { color: #ef8a7a; }
+.mcp-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0; }
+.mcp-tools h5 { margin: 0 0 6px; color: var(--muted); font-weight: 600; }
+.mcp-tools .opt-line { justify-content: space-between; }
+.mcp-tools code { font-size: 12px; }

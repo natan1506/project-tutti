@@ -63,6 +63,14 @@ export interface TimeApi {
   activity(): Promise<number>
   onActivity(cb: (active: number) => void): () => void
   skills(): Promise<Skill[]>
+  mcps(): Promise<import('./mcp').McpServerDef[]>
+  saveMcp(input: { def: unknown; secrets?: Record<string, string> }): Promise<{ ok: true; def: import('./mcp').McpServerDef } | { ok: false; errors: string[] }>
+  removeMcp(id: string): Promise<void>
+  setMcpTool(input: { id: string; tool: string; read: boolean }): Promise<void>
+  setMcpEnabled(input: { id: string; enabled: boolean }): Promise<void>
+  mcpImportable(): Promise<{ nome: string; transport: import('./mcp').McpTransport }[]>
+  importMcp(nome: string): Promise<{ ok: true; def: import('./mcp').McpServerDef } | { ok: false; errors: string[] }>
+  retestMcp(id: string): Promise<{ ok: true; def: import('./mcp').McpServerDef } | { ok: false; errors: string[] }>
   saveSkill(s: Skill): Promise<{ ok: true; skill: Skill } | { ok: false; errors: string[] }>
   deleteSkill(id: string): Promise<void>
   createSkill(i: { draftId: string; request: string; creatorId: AgentId; confirmPaid?: boolean }): Promise<SkillRunResult<{ skill: SkillDraft }>>

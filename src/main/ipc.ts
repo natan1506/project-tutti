@@ -14,6 +14,8 @@ import { PROVIDERS, type ProviderId } from '@shared/profiles'
 import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
 import type { SkillService } from './skills/skillService'
 import { skillHandlers } from './skills/skillIpc'
+import type { McpService } from './mcp/mcpService'
+import { mcpHandlers } from './mcp/mcpIpc'
 import { voiceHandlers } from './voice/voiceIpc'
 import { lookHandlers } from './lookIpc'
 import { browserHandlers } from './browser/browserIpc'
@@ -61,6 +63,7 @@ export interface ProfileDeps {
   runs: RunService
   models(provider: ProviderId): Promise<{ id: string; name: string }[]>
   skills: SkillService
+  mcp: McpService
   voices: VoiceService
   browser: BrowserService
 }
@@ -92,6 +95,7 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
     const p = pd.profiles.activeFor(text(projectId))
     return Object.fromEntries(await Promise.all(p.agents.map(async a => [a.id, await pd.runs.availability(a.id)])))
   })
+  for (const [name, fn] of Object.entries(mcpHandlers(pd.mcp))) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   const skills = skillHandlers(pd.skills)
   for (const [name, fn] of Object.entries(skills)) ipcMain.handle(name, (_e, arg) => (fn as (a: unknown) => unknown)(arg))
   // Parar tudo (design §5): todos os pedidos, de todos os projetos, e as execuções de skill.
