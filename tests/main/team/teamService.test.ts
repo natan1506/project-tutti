@@ -46,9 +46,12 @@ const LINEUP = {
   steps: [{ agentId: 'forja', task: 'Criar server/health.js', areas: ['server'] }, { agentId: 'pincel', task: 'Criar web/status.html', areas: ['web'] }],
 }
 
+/** Perfis sem esteira nunca chamam plano e revisão. */
+const NO_ESTEIRA = { plan: async () => null, review: async () => null }
+
 function fakeBrain(triages: unknown[], lineups: unknown[] = [LINEUP]): Brain & { triageCalls: number; lineupCalls: number } {
   const b = {
-    triageCalls: 0, lineupCalls: 0,
+    triageCalls: 0, lineupCalls: 0, ...NO_ESTEIRA,
     async triage() { return triages[Math.min(b.triageCalls++, triages.length - 1)] },
     async lineup() { return lineups[Math.min(b.lineupCalls++, lineups.length - 1)] },
   }
@@ -203,6 +206,7 @@ describe('TeamService', () => {
     let releaseTriage: (() => void) | undefined
     let triageCalls = 0
     const slowBrain: Brain = {
+      ...NO_ESTEIRA,
       // Só a primeira triagem fica presa; a do pedido seguinte responde na hora.
       triage: () => (triageCalls++ === 0 ? new Promise(r => { releaseTriage = () => r(TRIAGE) }) : Promise.resolve(TRIAGE)),
       lineup: async () => LINEUP,
@@ -270,7 +274,7 @@ describe('TeamService', () => {
 
   it('M-6: Bússola que falha (exceção) não é chamado de novo; resposta inválida é', async () => {
     let calls = 0
-    const t = await setup({ brain: { triage: async () => { calls++; throw new Error('rate limit') }, lineup: async () => LINEUP } })
+    const t = await setup({ brain: { ...NO_ESTEIRA, triage: async () => { calls++; throw new Error('rate limit') }, lineup: async () => LINEUP } })
     await t.team.whenFinished(await t.start())
     expect(calls).toBe(1)
   })
@@ -428,6 +432,7 @@ describe('TeamService', () => {
   it('Parar tudo (runs.cancelAll) fecha o pedido do Time e interrompe o coordenador no meio da triagem', async () => {
     let brainAborted = false
     const brain: Brain = {
+      ...NO_ESTEIRA,
       triage: ({ signal }) => new Promise((_, reject) => {
         const stop = () => { brainAborted = true; reject(new Error('abortado')) }
         if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true })

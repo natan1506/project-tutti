@@ -1,9 +1,9 @@
 import type { AgentDef } from '@shared/agents'
 import type { AgentAdapter } from '../adapters/types'
 import { effectiveModel } from '../runs/runService'
-import { LINEUP_SCHEMA, TRIAGE_SCHEMA, type Brain, type UsageSink } from './brain'
+import { LINEUP_SCHEMA, PLAN_SCHEMA, REVIEW_SCHEMA, TRIAGE_SCHEMA, type Brain, type UsageSink } from './brain'
 import { extractJson } from './parse'
-import { lineupPrompt, triagePrompt } from './prompts'
+import { esteiraPlanPrompt, lineupPrompt, reviewPrompt, triagePrompt } from './prompts'
 
 // Cérebro de coordenador que não é Claude por CLI (spec custos-e-perfis §6): roda o próprio coordenador em modo
 // consulta, pede o JSON no texto e lê com `extractJson`; quem valida é o `parse*` de sempre.
@@ -31,5 +31,13 @@ export class TextBrain implements Brain {
 
   lineup(i: Parameters<Brain['lineup']>[0]) {
     return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, this.coordinator.id), LINEUP_SCHEMA, i.cwd, i.signal, i.onUsage)
+  }
+
+  plan(i: Parameters<Brain['plan']>[0]) {
+    return this.ask(esteiraPlanPrompt(i.prompt, this.coordinator.id), PLAN_SCHEMA, i.cwd, i.signal, i.onUsage)
+  }
+
+  review(i: Parameters<Brain['review']>[0]) {
+    return this.ask(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, this.coordinator.id), REVIEW_SCHEMA, i.cwd, i.signal, i.onUsage)
   }
 }

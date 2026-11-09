@@ -1,9 +1,9 @@
 import { query, type Options } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentId } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
-import type { Confirmation, Triage } from '@shared/team'
+import type { Confirmation, EsteiraPlan, Triage } from '@shared/team'
 import { safeEnv } from '../adapters/env'
-import { lineupPrompt, triagePrompt } from './prompts'
+import { esteiraPlanPrompt, lineupPrompt, reviewPrompt, triagePrompt } from './prompts'
 
 // O "cérebro" do Bússola: duas chamadas por pedido de time, saída JSON validada por esquema (spike da Fase 3B).
 
@@ -14,6 +14,10 @@ export interface Brain {
   /** `onUsage`: tokens gastos pelo cérebro (coordenador por outra ferramenta ou por API). */
   triage(input: { cwd: string; prompt: string; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
   lineup(input: { cwd: string; prompt: string; triage: Triage; confirmations: Confirmation[]; available: AgentId[]; coordinator?: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
+  /** Esteira: o que o executor deve fazer → `{ tarefa, pronto }`. */
+  plan(input: { cwd: string; prompt: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
+  /** Esteira: ficou pronto? → `{ pronto, falta }`. */
+  review(input: { cwd: string; prompt: string; plan: EsteiraPlan; executor: string; tester: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink }): Promise<unknown>
 }
 
 const obj = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', additionalProperties: false, required, properties })
@@ -32,6 +36,9 @@ export const LINEUP_SCHEMA = obj({
     items: obj({ agentId: { type: 'string' }, task: { type: 'string' }, model: { type: 'string' }, areas: { type: 'array', items: { type: 'string' } } }, ['agentId', 'task', 'areas']),
   },
 })
+
+export const PLAN_SCHEMA = obj({ tarefa: { type: 'string' }, pronto: { type: 'string' } })
+export const REVIEW_SCHEMA = obj({ pronto: { type: 'boolean' }, falta: { type: 'string' } })
 
 const NO_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task', 'Read', 'Glob', 'Grep', 'TodoWrite']
 const BRAIN_MODEL = 'claude-sonnet-5-5'
@@ -66,5 +73,13 @@ export class ClaudeBrain implements Brain {
 
   lineup(i: Parameters<Brain['lineup']>[0]) {
     return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, i.coordinator), this.options(i.cwd, LINEUP_SCHEMA, i.signal))
+  }
+
+  plan(i: Parameters<Brain['plan']>[0]) {
+    return this.ask(esteiraPlanPrompt(i.prompt, i.cerebro), this.options(i.cwd, PLAN_SCHEMA, i.signal))
+  }
+
+  review(i: Parameters<Brain['review']>[0]) {
+    return this.ask(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro), this.options(i.cwd, REVIEW_SCHEMA, i.signal))
   }
 }

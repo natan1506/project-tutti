@@ -9,3 +9,7 @@ export interface Confirmation { agentId: AgentId; decision: Decision; line: stri
 /** `paid`: o passo usa agente por API paga (o plano passa a exigir aprovação, spec custos-e-perfis §6). */
 export interface TeamStep { agentId: AgentId; task: string; model?: string; areas: string[]; paid?: { provider: string } }
 export interface Lineup { steps: TeamStep[]; big: boolean; summary: string }
+
+/** O que o cérebro da esteira manda o executor fazer, e como saber que ficou pronto (spec tutti-terminal §3). */
+export interface EsteiraPlan { tarefa: string; pronto: string }
+export interface EsteiraReview { pronto: boolean; falta: string }

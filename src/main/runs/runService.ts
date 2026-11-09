@@ -137,6 +137,11 @@ export class RunService {
     return false
   }
 
+  /** Nível de autonomia do projeto (a esteira decide se o plano precisa de aprovação). */
+  autonomyOf(projectPath: string): AutonomyLevel {
+    return this.deps.autonomyFor?.(projectPath) ?? DEFAULT_AUTONOMY
+  }
+
   /** Libera a vez do projeto: a fila deste processo e a trava entre processos. */
   releaseTurn(projectPath: string, runId: string): void {
     this.queue.release(projectPath, runId)

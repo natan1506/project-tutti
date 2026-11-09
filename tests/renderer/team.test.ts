@@ -84,3 +84,20 @@ describe('palco do time', () => {
     expect(s1.runs.find(r => r.runId === 'B')!.queued).toBeUndefined()
   })
 })
+
+describe('esteira no app', () => {
+  it('plano, troca e revisão aparecem como avisos do pedido', () => {
+    const s = play([...parentStart,
+      [P, { type: 'esteira_plan', volta: 0, plan: { tarefa: 'Criar soma.js', pronto: 'teste passa' } }],
+      [P, { type: 'esteira_swap', role: 'executor', from: 'forja', to: 'curinga', reason: 'Forja indisponível: Ferramenta indisponível' }],
+      [P, { type: 'esteira_review', volta: 0, pronto: false, falta: 'teste de negativos' }],
+      [P, { type: 'esteira_review', volta: 1, pronto: true, falta: '' }],
+    ])
+    expect(s.runs[0].notices).toEqual([
+      'Plano: Criar soma.js · Pronto quando: teste passa',
+      '↪ Forja indisponível: Ferramenta indisponível — Curinga assume',
+      'Revisão: falta teste de negativos',
+      'Revisão: pronto',
+    ])
+  })
+})

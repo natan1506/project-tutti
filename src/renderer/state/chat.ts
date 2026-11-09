@@ -1,5 +1,5 @@
 import type { ApprovalReason } from '@shared/autonomy'
-import { AGENTS, type AgentId } from '@shared/agents'
+import { AGENTS, getAgent, type AgentId } from '@shared/agents'
 import type { DiffFile, RunEvent, RunStatus } from '@shared/events'
 import type { RunRow } from '@shared/models'
 import type { Confirmation, Lineup, TriageScore } from '@shared/team'
@@ -91,6 +91,10 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'agent_call': return set({ calls: [...run.calls, { to: ev.to, question: ev.question }] })
     case 'agent_call_answer':
       return set({ calls: run.calls.map(c => (c.to === ev.to && c.answer === undefined ? { ...c, answer: ev.answer } : c)) })
+    // Esteira (spec tutti-terminal §3): no app, plano, troca e revisão aparecem como avisos do pedido.
+    case 'esteira_plan': return set({ notices: [...run.notices, `Plano: ${ev.plan.tarefa} · Pronto quando: ${ev.plan.pronto}`] })
+    case 'esteira_swap': return set({ notices: [...run.notices, `↪ ${ev.reason} — ${getAgent(ev.to).nome} assume`] })
+    case 'esteira_review': return set({ notices: [...run.notices, ev.pronto ? 'Revisão: pronto' : `Revisão: falta ${ev.falta}`] })
     case 'diff': return set({ files: ev.files })
     case 'run_finished':
       return set({ status: ev.status, finishedAt: Date.now() }, ev.status === 'done' ? 'concluido' : 'disponivel')

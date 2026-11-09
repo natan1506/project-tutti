@@ -83,3 +83,17 @@ export function parseLineup(raw: unknown, available: AgentId[], allowedModels: R
   if (!steps.length) return null
   return { steps, big: r.big === true, summary: typeof r.summary === 'string' ? r.summary.trim() : '' }
 }
+
+const text = (v: unknown, max = 4000) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+export function parseEsteiraPlan(raw: unknown): import('@shared/team').EsteiraPlan | null {
+  const r = record(raw)
+  const tarefa = text(r?.tarefa), pronto = text(r?.pronto, 1000)
+  return tarefa && pronto ? { tarefa, pronto } : null
+}
+
+export function parseEsteiraReview(raw: unknown): import('@shared/team').EsteiraReview | null {
+  const r = record(raw)
+  if (!r || typeof r.pronto !== 'boolean') return null
+  return { pronto: r.pronto, falta: text(r.falta, 2000) }
+}

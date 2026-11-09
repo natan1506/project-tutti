@@ -11,6 +11,7 @@ import type { Brain, UsageSink } from './brain'
 import { parseConfirmation, parseLineup, parseTriage } from './parse'
 import { childPrompt, confirmPrompt } from './prompts'
 import { buildWaves, isBig, normalizeAreas } from './schedule'
+import { runEsteira } from './esteira'
 
 // Spec §5.2–5.4: um pedido de time é um run-pai do Bússola (ponto de restauração e diff do pedido inteiro)
 // com um run-filho por passo da escalação.
@@ -119,7 +120,14 @@ export class TeamService {
         await runs.snapshotBefore(parentId, input.projectPath)
         checkpoint = true
       }
-      status = await this.orchestrate(parentId, input, profile, signal, active)
+      status = profile.esteira
+        ? await runEsteira({
+          parentId, input, profile, signal, active, runs, store: this.deps.store,
+          brain: this.deps.brainFor?.(getAgent(profile.esteira.cerebro as AgentId)) ?? this.deps.brain,
+          say: ev => this.say(parentId, ev), autonomy: runs.autonomyOf(input.projectPath),
+          waitPlan: () => this.waitPlan(parentId, signal), settle: id => this.settle(id, active, signal),
+        })
+        : await this.orchestrate(parentId, input, profile, signal, active)
     } catch (e) {
       if (!signal.aborted) {
         status = 'error'

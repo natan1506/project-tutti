@@ -42,4 +42,7 @@ export type RunEvent =
   | { type: 'limit_warning'; id: string; tool: ToolKind; window: WindowKind; utilization: number; to?: AgentId; paid?: { provider: string } }
   | { type: 'limit_resolved'; id: string; pass: boolean }
   | { type: 'handoff'; to: AgentId; newRunId: string }
+  | { type: 'esteira_plan'; plan: import('./team').EsteiraPlan; volta: number }
+  | { type: 'esteira_swap'; role: import('./profiles').EsteiraRole; from: AgentId; to: AgentId; reason: string }
+  | { type: 'esteira_review'; pronto: boolean; falta: string; volta: number }
   | { type: 'run_finished'; status: RunStatus }
