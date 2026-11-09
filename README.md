@@ -30,6 +30,10 @@
 
 ## O que é
 
+<p align="center">
+  <img src="docs/img/app-palco.png" alt="O app com o projeto aberto: os mascotes do time no palco, a conversa de uma esteira e o diff dos arquivos alterados" width="900" />
+</p>
+
 Quem programa com IA costuma alternar entre várias ferramentas: o Claude Code para uma coisa, o Codex para revisar, o Gemini para pesquisar, um modelo gratuito para o resto. O Tutti junta todas num lugar só:
 
 - **Um palco 3D** com um mascote por agente, com o estado de cada um ao vivo (disponível, trabalhando, concluído, travado).
@@ -42,6 +46,10 @@ Quem programa com IA costuma alternar entre várias ferramentas: o Claude Code p
 - **Skills**: descreva o que quer e um agente escreve, testa e ajusta a skill; depois você escolhe quais agentes a usam.
 
 O app roda as CLIs oficiais que você já tem instaladas e logadas. Ele não guarda nem repassa sua senha de nenhuma delas.
+
+<p align="center">
+  <img src="docs/img/app-escritorio.png" alt="A vista Escritório: cada agente na sua mesa, com o estado ao vivo" width="900" />
+</p>
 
 ## Tutti no terminal
 
@@ -73,20 +81,35 @@ Na esteira, o Codex escreve **só dentro da pasta do projeto e sem internet** (c
 
 ### A tela
 
-- **Placar no topo**, sempre visível: cada agente da esteira com a barra de uso e o percentual (verde até 60%, amarelo até 85%, vermelho acima; `~` quando é estimativa, `—` sem dado, `esgotado · seg` quando acabou). As barras encurtam em janela estreita para caber numa linha.
-- **Cada etapa ao vivo:** o plano, quem está trabalhando, os comandos que ele roda, o resultado, o diff.
-- **Aprovações** aparecem na conversa e você responde com `s` ou `n`.
+- **Placar no topo**, sempre visível: cada agente da esteira com a barra de uso e o percentual (verde até 60%, amarelo até 85%, vermelho acima; `~` quando é estimativa, `—` sem dado, `esgotado · seg` quando acabou). Em janela estreita as barras encurtam para caber numa linha.
+- **Cada etapa ao vivo, em blocos separados:** o pedido, o plano, quem está trabalhando, os comandos que ele roda, a revisão e o diff.
+- **Aprovação do plano** numa caixa: `1. Aprovar` / `2. Recusar`, escolhendo com ↑↓ e Enter (ou `s`/`n`).
+
+**Comandos, como no Claude Code:** digite `/` e aparece a lista de comandos com o que cada um faz. Ela filtra enquanto você digita; ↑↓ escolhe, Enter roda, Tab completa, Esc limpa.
+
+<p align="center">
+  <img src="docs/img/terminal-menu.png" alt="O menu de comandos aberto ao digitar /, com a descrição de cada comando" width="760" />
+</p>
+
+`/config`, `/agents`, `/history`, `/usage` e `/help` abrem **painéis navegáveis**. No `/config`, cada linha mostra o valor atual e para que serve; Enter abre as opções, ↑↓ escolhe, Enter salva e Esc volta.
+
+<p align="center">
+  <img src="docs/img/terminal-config.png" alt="O painel /config com perfil, papéis da esteira, autonomia e voltas, cada um com a explicação" width="760" />
+  <img src="docs/img/terminal-escolha.png" alt="Escolhendo o executor no /config: a lista de agentes com a IA de cada um e o atual marcado" width="760" />
+</p>
 
 | Comando | O que faz |
 |---|---|
-| `/config` | Mostra e muda a esteira: `/config executor Curinga`, `/config autonomia ask_all`, `/config voltas 3`, `/config perfil Trabalho` |
-| `/agents` | O time do perfil, com IA, modelo, papel e uso |
+| `/config` | Escolher quem é cérebro, executor, tester e reserva; autonomia e voltas (também direto: `/config executor Curinga`) |
+| `/agents` | O time do perfil: IA, modelo, papel e uso de cada um |
 | `/usage` | Quanto cada agente gastou nesta conversa e quando cada limite volta |
-| `/history` | Conversas do projeto, inclusive as do app; `/history 2` retoma uma |
+| `/history` | Escolher e retomar uma conversa do projeto, inclusive as do app |
 | `/new` | Conversa nova |
+| `/clear` | Limpa a tela e começa uma conversa nova (digitar só `clear` também funciona) |
 | `/undo` | Desfaz o último pedido (precisa de git) |
 | `/stop` | Para o time na hora |
-| `/exit` | Fecha (Ctrl+C também) |
+| `/help` | Comandos e atalhos de teclado |
+| `/exit` | Fecha (`exit`, `sair` e Ctrl+C também) |
 
 ### Como abrir
 
