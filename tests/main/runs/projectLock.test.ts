@@ -33,7 +33,8 @@ describe('trava de projeto entre processos', () => {
 
   it('waitLock devolve false quando o sinal aborta enquanto espera', async () => {
     const s = openStore(':memory:')
-    tryLock(s, '/p', 'a', 111, () => true)
+    // Dono vivo de verdade (este processo): waitLock usa a checagem real de pid.
+    tryLock(s, '/p', 'a', process.pid, () => true)
     const ctl = new AbortController()
     const p = waitLock(s, '/p', 'b', ctl.signal, 10)
     setTimeout(() => ctl.abort(), 30)
