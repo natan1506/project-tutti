@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getAgent, knownAgent } from '@shared/agents'
-import { PADRAO, type Profile } from '@shared/profiles'
+import { PADRAO, TRABALHO_SEED, type Profile } from '@shared/profiles'
 import { ProfileService } from '../../../src/main/profiles/profileService'
 import { openStore } from '../../../src/main/store/db'
 
@@ -82,3 +82,26 @@ describe('ProfileService', () => {
   })
 })
 
+
+describe('esteira no perfil', () => {
+  it('salvar perfil novo com esteira remapeia os ids da esteira para os agentes novos', () => {
+    const { svc } = setup()
+    const p = saved(svc.save({ ...TRABALHO_SEED, id: '' }))
+    const ids = p.agents.map(a => a.id)
+    const e = p.esteira!
+    for (const id of [e.cerebro, e.executor, e.tester, e.reserva!]) expect(ids).toContain(id)
+    expect(p.agents.find(a => a.id === e.executor)!.nome).toBe('Forja')
+    expect(p.agents.find(a => a.id === e.tester)!.nome).toBe('Lupa')
+    expect(p.coordinatorId).toBe(e.cerebro)
+  })
+  it('seedTrabalho cria o perfil uma vez só e não recria depois de apagado', () => {
+    const { svc } = setup()
+    const first = svc.seedTrabalho()
+    expect(first?.nome).toBe('Trabalho')
+    expect(svc.seedTrabalho()).toBeUndefined()
+    expect(svc.all().filter(p => p.nome === 'Trabalho')).toHaveLength(1)
+    svc.remove(first!.id)
+    expect(svc.seedTrabalho()).toBeUndefined()
+    expect(svc.all().some(p => p.nome === 'Trabalho')).toBe(false)
+  })
+})

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { getAgent, registerAgents, type AgentDef } from '@shared/agents'
-import { PADRAO, resolveAgentDefs, validateProfile, type Profile } from '@shared/profiles'
+import { PADRAO, resolveAgentDefs, TRABALHO_SEED, validateProfile, type Profile } from '@shared/profiles'
 import type { Store } from '../store/db'
 
 // Spec custos-e-perfis §6: perfis do Natan no banco, o Padrão fixo; cada projeto lembra o último perfil.
@@ -35,8 +35,15 @@ export class ProfileService {
       return { ...a, id: next }
     })
     const coordinatorId = v.profile.coordinatorId === undefined ? undefined : idMap.get(v.profile.coordinatorId)
-    const profile: Profile = { ...v.profile, id, builtin: false, agents, ...(coordinatorId ? { coordinatorId } : {}) }
+    const e = v.profile.esteira
+    // A esteira segue os ids novos dos agentes (renomeados ou recriados).
+    const esteira = e && {
+      cerebro: idMap.get(e.cerebro)!, executor: idMap.get(e.executor)!, tester: idMap.get(e.tester)!,
+      ...(e.reserva ? { reserva: idMap.get(e.reserva)! } : {}), maxVoltas: e.maxVoltas,
+    }
+    const profile: Profile = { ...v.profile, id, builtin: false, agents, ...(coordinatorId ? { coordinatorId } : {}), ...(esteira ? { esteira } : {}) }
     if (!coordinatorId) delete profile.coordinatorId
+    if (!esteira) delete profile.esteira
     this.deps.store.saveProfile(profile)
     registerAgents(resolveAgentDefs(profile))
     this.changed()
@@ -66,6 +73,15 @@ export class ProfileService {
   /** Agentes de perfis apagados (nome com "(removido)"), para conversas antigas na interface. */
   removedAgents(): AgentDef[] {
     return this.deps.store.getSetting<AgentDef[]>(REMOVED_KEY) ?? []
+  }
+
+  /** Cria o perfil Trabalho uma vez (spec tutti-terminal §7); apagado pelo Natan, não volta. */
+  seedTrabalho(): Profile | undefined {
+    if (this.deps.store.getSetting<boolean>('seed:trabalho')) return undefined
+    this.deps.store.setSetting('seed:trabalho', true)
+    const r = this.save({ ...TRABALHO_SEED, agents: TRABALHO_SEED.agents.map(a => ({ ...a })) })
+    if (!r.ok) throw new Error(r.errors.join(' '))
+    return r.profile
   }
 
   activeFor(projectId: string): Profile {

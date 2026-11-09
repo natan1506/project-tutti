@@ -41,4 +41,10 @@ describe('núcleo sem Electron', () => {
     expect(existsSync(join(dataDir, 'time.db'))).toBe(true)
     await c.close()
   })
+
+  it('cria o perfil Trabalho, com esteira, na primeira vez', async () => {
+    const { c } = await core()
+    expect(c.profiles.all().find(p => p.nome === 'Trabalho')?.esteira).toBeDefined()
+    await c.close()
+  })
 })

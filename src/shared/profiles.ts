@@ -34,6 +34,12 @@ export interface ProfileAgent {
   consultable: boolean
 }
 
+/** Papéis da esteira (spec tutti-terminal §3). */
+export type EsteiraRole = 'cerebro' | 'executor' | 'tester' | 'reserva'
+/** Ids de agentes do perfil em cada papel; `maxVoltas`: quantas vezes o cérebro devolve ao executor. */
+export interface Esteira { cerebro: string; executor: string; tester: string; reserva?: string; maxVoltas: number }
+export const DEFAULT_MAX_VOLTAS = 2
+
 export interface Profile {
   id: string
   nome: string
@@ -41,6 +47,8 @@ export interface Profile {
   defaults: { transport: Transport; model?: string }
   coordinatorId?: string
   agents: ProfileAgent[]
+  /** Com esteira, o pedido de time segue cérebro → executor → tester → cérebro em vez da triagem. */
+  esteira?: Esteira
 }
 
 export const MAX_AGENTS = 8
@@ -80,6 +88,43 @@ export const PADRAO: Profile = {
       id: 'curinga', nome: 'Curinga', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'cli', tool: 'opencode' }, model: 'opencode/big-pickle',
       funcao: 'Tarefas gerais / modelos alternativos',
       prompt: `Você é o Curinga, generalista do time, pronto para qualquer tarefa. ${SENSATO}`,
+    },
+  ],
+}
+
+/**
+ * Perfil "Trabalho" (spec tutti-terminal §7): criado uma vez para o Natan, editável. Claude pensa e revisa; Codex
+ * implementa e testa (escreve só na pasta, sem rede); opencode é a reserva; o Antigravity fica de consulta.
+ */
+export const TRABALHO_SEED: Profile = {
+  id: '', nome: 'Trabalho', builtin: false, coordinatorId: 'bussola',
+  defaults: { transport: { kind: 'cli', tool: 'claude' } },
+  esteira: { cerebro: 'bussola', executor: 'forja', tester: 'lupa', reserva: 'curinga', maxVoltas: DEFAULT_MAX_VOLTAS },
+  agents: [
+    {
+      id: 'bussola', nome: 'Bússola', readOnly: false, reviewer: false, consultable: false, model: 'claude-opus-5-5',
+      funcao: 'Cérebro: entende o pedido, escreve o que fazer e o critério de pronto, revisa o resultado',
+      prompt: 'Você é o Bússola, o cérebro do time. Você não implementa: escreve exatamente o que precisa ser feito, com critério de pronto verificável, e revisa o que o executor e o tester entregaram.',
+    },
+    {
+      id: 'forja', nome: 'Forja', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'cli', tool: 'codex' },
+      funcao: 'Executor: implementa a tarefa recebida',
+      prompt: `Você é o Forja, executor do time. Implemente exatamente a tarefa recebida, sem ampliar o escopo, e rode os testes do que mexeu. No fim, diga em poucas linhas o que mudou e o que ficou de fora. ${SENSATO}`,
+    },
+    {
+      id: 'lupa', nome: 'Lupa', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'cli', tool: 'codex' },
+      funcao: 'Tester: valida a tarefa contra o critério de pronto',
+      prompt: 'Você é o Lupa, tester do time. Valide a tarefa contra o critério de pronto: rode os testes e o que mais for preciso para conferir. Não corrija código; relate o que passou, o que falhou e onde (arquivo e linha).',
+    },
+    {
+      id: 'curinga', nome: 'Curinga', readOnly: false, reviewer: false, consultable: false, transport: { kind: 'cli', tool: 'opencode' }, model: 'opencode/big-pickle',
+      funcao: 'Reserva: assume quando o executor ou o tester não está disponível',
+      prompt: `Você é o Curinga, reserva do time, pronto para executar ou testar quando alguém faltar. ${SENSATO}`,
+    },
+    {
+      id: 'radar', nome: 'Radar', readOnly: true, reviewer: false, consultable: true, transport: { kind: 'cli', tool: 'gemini' },
+      funcao: 'Pesquisa (docs oficiais, referências)',
+      prompt: `Você é o Radar, pesquisador do time. Você busca documentação oficial e referências confiáveis e cita as fontes. Você só lê e pesquisa: nunca crie ou altere arquivos e nunca rode comandos. ${SENSATO}`,
     },
   ],
 }
@@ -133,6 +178,9 @@ const profileSchema = z.object({
   id: z.string().max(80), nome: z.string().max(60), builtin: z.boolean(),
   defaults: z.object({ transport: transportSchema, model: z.string().max(200).optional() }),
   coordinatorId: z.string().optional(), agents: z.array(agentSchema),
+  esteira: z.object({
+    cerebro: z.string(), executor: z.string(), tester: z.string(), reserva: z.string().optional(), maxVoltas: z.number().int().min(1).max(5),
+  }).optional(),
 })
 
 /** Pela CLI do opencode o modelo só pode ser gratuito: senão a chave do Natan pagaria sem o agente estar marcado como pago. */
@@ -165,6 +213,12 @@ export function validateProfile(raw: unknown): { ok: true; profile: Profile } | 
     const c = p.agents.find(a => a.id === p.coordinatorId)
     if (!c) errors.push('O coordenador precisa ser um agente do perfil.')
     else if (c.readOnly) errors.push('O coordenador precisa poder escrever.')
+  }
+  if (p.esteira) {
+    const e = p.esteira
+    const all = [e.cerebro, e.executor, e.tester, ...(e.reserva ? [e.reserva] : [])]
+    if (all.some(id => !p.agents.some(a => a.id === id))) errors.push('A esteira aponta para um agente que não está no perfil.')
+    else if ([e.executor, e.tester, e.reserva].includes(e.cerebro)) errors.push('O cérebro não pode também executar, testar ou ser a reserva.')
   }
   return errors.length ? { ok: false, errors } : { ok: true, profile: p }
 }

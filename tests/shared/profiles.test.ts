@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getAgent, knownAgent, registerAgents } from '@shared/agents'
-import { PADRAO, familyOf, isPaidApi, resolveAgentDefs, validateProfile, type Profile, type ProfileAgent } from '@shared/profiles'
+import { PADRAO, TRABALHO_SEED, familyOf, isPaidApi, resolveAgentDefs, validateProfile, type Profile, type ProfileAgent } from '@shared/profiles'
 
 const agente: ProfileAgent = { id: 'a1', nome: 'Forja', prompt: 'Você faz back-end.', funcao: 'Back-end', readOnly: false, reviewer: false, consultable: false }
 const base: Profile = { id: 'p1', nome: 'Meu', builtin: false, defaults: { transport: { kind: 'cli', tool: 'claude' } }, agents: [agente] }
@@ -87,5 +87,27 @@ describe('registro de agentes', () => {
     expect(knownAgent('a1')).toBe(false)
     expect(getAgent('a2').nome).toBe('Outro')
     expect(getAgent('forja').profileId).toBe('padrao')
+  })
+})
+
+describe('perfil com esteira', () => {
+  it('o Trabalho é válido: Claude pensa, Codex executa e testa, opencode de reserva', () => {
+    expect(validateProfile(TRABALHO_SEED).ok).toBe(true)
+    const by = (id: string) => TRABALHO_SEED.agents.find(a => a.id === id)!
+    const e = TRABALHO_SEED.esteira!
+    expect(by(e.cerebro).transport ?? TRABALHO_SEED.defaults.transport).toEqual({ kind: 'cli', tool: 'claude' })
+    expect(by(e.executor).transport).toEqual({ kind: 'cli', tool: 'codex' })
+    expect(by(e.tester).transport).toEqual({ kind: 'cli', tool: 'codex' })
+    expect(by(e.reserva!).transport).toEqual({ kind: 'cli', tool: 'opencode' })
+    expect(e.maxVoltas).toBe(2)
+    expect(TRABALHO_SEED.coordinatorId).toBe(e.cerebro)
+  })
+  it('recusa esteira que aponta para agente fora do perfil', () => {
+    const r = validateProfile({ ...TRABALHO_SEED, esteira: { ...TRABALHO_SEED.esteira!, executor: 'nao-existe' } })
+    expect(r).toEqual({ ok: false, errors: ['A esteira aponta para um agente que não está no perfil.'] })
+  })
+  it('recusa cérebro que também executa ou testa', () => {
+    const e = TRABALHO_SEED.esteira!
+    expect(validateProfile({ ...TRABALHO_SEED, esteira: { ...e, executor: e.cerebro } }).ok).toBe(false)
   })
 })

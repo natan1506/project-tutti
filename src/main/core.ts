@@ -59,6 +59,7 @@ export async function createCore(o: CoreOptions): Promise<Core> {
   mkdirSync(o.dataDir, { recursive: true })
   const store = openStore(join(o.dataDir, 'time.db'))
   const profiles = new ProfileService({ store, emit: ps => o.onProfiles?.(ps) })
+  profiles.seedTrabalho()
   const keys = new KeyStore({ store, crypto: o.crypto })
   const tools = cachedDetector(realExec)
   // Spec custos-e-perfis §8: as chaves vão só para o processo do opencode.
