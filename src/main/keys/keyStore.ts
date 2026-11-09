@@ -38,6 +38,22 @@ export class KeyStore {
     return Object.fromEntries(PROVIDERS.map(p => [p.id, this.get(p.id) !== undefined])) as Record<ProviderId, boolean>
   }
 
+  /** Segredo com nome livre (ex.: variável de um MCP), cifrado como as chaves de API. */
+  setSecret(name: string, value: string): void {
+    if (!this.deps.crypto.isAvailable()) throw new Error('KEYCHAIN_UNAVAILABLE')
+    this.deps.store.setSetting(`secret:${name}`, this.deps.crypto.encrypt(value).toString('base64'))
+  }
+
+  getSecret(name: string): string | undefined {
+    const b64 = this.deps.store.getSetting<string>(`secret:${name}`)
+    if (!b64) return undefined
+    try { return this.deps.crypto.decrypt(Buffer.from(b64, 'base64')) } catch { return undefined }
+  }
+
+  removeSecret(name: string): void {
+    this.deps.store.deleteSetting(`secret:${name}`)
+  }
+
   /** Todas as chaves salvas, para o servidor do opencode. */
   all(): Partial<Record<ProviderId, string>> {
     const out: Partial<Record<ProviderId, string>> = {}

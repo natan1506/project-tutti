@@ -30,7 +30,7 @@ async function setup(o: { git?: boolean; autonomy?: AutonomyLevel } = {}) {
   let session: Session | undefined
   const w = new Work()
   const core = await createCore({
-    dataDir: mkdtempSync(join(tmpdir(), 'data-')), crypto: noCrypto, brain,
+    dataDir: mkdtempSync(join(tmpdir(), 'data-')), crypto: noCrypto, brain, homeDir: mkdtempSync(join(tmpdir(), 'h-')),
     adapters: { claude: w, codex: w, gemini: w, opencode: w }, toolReady: async () => true,
     emit: (id, ev) => session?.onEvent(id, ev),
   })

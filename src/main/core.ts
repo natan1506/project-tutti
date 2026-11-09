@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
 import { agentsOfProfile, getAgent, type ToolKind } from '@shared/agents'
@@ -12,6 +13,7 @@ import { OpencodeAdapter, OpencodeHost, startOpencodeServer } from './adapters/o
 import type { AgentAdapter } from './adapters/types'
 import type { BrowserService } from './browser/browserService'
 import { KeyStore, type KeyCrypto } from './keys/keyStore'
+import { McpService } from './mcp/mcpService'
 import { ProfileService } from './profiles/profileService'
 import { RunService } from './runs/runService'
 import { SkillService } from './skills/skillService'
@@ -36,6 +38,8 @@ export interface CoreOptions {
   toolReady?: (t: ToolKind) => Promise<boolean>
   /** Testes injetam um cérebro falso (padrão: Claude por CLI para coordenador Claude, texto para os outros). */
   brain?: Brain
+  /** Pasta pessoal (config do Claude Code: ~/.claude.json); testes passam uma temporária. */
+  homeDir?: string
   /** Navegador embutido: só o app passa. */
   browser?: BrowserService
   emit(runId: string, ev: RunEvent): void
@@ -52,6 +56,7 @@ export interface Core {
   team: TeamService
   usage: UsageService
   skills: SkillService
+  mcp: McpService
   tools: ReturnType<typeof cachedDetector>
   opencode: OpencodeHost
   close(): Promise<void>
@@ -63,6 +68,9 @@ export async function createCore(o: CoreOptions): Promise<Core> {
   const profiles = new ProfileService({ store, emit: ps => o.onProfiles?.(ps) })
   profiles.seedTrabalho()
   const keys = new KeyStore({ store, crypto: o.crypto })
+  const mcp = new McpService({ store, keys, homeDir: o.homeDir ?? homedir() })
+  // Uma vez: o Linear que o cérebro usava direto do Claude Code vira MCP do Tutti (em segundo plano: conecta pela rede).
+  void mcp.seedLinear().catch(() => {})
   const tools = cachedDetector(realExec)
   // Spec custos-e-perfis §8: as chaves vão só para o processo do opencode.
   const opencode = new OpencodeHost(() => startOpencodeServer(undefined, keys.all()))
@@ -104,7 +112,7 @@ export async function createCore(o: CoreOptions): Promise<Core> {
   })
   await runs.recover()
   return {
-    store, profiles, keys, runs, team, usage, skills, tools, opencode,
+    store, profiles, keys, runs, team, usage, skills, tools, opencode, mcp,
     async close() {
       runs.cancelAll()
       // Os pedidos cancelados ainda gravam o fim no banco: espera (até ~5 s) antes de fechar.

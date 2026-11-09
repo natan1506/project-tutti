@@ -19,7 +19,7 @@ async function core() {
   const dataDir = mkdtempSync(join(tmpdir(), 'core-'))
   const fake = new Done()
   const c = await createCore({
-    dataDir, crypto: noCrypto, emit: () => {},
+    dataDir, crypto: noCrypto, homeDir: mkdtempSync(join(tmpdir(), 'h-')), emit: () => {},
     adapters: { claude: fake, codex: fake, gemini: fake, opencode: fake }, toolReady: async () => true,
   })
   return { c, dataDir }
