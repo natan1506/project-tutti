@@ -5,7 +5,7 @@
 <h1 align="center">Tutti</h1>
 
 <p align="center">
-  Um time de agentes de IA trabalhando junto no seu projeto, num app de desktop para macOS.<br />
+  Um time de agentes de IA trabalhando junto no seu projeto, num app de desktop para macOS e no terminal.<br />
   Claude Code, Codex, Antigravity e opencode lado a lado, cada um com o seu papel e o seu mascote 3D.
 </p>
 
@@ -14,6 +14,7 @@
 ## Sumário
 
 - [O que é](#o-que-é)
+- [Tutti no terminal](#tutti-no-terminal)
 - [O time padrão](#o-time-padrão)
 - [Como um pedido funciona](#como-um-pedido-funciona)
 - [Perfis: monte o seu time](#perfis-monte-o-seu-time)
@@ -42,6 +43,63 @@ Quem programa com IA costuma alternar entre várias ferramentas: o Claude Code p
 
 O app roda as CLIs oficiais que você já tem instaladas e logadas. Ele não guarda nem repassa sua senha de nenhuma delas.
 
+## Tutti no terminal
+
+<p align="center">
+  <img src="docs/img/terminal-entrada.png" alt="Tela de entrada do tutti no terminal: o ícone do app, o placar de uso no topo e o time da esteira" width="900" />
+</p>
+
+O comando `tutti` abre o mesmo time dentro do terminal, no repositório em que você está. Ele usa o mesmo banco do app: conversas, perfis, agentes e uso aparecem nos dois lados.
+
+A ideia é **dividir o trabalho para o limite do Claude durar a semana**. O Claude pensa e revisa; o Codex e o opencode fazem o trabalho pesado com os limites deles.
+
+### A esteira
+
+Com o perfil **Trabalho** (criado na primeira vez que o app ou o terminal abre), cada pedido segue sempre o mesmo caminho:
+
+1. **Bússola (Claude), cérebro:** lê o pedido e escreve exatamente o que fazer, com um critério de pronto que dá para conferir.
+2. **Você aprova o plano** (nos níveis de autonomia que pedem aprovação; no "sozinho", segue direto).
+3. **Forja (Codex), executor:** implementa e roda os testes do que mexeu.
+4. **Lupa (Codex), tester:** confere contra o critério de pronto, roda os testes e relata, sem corrigir código.
+5. **Bússola revisa:** pronto, ou devolve ao Forja com o que falta (no máximo 2 voltas; passou disso, para e te diz o que falta).
+
+**Curinga (opencode)** é a reserva: se o executor ou o tester estiver fora do ar, sem login ou sem limite, ele assume e o terminal avisa numa linha amarela com o motivo. Se o cérebro ficar sem limite, o time para e diz quando volta.
+
+<p align="center">
+  <img src="docs/img/terminal-esteira.png" alt="Uma esteira completa no terminal: plano do Claude, Forja implementando, Lupa testando e a revisão marcando pronto" width="900" />
+</p>
+
+Na esteira, o Codex escreve **só dentro da pasta do projeto e sem internet** (cerca do próprio Codex). Fora dela continua só-leitura. O Antigravity fica de fora da esteira: num teste, ele escreveu fora da pasta mesmo com a regra que deveria impedir.
+
+### A tela
+
+- **Placar no topo**, sempre visível: cada agente da esteira com a barra de uso e o percentual (verde até 60%, amarelo até 85%, vermelho acima; `~` quando é estimativa, `—` sem dado, `esgotado · seg` quando acabou). As barras encurtam em janela estreita para caber numa linha.
+- **Cada etapa ao vivo:** o plano, quem está trabalhando, os comandos que ele roda, o resultado, o diff.
+- **Aprovações** aparecem na conversa e você responde com `s` ou `n`.
+
+| Comando | O que faz |
+|---|---|
+| `/config` | Mostra e muda a esteira: `/config executor Curinga`, `/config autonomia ask_all`, `/config voltas 3`, `/config perfil Trabalho` |
+| `/agents` | O time do perfil, com IA, modelo, papel e uso |
+| `/usage` | Quanto cada agente gastou nesta conversa e quando cada limite volta |
+| `/history` | Conversas do projeto, inclusive as do app; `/history 2` retoma uma |
+| `/new` | Conversa nova |
+| `/undo` | Desfaz o último pedido (precisa de git) |
+| `/stop` | Para o time na hora |
+| `/exit` | Fecha (Ctrl+C também) |
+
+### Como abrir
+
+Instalado pelo `.dmg`, o app cria o comando em `~/.local/bin/tutti` na primeira vez que abre. Se essa pasta não estiver no seu `PATH`:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+```
+
+Pelo código: `npm run tutti` dentro do projeto do Tutti abre o terminal na pasta atual.
+
+O `tutti` roda com o Node do próprio app (não precisa de outro Node). As contas do Claude você troca na mão, no Claude Code; o placar passa a mostrar a conta nova sozinho. Agentes por API paga não rodam no terminal.
+
 ## O time padrão
 
 | Agente | Papel | Ferramenta | Modelo | Escreve? |
@@ -63,7 +121,7 @@ O perfil Padrão é só leitura. Para mudar algo, duplique e edite (veja [Perfis
 
 Escolha um agente nos chips embaixo do palco e escreva. O pedido vai só para ele.
 
-1. O app grava um **ponto de restauração** (o projeto precisa ser um repositório git; se não for, o app oferece criar um).
+1. O app grava um **ponto de restauração** quando o projeto é um repositório git. Pasta sem git também funciona, só sem diff e sem Desfazer.
 2. O agente trabalha. Você acompanha cada passo no painel da direita.
 3. Ao terminar, aparece o **diff**. Você pode **Desfazer** tudo ou só arquivos escolhidos.
 
@@ -271,7 +329,7 @@ src/
 ├── main/                    processo principal (Node)
 │   ├── adapters/            uma por ferramenta: claude, codex, antigravity, opencode
 │   ├── runs/                ciclo de um pedido: fila, ponto de restauração, agente, diff
-│   ├── team/                pedido ao Time: triagem, plano, ondas, consultas entre agentes
+│   ├── team/                pedido ao Time: triagem, plano, ondas, esteira, consultas entre agentes
 │   ├── profiles/            perfis e agentes removidos
 │   ├── skills/              criar/testar/ajustar skills e o plugin dos agentes Claude
 │   ├── usage/               uso, limites e troca de agente perto do limite
@@ -283,7 +341,9 @@ src/
 │   ├── store/               SQLite
 │   ├── tools/               detecção das CLIs
 │   ├── updates/             aviso de versão nova
+│   ├── core.ts              monta os serviços sem Electron (usado pelo app e pelo terminal)
 │   └── ipc.ts               ponte com a interface (entradas validadas)
+├── cli/                     o comando `tutti`: tela (Ink), placar, comandos, tela de entrada
 ├── preload/                 API `window.time` exposta à interface
 ├── renderer/                interface React
 │   ├── components/          chat, cartões (aprovação, plano, diff, limite), perfis, skills
@@ -298,6 +358,7 @@ Cada ferramenta tem um **adaptador** com a mesma interface (`run(opts) → event
 
 - `docs/superpowers/specs/2026-10-30-time-de-agentes-design.md`: design original (elenco, fluxo, segurança, interface).
 - `docs/superpowers/specs/2026-11-01-custos-e-perfis-design.md`: uso, limites e perfis.
+- `docs/superpowers/specs/2026-11-09-tutti-terminal-design.md`: o terminal e a esteira.
 - `docs/superpowers/plans/`: o plano de cada fase.
 - `docs/mockups/`: mockup aprovado da tela principal.
 
@@ -308,6 +369,8 @@ Cada ferramenta tem um **adaptador** com a mesma interface (`run(opts) → event
 - O aviso de versão nova não funciona enquanto o repositório for privado.
 - Ainda não implementado do design original: rodada de testes com correção automática, correção a partir da revisão da Lupa e notas/caderno de lições por pedido.
 - Skills são só texto (`SKILL.md`), sem scripts nem arquivos extras.
+- No terminal, a troca de agente é só por disponibilidade; ainda não escolhe pelo histórico de quem se saiu melhor em cada tipo de tarefa.
+- O Antigravity não escreve na esteira (a cerca dele não segura a escrita dentro da pasta).
 
 ---
 
