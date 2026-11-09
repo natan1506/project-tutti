@@ -3,7 +3,8 @@ import type { RunEvent } from '@shared/events'
 
 // Como cada evento vira linha na conversa do terminal; null = não aparece (uso, eventos internos, pendências).
 
-export interface Line { text: string; color?: 'green' | 'yellow' | 'red' | 'gray' | 'cyan' }
+/** Linha da conversa; `parts` pinta pedaços com cores diferentes (`text` é a junção deles). */
+export interface Line { text: string; color?: 'green' | 'yellow' | 'red' | 'gray' | 'cyan'; parts?: { text: string; color?: string; bg?: string }[] }
 
 export function eventLine(ev: RunEvent, nomeDe: (id: AgentId) => string): Line | null {
   switch (ev.type) {

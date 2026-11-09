@@ -49,11 +49,41 @@ describe('sessão do terminal', () => {
     await t.core.close()
   })
 
+  it('abre com a tela de entrada do Tutti', async () => {
+    const t = await setup()
+    expect(t.texts()[0].startsWith('╭')).toBe(true)
+    expect(t.texts().slice(0, 7).join('\n')).toContain('█')
+    expect(t.texts().join('\n')).toContain('Bússola (Claude) cérebro')
+    await t.core.close()
+  })
+
   it('texto livre roda a esteira e as etapas viram linhas', async () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
     await t.until(() => t.texts().includes('Pronto.'))
     expect(t.texts()).toEqual(expect.arrayContaining(['Plano: Criar soma.js\n  Pronto quando: teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto', 'Pronto.']))
+    await t.core.close()
+  })
+
+  it('ao reabrir, o trabalho de cada etapa aparece no lugar certo, antes do "Pronto."', async () => {
+    const t = await setup()
+    await t.session.run({ kind: 'send', text: 'crie soma' })
+    await t.until(() => t.texts().includes('Pronto.'))
+    const reopened = await Session.open(t.core, t.cwd)
+    const lines = reopened.lines().map(l => l.text)
+    const forja = lines.findIndex(l => l.includes('Forja: Forja trabalhou.'))
+    expect(forja).toBeGreaterThan(lines.findIndex(l => l.startsWith('Forja  ')))
+    expect(forja).toBeLessThan(lines.indexOf('Pronto.'))
+    await t.core.close()
+  })
+
+  it('a linha de cada etapa mostra só o começo da tarefa', async () => {
+    const t = await setup()
+    t.session.onEvent('x', { type: 'team_started' })
+    const long = `Primeira linha da tarefa\n${'x'.repeat(300)}`
+    const parent = t.core.store.createRun({ id: 'p', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    t.session.onEvent(parent.id, { type: 'child_started', runId: 'c', agentId: 'forja', task: long })
+    expect(t.texts().at(-1)).toBe('Forja  Primeira linha da tarefa')
     await t.core.close()
   })
 

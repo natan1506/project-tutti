@@ -40,7 +40,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const p = placar(session.header(), session.esteiraAgents(), session.usage(), width, Date.now())
   const pending = session.pending()
   const room = Math.max(3, height - 6 - (pending ? 1 : 0))
-  const lines = session.lines().flatMap(l => l.text.split('\n').map(t => ({ ...l, text: t }))).slice(-room)
+  const lines = session.lines().flatMap(l => (l.parts ? [l] : l.text.split('\n').map(t => ({ ...l, text: t })))).slice(-room)
 
   return (
     <Box flexDirection="column">
@@ -51,7 +51,9 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
         ))}
       </Text>
       <Text color="gray">{'─'.repeat(Math.max(10, width))}</Text>
-      {lines.map((l, i) => <Text key={i} {...(l.color ? { color: l.color } : {})} wrap="wrap">{l.text}</Text>)}
+      {lines.map((l, i) => (l.parts
+        ? <Text key={i} wrap="truncate">{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})}>{x.text}</Text>)}</Text>
+        : <Text key={i} {...(l.color ? { color: l.color } : {})} wrap="wrap">{l.text || ' '}</Text>))}
       {pending && <Text color="yellow">{pending.text} {pending.kind === 'question' ? '(responda e Enter)' : '[s/n]'}</Text>}
       <Text><Text color="cyan">›</Text> {input}</Text>
       <Text color="gray">{HELP}</Text>

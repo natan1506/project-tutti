@@ -10,6 +10,7 @@ import type { UsageSnapshot, UsageSource } from '@shared/usage'
 import type { Core } from '../main/core'
 import { isGitRepo, runGit } from '../main/git/git'
 import type { Command, ConfigKey } from './commands'
+import { bannerLines } from './banner'
 import { eventLine, type Line } from './lines'
 
 // Estado da tela do terminal, sem React (spec tutti-terminal §4): projeto, conversa, linhas, pendência e comandos.
@@ -50,13 +51,13 @@ export class Session implements SessionView {
    * Abre na raiz do repositório quando `cwd` está dentro de um: o projeto (e a trava entre app e terminal)
    * é o mesmo, seja qual for a subpasta.
    */
-  static async open(core: Core, cwd: string): Promise<Session> {
+  static async open(core: Core, cwd: string, version = ''): Promise<Session> {
     let root = realpathSync(cwd)
     try { root = realpathSync((await runGit(cwd, ['rev-parse', '--show-toplevel'])).trim()) } catch { /* sem git: a própria pasta */ }
-    return new Session(core, root)
+    return new Session(core, root, version)
   }
 
-  constructor(private core: Core, readonly cwd: string) {
+  constructor(private core: Core, readonly cwd: string, private version = '') {
     this.project = core.store.upsertProject(cwd)
     // Terminal é para a esteira: projeto sem perfil escolhido abre no Trabalho.
     const chosen = core.store.getSetting<string>(`profile:${this.project.id}`)
@@ -120,6 +121,11 @@ export class Session implements SessionView {
       if (!l) return null
       return ev.type === 'text' ? { text: `    ${getAgent(agentId).nome}: ${l.text.slice(0, 600)}`, color: 'gray' } : { ...l, text: `  ${l.text}` }
     }
+    // A tarefa de uma etapa pode ser o plano inteiro: na linha vai só o começo.
+    if (ev.type === 'child_started') {
+      const first = ev.task.split('\n')[0].trim()
+      return { text: `${getAgent(ev.agentId).nome}  ${first.length > 110 ? `${first.slice(0, 109)}…` : first}` }
+    }
     return eventLine(ev, id => getAgent(id).nome)
   }
 
@@ -143,7 +149,7 @@ export class Session implements SessionView {
       case 'stop': return { message: `Parei ${this.core.runs.cancelAll()} pedido(s).` }
       case 'new': {
         this.conversationId = this.core.store.createConversation(this.project.id, 'Terminal').id
-        this.out = []
+        this.out = this.banner()
         this.changed()
         return { message: 'Conversa nova.' }
       }
@@ -187,14 +193,32 @@ export class Session implements SessionView {
     return { message: `Retomei: ${c.title}.` }
   }
 
+  private banner(): Line[] {
+    const e = this.profile().esteira
+    const team = e ? ROLES.flatMap(r => (e[r] ? [{ id: e[r]!, papel: ROLE_NAME[r] }] : [])).map(({ id, papel }) => {
+      const a = getAgent(id as AgentId)
+      return { nome: a.nome, tool: a.transport.kind === 'api' ? 'API' : TOOL_NAME[a.tool], papel }
+    }) : []
+    return bannerLines({ version: this.version, project: basename(this.cwd), team })
+  }
+
   private loadHistory(): void {
-    this.out = []
-    for (const r of this.core.store.listRuns(this.conversationId)) {
-      if (!r.parentRunId) this.out.push({ text: `› ${r.prompt}`, color: 'cyan' })
+    this.out = this.banner()
+    // O trabalho de cada etapa entra logo depois do "child_started" dela, como aconteceu ao vivo.
+    const runs = this.core.store.listRuns(this.conversationId)
+    const byId = new Map(runs.map(r => [r.id, r]))
+    const replay = (r: (typeof runs)[number]) => {
       for (const ev of this.core.store.listEvents(r.id)) {
         const l = this.lineFor(r.parentRunId, r.agentId, ev)
         if (l) this.out.push(l)
+        const child = ev.type === 'child_started' ? byId.get(ev.runId) : undefined
+        if (child) replay(child)
       }
+    }
+    for (const r of runs) {
+      if (r.parentRunId) continue
+      this.out.push({ text: `› ${r.prompt}`, color: 'cyan' })
+      replay(r)
     }
     this.out = this.out.slice(-MAX_LINES)
     this.changed()

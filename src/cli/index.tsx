@@ -8,6 +8,8 @@ import { Session } from './session'
 // Entrada do comando `tutti` (spec tutti-terminal §6): roda com o Node do Electron (ELECTRON_RUN_AS_NODE)
 // e abre o mesmo banco do app. Não lê chaves de API: agentes por API ficam indisponíveis aqui.
 
+declare const __TUTTI_VERSION__: string
+
 const noKeys = {
   isAvailable: () => false,
   encrypt: (): Buffer => { throw new Error('KEYCHAIN_UNAVAILABLE') },
@@ -22,7 +24,7 @@ async function main() {
     emit: (runId, ev) => session?.onEvent(runId, ev),
     onUsage: s => session?.onUsage(s),
   })
-  session = await Session.open(core, process.cwd())
+  session = await Session.open(core, process.cwd(), typeof __TUTTI_VERSION__ === 'string' ? __TUTTI_VERSION__ : '')
   const stopPolling = core.usage.startPolling()
   const out = process.stdout
   let ink: ReturnType<typeof render> | undefined

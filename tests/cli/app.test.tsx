@@ -82,6 +82,12 @@ describe('tela do terminal', () => {
     expect(r.lastFrame()).toContain('› x')
   })
 
+  it('linha vazia da conversa ocupa espaço (separa a tela de entrada)', () => {
+    const r = render(<App session={stub({ lines: () => [{ text: 'A' }, { text: '' }, { text: 'B' }] })} exit={() => {}} width={100} />)
+    const rows = r.lastFrame()!.split('\n')
+    expect(rows.indexOf('B') - rows.indexOf('A')).toBe(2)
+  })
+
   it('Ctrl+C fecha', async () => {
     const exit = vi.fn()
     const r = render(<App session={stub()} exit={exit} width={100} />)

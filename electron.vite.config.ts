@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }
 const shared = { '@shared': resolve('src/shared') }
 
 export default defineConfig({
@@ -9,7 +11,7 @@ export default defineConfig({
     resolve: { alias: shared },
     // O comando `tutti` (src/cli) sai junto do processo principal: out/main/cli.js.
     // React e Ink empacotados no cli.js: versão de produção (sem avisos de desenvolvimento, mais leve).
-    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+    define: { 'process.env.NODE_ENV': JSON.stringify('production'), __TUTTI_VERSION__: JSON.stringify(pkg.version) },
     build: { rollupOptions: { input: { index: resolve('src/main/index.ts'), cli: resolve('src/cli/index.tsx') } } },
   },
   preload: {
