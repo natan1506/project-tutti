@@ -85,7 +85,7 @@ export function bannerLines(o: { version: string; project: string; team: { nome:
     { text: '' },
     ...team,
     { text: '' },
-    { text: '  Escreva o pedido e Enter  ·  /config papéis  ·  /agents time  ·  /exit sai', color: 'gray' },
+    { text: '  Escreva o pedido e Enter  ·  / abre os comandos  ·  /config papéis  ·  /help', color: 'gray' },
     { text: '' },
   ]
 }

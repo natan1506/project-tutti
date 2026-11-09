@@ -65,6 +65,19 @@ describe('sessão do terminal', () => {
     await t.core.close()
   })
 
+  it('pedido, plano, cada etapa e a revisão vêm separados por uma linha em branco', async () => {
+    const t = await setup()
+    await t.session.run({ kind: 'send', text: 'crie soma' })
+    await t.until(() => t.texts().includes('Pronto.'))
+    const x = t.texts()
+    for (const start of ['› crie soma', 'Plano:', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
+      const i = x.findIndex(l => l.startsWith(start))
+      expect(i, start).toBeGreaterThan(0)
+      expect(x[i - 1], start).toBe('')
+    }
+    await t.core.close()
+  })
+
   it('ao reabrir, o trabalho de cada etapa aparece no lugar certo, antes do "Pronto."', async () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
@@ -119,12 +132,61 @@ describe('sessão do terminal', () => {
     await t.core.close()
   })
 
-  it('/new começa outra conversa e /history lista as duas', async () => {
+  it('/new começa outra conversa; o painel do /history lista as duas e retoma a escolhida', async () => {
     const t = await setup()
     const first = t.session.conversationId
     await t.session.run({ kind: 'new' })
     expect(t.session.conversationId).not.toBe(first)
-    expect((await t.session.run({ kind: 'history' })).message).toMatch(/1\. .*\n2\. /)
+    expect(await t.session.run({ kind: 'history' })).toEqual({ panel: 'history' })
+    const rows = t.session.historyView()
+    expect(rows).toHaveLength(2)
+    expect(rows[0].current).toBe(true)
+    t.session.resume(rows[1].index)
+    expect(t.session.conversationId).toBe(first)
+    await t.core.close()
+  })
+
+  it('/config sem argumento abre o painel; cada linha diz o valor e as opções', async () => {
+    const t = await setup()
+    expect(await t.session.run({ kind: 'config' })).toEqual({ panel: 'config' })
+    const rows = t.session.configView()
+    expect(rows.map(r => r.key)).toEqual(['perfil', 'cerebro', 'executor', 'tester', 'reserva', 'autonomia', 'voltas'])
+    const exec = rows.find(r => r.key === 'executor')!
+    expect(exec).toMatchObject({ label: 'Executor', value: 'Forja' })
+    expect(exec.hint.length).toBeGreaterThan(10)
+    expect(exec.options.map(o => o.label)).toContain('Curinga')
+    const auto = rows.find(r => r.key === 'autonomia')!
+    expect(auto.options.map(o => o.value)).toEqual(['ask_all', 'accept_edits', 'autonomous'])
+    expect(auto.options.every(o => o.label !== o.value)).toBe(true)
+    expect(t.session.setConfig('executor', exec.options.find(o => o.label === 'Curinga')!.value)).toContain('Curinga')
+    expect(t.session.configView().find(r => r.key === 'executor')!.value).toBe('Curinga')
+    await t.core.close()
+  })
+
+  it('/agents e /usage abrem painéis com o time e o gasto', async () => {
+    const t = await setup()
+    expect(await t.session.run({ kind: 'agents' })).toEqual({ panel: 'agents' })
+    expect(t.session.agentsView().map(a => `${a.nome}:${a.papel}`)).toEqual(['Bússola:cérebro', 'Forja:executor', 'Lupa:tester', 'Curinga:reserva', 'Radar:fora da esteira'])
+    expect(await t.session.run({ kind: 'usage' })).toEqual({ panel: 'usage' })
+    expect(t.session.usageView()).toMatchObject({ gasto: [], limites: expect.any(Array) })
+    await t.core.close()
+  })
+
+  it('/clear limpa a tela e começa conversa nova, com a tela de entrada', async () => {
+    const t = await setup()
+    const first = t.session.conversationId
+    t.session.say('algo')
+    await t.session.run({ kind: 'clear' })
+    expect(t.session.conversationId).not.toBe(first)
+    expect(t.texts()[0].startsWith('╭')).toBe(true)
+    expect(t.texts()).not.toContain('algo')
+    await t.core.close()
+  })
+
+  it('resposta de comando vem num bloco: linha em branco e ⎿ na primeira linha', async () => {
+    const t = await setup()
+    t.session.reply('linha um\nlinha dois')
+    expect(t.texts().slice(-3)).toEqual(['', '  ⎿ linha um', '    linha dois'])
     await t.core.close()
   })
 

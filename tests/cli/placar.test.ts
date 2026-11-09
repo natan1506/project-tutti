@@ -36,6 +36,12 @@ describe('placar', () => {
     expect(p.cells[3].text).toContain('10%')
     expect(p.cells[0].text).toContain('seg')
   })
+  it('100 colunas com o Claude esgotado: os nomes continuam inteiros', () => {
+    const p = placar('Tutti · calculadora', AGENTS, snap([row('claude', 100, { resetsAt: segunda }), row('codex', 7), row('opencode', null)]), 100, now)
+    expect(placarWidth(p)).toBeLessThanOrEqual(100)
+    expect(p.cells.map(c => c.nome)).toEqual(['Bússola', 'Forja', 'Lupa', 'Curinga'])
+  })
+
   it('80 colunas: continua numa linha só', () => {
     const p = placar('Tutti · docpay-backoffice', AGENTS, snap([row('claude', 68), row('codex', 27), row('opencode', 0)]), 80, now)
     expect(placarWidth(p)).toBeLessThanOrEqual(80)

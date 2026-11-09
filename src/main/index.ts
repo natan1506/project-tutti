@@ -21,6 +21,9 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+// Pasta de dados alternativa (demonstrações e prints): o app abre outro banco sem tocar no do dia a dia.
+if (process.env.TUTTI_DATA_DIR) app.setPath('userData', process.env.TUTTI_DATA_DIR)
+
 app.whenReady().then(async () => {
   // Empacotado, o ícone vem do bundle; em dev o Dock mostraria o do Electron.
   if (!app.isPackaged) app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
