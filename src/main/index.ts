@@ -1,32 +1,16 @@
 import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron'
+import { join } from 'node:path'
+import type { RunEvent } from '@shared/events'
+import type { Profile } from '@shared/profiles'
+import { agentsOfProfile, getAgent } from '@shared/agents'
 import { checkForUpdate } from './updates/updateCheck'
 import { windowOptions } from './windowOptions'
-import { KeyStore } from './keys/keyStore'
-import { ProfileService } from './profiles/profileService'
-import { SkillService } from './skills/skillService'
-import { existsSync, mkdirSync } from 'node:fs'
-import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
-import { TextBrain } from './team/textBrain'
-import { join } from 'node:path'
-import { agentsOfProfile, getAgent, type ToolKind } from '@shared/agents'
-import type { RunEvent } from '@shared/events'
-import { isPaidApi, PADRAO, type Profile } from '@shared/profiles'
-import { AntigravityAdapter } from './adapters/antigravity'
-import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
-import { CodexAdapter } from './adapters/codex'
-import { OpencodeAdapter, OpencodeHost, startOpencodeServer } from './adapters/opencode'
+import { createCore } from './core'
 import { registerIpc } from './ipc'
 import { VoiceService } from './voice/voiceService'
 import { sayToWav, sayVoices } from './voice/say'
-import { RunService } from './runs/runService'
-import { openStore } from './store/db'
-import { ClaudeBrain } from './team/brain'
-import { TeamService } from './team/teamService'
 import { BrowserService } from './browser/browserService'
 import { ElectronPage } from './browser/electronPage'
-import { cachedDetector, realExec } from './tools/detect'
-import { pickReplacement } from './usage/handoff'
-import { UsageService } from './usage/usageService'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow(windowOptions(join(import.meta.dirname, '../preload/index.cjs')))
@@ -38,31 +22,11 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(async () => {
   // Empacotado, o ícone vem do bundle; em dev o Dock mostraria o do Electron.
   if (!app.isPackaged) app.dock?.setIcon(join(import.meta.dirname, '../../build/icon.png'))
-  const store = openStore(join(app.getPath('userData'), 'time.db'))
   let send: (runId: string, ev: RunEvent) => void = () => {}
   let pushProfiles: (ps: Profile[]) => void = () => {}
-  const profiles = new ProfileService({ store, emit: ps => pushProfiles(ps) })
-  const keys = new KeyStore({ store, crypto: {
-    isAvailable: () => safeStorage.isEncryptionAvailable(),
-    encrypt: s => safeStorage.encryptString(s),
-    decrypt: b => safeStorage.decryptString(b),
-  } })
-  const tools = cachedDetector(realExec)
-  // Spec custos-e-perfis §8: as chaves vão só para o processo do opencode.
-  const opencode = new OpencodeHost(() => startOpencodeServer(undefined, keys.all()))
-  let quitting = false
-  app.on('before-quit', e => {
-    if (quitting || !opencode.isRunning) return
-    // Espera o servidor do opencode sair (até ~3 s) para não deixar processo órfão.
-    e.preventDefault()
-    quitting = true
-    void opencode.close().finally(() => app.quit())
-  })
-  const adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) }
-  const toolReady = async (t: ToolKind) => { const s = (await tools())[t]; return s.installed && s.loggedIn }
   let pushUsage: (s: import('@shared/usage').UsageSnapshot) => void = () => {}
   let pushActivity: (n: number) => void = () => {}
-  const usage = new UsageService({ store, emit: s => pushUsage(s), pollClaude: async () => ((await toolReady('claude')) ? pollClaudeUsage() : []) })
+  const crypto = { isAvailable: () => safeStorage.isEncryptionAvailable(), encrypt: (s: string) => safeStorage.encryptString(s), decrypt: (b: Buffer) => safeStorage.decryptString(b) }
   // A janela nasce depois dos serviços; a página só é criada quando um agente pede, e aí ela já existe.
   let mainWindow: BrowserWindow | undefined
   const browser = new BrowserService({
@@ -72,46 +36,25 @@ app.whenReady().then(async () => {
   const sweepBrowser = setInterval(() => browser.sweep(), 60_000)
   app.on('will-quit', () => clearInterval(sweepBrowser))
   if (process.env.TUTTI_E2E) (globalThis as { __tuttiBrowser?: BrowserService }).__tuttiBrowser = browser
-  const runs = new RunService({
-    store,
-    browser,
-    adapters,
-    emit: (runId, ev) => send(runId, ev),
-    toolReady,
-    keyReady: p => keys.get(p) !== undefined,
-    onUsage: (runId, agentId, ev) => usage.onEvent(runId, agentId, ev),
-    skillsFor: id => skills.skillsFor(id),
-    skillPluginDir: id => join(app.getPath('userData'), 'skill-plugins', id),
-    autonomyFor: p => { const v = store.getSetting(`autonomy:${p}`); return isAutonomyLevel(v) ? v : DEFAULT_AUTONOMY },
-    // O sandbox do Agent SDK no macOS usa o sandbox-exec do sistema (spike-sandbox).
-    sandboxAvailable: () => process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
-    onActivity: n => pushActivity(n),
+  const core = await createCore({
+    dataDir: app.getPath('userData'), crypto, browser,
+    emit: (runId, ev) => send(runId, ev), onUsage: s => pushUsage(s), onProfiles: ps => pushProfiles(ps), onActivity: n => pushActivity(n),
   })
-  // Skills (plano skills): quem cria roda numa pasta vazia do app, em consulta.
-  const skillWork = join(app.getPath('userData'), 'skill-work')
-  mkdirSync(skillWork, { recursive: true })
-  const skills = new SkillService({ store, runs, workDir: skillWork, isPaid: id => isPaidApi(getAgent(id)) })
-  // Spec custos-e-perfis §5: ferramenta passou do limite → aviso nos runs dela, com substituto sugerido.
-  usage.onCross((tool, _row, window, utilization) => {
-    void runs.warnLimit(tool, window, utilization, async from => {
-      const ready = await Promise.all(agentsOfProfile(getAgent(from).profileId).map(async a => ((await runs.availability(a.id)).ok ? a.id : null)))
-      return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
-    })
+  const { store, profiles, keys, runs, team, usage, skills, tools, opencode } = core
+  let quitting = false
+  app.on('before-quit', e => {
+    if (quitting || !opencode.isRunning) return
+    // Espera o servidor do opencode sair (até ~3 s) para não deixar processo órfão.
+    e.preventDefault()
+    quitting = true
+    void opencode.close().finally(() => app.quit())
   })
   const voices = new VoiceService({
     store, fetch: globalThis.fetch, sayVoices, sayToWav,
-    crypto: { isAvailable: () => safeStorage.isEncryptionAvailable(), encrypt: s => safeStorage.encryptString(s), decrypt: b => safeStorage.decryptString(b) },
+    crypto,
     profileAgents: id => agentsOfProfile(getAgent(id).profileId).map(a => a.id),
   })
   void voices.macVoices().catch(() => {})
-  const claudeBrain = new ClaudeBrain()
-  const team = new TeamService({
-    runs, store, brain: claudeBrain, adapters, toolReady, emit: (runId, ev) => send(runId, ev),
-    profileOf: id => (id && profiles.get(id)) || PADRAO,
-    // Coordenador Claude por CLI usa a saída estruturada; qualquer outro responde JSON em texto.
-    brainFor: c => (c.transport.kind === 'cli' && c.tool === 'claude' ? claudeBrain : new TextBrain(adapters[c.tool], c)),
-  })
-  await runs.recover()
   const win = createWindow()
   mainWindow = win
   pushUsage = s => { if (!win.isDestroyed()) win.webContents.send('usage', s) }
