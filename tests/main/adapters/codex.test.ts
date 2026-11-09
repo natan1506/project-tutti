@@ -26,6 +26,12 @@ describe('buildCodexThreadOptions', () => {
   it('repassa o modelo quando definido', () => {
     expect(buildCodexThreadOptions(opts({ model: 'gpt-x' })).model).toBe('gpt-x')
   })
+  it('na esteira (write) escreve só na pasta do projeto, sem rede', () => {
+    expect(buildCodexThreadOptions(opts({ write: true }))).toMatchObject({ sandboxMode: 'workspace-write', networkAccessEnabled: false, approvalPolicy: 'never' })
+  })
+  it('consulta nunca escreve, mesmo com write', () => {
+    expect(buildCodexThreadOptions(opts({ mode: 'consult', write: true })).sandboxMode).toBe('read-only')
+  })
 })
 
 describe('buildCodexPrompt', () => {

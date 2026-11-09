@@ -458,6 +458,8 @@ export class RunService {
         const events = adapter.run({
           agent, prompt: prefix ? `${prefix}\n\n${input.prompt}` : input.prompt, cwd: input.projectPath, instructions, signal, resumeSessionId: resume,
           ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
+          // Escrita fora do normal só em passo de time (a esteira pede); pedido direto nunca.
+          ...(input.write && input.parentRunId ? { write: true } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal), ...(skillPlugin ? { skillPlugin } : {}),
           autonomy, ...(sandbox ? { sandbox } : {}), ...(claudeCli && input.mode !== 'consult' && this.deps.browser ? { browser: this.deps.browser } : {}),
           ...(input.mode !== 'consult' && consultable.length ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal), consultable } : {}),

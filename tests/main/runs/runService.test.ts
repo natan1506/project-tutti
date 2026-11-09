@@ -210,6 +210,18 @@ describe('RunService', () => {
     expect(emitted.filter(e => e.type === 'diff')).toHaveLength(1)
   })
 
+  it('write só chega ao adaptador em passo de time que pediu (esteira)', async () => {
+    const { dir, store, fake, svc, start } = await setup(async function* () { yield { type: 'done' } })
+    const parent = await start('pai')
+    await svc.whenFinished(parent)
+    const conv = store.getRun(parent)!.conversationId
+    await svc.whenFinished(await svc.startChild({ projectPath: dir, conversationId: conv, agentId: 'forja', prompt: 'f', parentRunId: parent, write: true }))
+    expect(fake.calls.at(-1)!.write).toBe(true)
+    await svc.whenFinished(await svc.startChild({ projectPath: dir, conversationId: conv, agentId: 'forja', prompt: 'g', parentRunId: parent }))
+    expect(fake.calls.at(-1)!.write).toBeUndefined()
+    expect(fake.calls[0].write).toBeUndefined()
+  })
+
   it('run que estava na fila quando o app fechou vira interrompido sem refs', async () => {
     const { store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
     store.createRun({ id: 'na-fila', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: false, ownerPid: 4_194_303 })

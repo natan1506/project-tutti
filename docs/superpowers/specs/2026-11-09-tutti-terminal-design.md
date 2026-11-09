@@ -111,13 +111,20 @@ O comando `tutti` vem com o app: o app instala um atalho no PATH (como o `code` 
 - **Rede de segurança:** o ponto de restauração do git cobre a tarefa inteira, e o `/undo` desfaz tudo de uma vez.
 - **Onde vale:** fora da esteira, os dois continuam só-leitura, como hoje. Dentro da esteira, vale também no app quando o perfil tiver esteira.
 
+**Antigravity não escreve (testado em 2026-11-09, decisão do Natan).** Dois testes com o `agy` em modo sem janela deram este resultado:
+- no modo `auto`, ele recusa toda escrita;
+- no modo `accept-edits`, com regra liberando só a pasta do projeto, ele escreveu dentro **e fora** da pasta, e não conseguiu rodar comandos.
+
+A cerca não segura. Por isso o Antigravity continua só-leitura, e o **tester passa a ser um agente Codex**, com a mesma cerca do executor. Esse agente roda os testes de verdade. O Antigravity fica no perfil para pesquisa e consulta.
+
 As decisões abaixo são minhas, para conferir:
 
 - **Quem ocupa cada papel.** Hoje, no perfil Padrão, o Forja é Claude e o único agente Codex é o Lupa (revisor, só lê). Para não mudar o time do app, a esteira vem num **perfil novo, "Trabalho"**, com agentes próprios:
   - Bússola: Claude, cérebro.
   - Forja: Codex, executor.
-  - Radar: Antigravity, tester.
+  - Lupa: Codex, tester.
   - Curinga: opencode, reserva.
+  - Radar: Antigravity, só-leitura, para pesquisa e consulta (fora da esteira).
 
   O Natan pode editar tudo pelo `/agents` e pelo `/config`.
 - **Navegador do tester no terminal.** Na primeira versão, o tester usa o navegador que a própria ferramenta dele tiver (o Antigravity tem um). O navegador embutido do Tutti continua só no app, porque depende do Electron.

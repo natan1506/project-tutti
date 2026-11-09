@@ -8,11 +8,14 @@ import { summarizeToolCall } from '../policy/commandPolicy'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
-// O SDK do Codex não permite interceptar comandos: o Lupa roda sempre em sandbox só-leitura.
+// O SDK do Codex não permite interceptar comandos: roda em sandbox só-leitura, exceto num passo da esteira (`write`),
+// em que escreve só dentro da pasta do projeto e sem rede (cerca do próprio Codex).
 
 export function buildCodexThreadOptions(opts: AdapterRunOptions): ThreadOptions {
+  const write = opts.write === true && opts.mode !== 'consult'
   return {
-    sandboxMode: 'read-only', approvalPolicy: 'never', workingDirectory: opts.cwd, skipGitRepoCheck: true,
+    sandboxMode: write ? 'workspace-write' : 'read-only', approvalPolicy: 'never', workingDirectory: opts.cwd, skipGitRepoCheck: true,
+    ...(write ? { networkAccessEnabled: false } : {}),
     ...(opts.model ? { model: opts.model } : {}),
   }
 }

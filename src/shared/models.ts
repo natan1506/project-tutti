@@ -19,6 +19,8 @@ export interface StartRunInput {
   projectPath: string; conversationId: string; agentId: AgentId; prompt: string
   /** Só runs-filhos de um pedido de time. */
   parentRunId?: string; model?: string; mode?: 'work' | 'consult'
+  /** Passo da esteira: Codex escreve na pasta do projeto (sem rede). Só em `startChild`. */
+  write?: boolean
 }
 
 export type SkillRunError = 'PAID_NEEDS_CONFIRM' | 'INVALID_SKILL' | 'AGENT_UNAVAILABLE' | 'CANCELED' | 'TIMEOUT' | 'EMPTY_ANSWER' | 'AGENT_ERROR' | 'FAILED'

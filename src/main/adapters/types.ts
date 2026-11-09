@@ -27,6 +27,8 @@ export interface AdapterRunOptions {
   consultable?: AgentDef[]
   /** Skills marcadas para o agente, como plugin local (só o adaptador Claude usa; os outros recebem nas instruções). */
   skillPlugin?: { path: string; names: string[] }
+  /** Passo da esteira: ferramentas só-leitura (Codex) passam a escrever na pasta do projeto, sem rede. */
+  write?: boolean
   /** Navegador do Tutti (só o adaptador Claude usa, no modo de trabalho). */
   browser?: BrowserService
 }
