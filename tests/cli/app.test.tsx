@@ -24,11 +24,15 @@ function stub(over: Partial<SessionView> = {}): SessionView {
     historyView: () => [{ index: 1, title: 'crie soma', when: '09/11 09:42', prompts: 1, current: true }, { index: 2, title: 'outra', when: '08/11 10:00', prompts: 2, current: false }],
     resume: vi.fn(() => 'Retomei: outra.'),
     usageView: () => ({ gasto: [{ nome: 'Forja', tokens: '12,0k' }], limites: [{ ia: 'Claude', uso: '87%', volta: 'seg 12:00' }] }),
+    mcpView: () => [{ id: 'm1', nome: 'linear', estado: 'ligado', modo: 'só leitura', leitura: 12, escrita: 20, precisaDoApp: false }],
+    toggleMcp: vi.fn(),
+    mcpImportable: async () => [{ nome: 'playwright' }],
+    importMcp: vi.fn(async () => 'playwright importado (desligado).'),
     subscribe: () => () => {},
     ...over,
   }
 }
-const tick = () => new Promise(r => setTimeout(r, 30))
+const tick = (ms = 30) => new Promise(r => setTimeout(r, ms))
 
 describe('tela do terminal', () => {
   it('o placar com os 4 agentes é a primeira linha', () => {
@@ -225,5 +229,22 @@ describe('no estilo do Claude Code', () => {
     await tick()
     r.stdin.write('/new\r'); await tick()
     expect(s.reply).toHaveBeenCalledWith('Conversa nova.')
+  })
+})
+
+describe('painel /mcp', () => {
+  it('lista com estado e contagem; Enter liga/desliga; i importa', async () => {
+    const s = stub({ run: vi.fn(async () => ({ panel: 'mcp' as never })) })
+    const r = render(<App session={s} exit={() => {}} width={100} />)
+    await tick()
+    r.stdin.write('/mcp\r'); await tick()
+    expect(r.lastFrame()).toContain('linear')
+    expect(r.lastFrame()).toContain('12 de leitura')
+    r.stdin.write('\r'); await tick()
+    expect(s.toggleMcp).toHaveBeenCalledWith('m1')
+    r.stdin.write('i'); await tick(80)
+    expect(r.lastFrame()).toContain('playwright')
+    r.stdin.write('\r'); await tick(80)
+    expect(s.importMcp).toHaveBeenCalledWith('playwright')
   })
 })

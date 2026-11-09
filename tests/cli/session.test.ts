@@ -214,3 +214,20 @@ describe('onde o tutti abre', () => {
     await t.core.close()
   })
 })
+
+describe('/mcp no terminal', () => {
+  it('adiciona, lista com o estado e liga/desliga; MCP com segredo diz que precisa do app', async () => {
+    const t = await setup()
+    const fake = join(process.cwd(), 'tests/main/mcp/fixtures/fake-mcp.mjs')
+    const r = await t.session.run({ kind: 'mcp', add: { nome: 'fake', command: process.execPath, args: [fake] } })
+    expect(r.message).toContain('fake')
+    expect(await t.session.run({ kind: 'mcp' })).toEqual({ panel: 'mcp' })
+    const [row] = t.session.mcpView()
+    expect(row).toMatchObject({ nome: 'fake', estado: 'ligado', modo: 'só leitura', leitura: 2, escrita: 1, precisaDoApp: false })
+    t.session.toggleMcp(row.id)
+    expect(t.session.mcpView()[0].estado).toBe('desligado')
+    t.core.store.setSetting('mcps', [{ ...t.core.mcp.all()[0], secretNames: ['TOKEN'] }])
+    expect(t.session.mcpView()[0].precisaDoApp).toBe(true)
+    await t.core.close()
+  }, 30000)
+})

@@ -5,6 +5,7 @@ export interface CommandInfo { name: string; desc: string }
 export const COMMANDS: CommandInfo[] = [
   { name: 'config', desc: 'Escolher quem é cérebro, executor, tester e reserva; autonomia e voltas' },
   { name: 'agents', desc: 'Ver o time do perfil: IA, modelo, papel e uso de cada um' },
+  { name: 'mcp', desc: 'Ver, ligar e importar MCPs (ferramentas externas para os agentes)' },
   { name: 'usage', desc: 'Quanto cada agente gastou nesta conversa e quando cada limite volta' },
   { name: 'history', desc: 'Retomar uma conversa deste projeto (inclusive as do app)' },
   { name: 'new', desc: 'Começar uma conversa nova' },

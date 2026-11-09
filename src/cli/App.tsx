@@ -13,7 +13,7 @@ const ACCENT = '#8b6cf6'
 const MUTED = 'gray'
 const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
 
-type Panel = { kind: PanelKind; row: number; picking: number | null; status?: string }
+type Panel = { kind: PanelKind; row: number; picking: number | null; status?: string; importList?: { nome: string }[] }
 
 export function App({ session, exit, width, height = 40 }: { session: SessionView; exit: () => void; width: number; height?: number }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0)
@@ -59,6 +59,29 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
         const cur = rows[p.row]
         const at = Math.max(0, cur.options.findIndex(o => o.label === cur.value))
         return setPanel({ ...p, picking: at, status: undefined })
+      }
+      return
+    }
+    if (p.kind === 'mcp') {
+      if (p.importList) {
+        if (key.escape) return setPanel({ ...p, importList: undefined, picking: null })
+        if (key.upArrow || key.downArrow) return setPanel({ ...p, picking: move((p.picking ?? 0) + (key.upArrow ? -1 : 1), p.importList.length) })
+        if (key.return && p.importList[p.picking ?? 0]) {
+          const nome = p.importList[p.picking ?? 0].nome
+          setPanel({ ...p, importList: undefined, picking: null, status: `Importando ${nome}…` })
+          void session.importMcp(nome).then(status => { if (panelRef.current?.kind === 'mcp') setPanel({ ...panelRef.current, status }) })
+        }
+        return
+      }
+      const rows = session.mcpView()
+      if (key.escape) return setPanel(null)
+      if (key.upArrow || key.downArrow) return setPanel({ ...p, row: move(p.row + (key.upArrow ? -1 : 1), rows.length), status: undefined })
+      if (key.return && rows[p.row]) { session.toggleMcp(rows[p.row].id); return setPanel({ ...p, status: undefined }) }
+      if (ch === 'i') {
+        void session.mcpImportable().then(list => {
+          const cur = panelRef.current
+          if (cur?.kind === 'mcp') setPanel(list.length ? { ...cur, importList: list, picking: 0 } : { ...cur, status: 'Nada novo para importar do Claude Code.' })
+        })
       }
       return
     }
@@ -209,6 +232,35 @@ function PanelView({ panel, session, width }: { panel: Panel; session: SessionVi
             <Text color={MUTED}>{r.hint}</Text>
           </Text>
         ))}
+        {panel.status && <><Text> </Text><Text color="green">✓ {panel.status}</Text></>}
+      </Frame>
+    )
+  }
+  if (panel.kind === 'mcp') {
+    if (panel.importList) {
+      return (
+        <Frame title="Importar do Claude Code" width={width} footer="↑↓ escolher  ·  Enter importar  ·  Esc voltar">
+          {panel.importList.map((m, i) => (
+            <Text key={m.nome} color={i === panel.picking ? 'cyan' : undefined} bold={i === panel.picking}>{i === panel.picking ? '❯ ' : '  '}{m.nome}</Text>
+          ))}
+          <Text> </Text>
+          <Text color={MUTED}>Entra como só leitura, para todos. O Playwright entra desligado (os agentes Claude já usam o navegador do Tutti).</Text>
+        </Frame>
+      )
+    }
+    const rows = session.mcpView()
+    return (
+      <Frame title="MCPs" width={width} footer="↑↓ navegar  ·  Enter liga/desliga  ·  i importar do Claude Code  ·  Esc fechar">
+        {rows.length ? rows.map((m, i) => (
+          <Text key={m.id} wrap="truncate">
+            <Text color={i === panel.row ? 'cyan' : undefined} bold={i === panel.row}>{i === panel.row ? '❯ ' : '  '}{pad(m.nome, 14)}</Text>
+            <Text color={m.estado === 'ligado' ? 'green' : m.estado === 'com erro' ? 'red' : MUTED}>{pad(m.estado, 11)}</Text>
+            <Text>{pad(m.modo, 15)}</Text>
+            <Text color={MUTED}>{`${m.leitura} de leitura · ${m.escrita} de escrita`}{m.precisaDoApp ? '  · tem segredo: só funciona pelo app' : ''}</Text>
+          </Text>
+        )) : <Text color={MUTED}>Nenhum MCP ainda. Aperte i para importar do Claude Code, ou use /mcp add nome comando…</Text>}
+        <Text> </Text>
+        <Text color={MUTED}>Escrita só nos agentes Claude, com sua aprovação a cada uso. Para adicionar com segredo ou mudar quem usa, use o app.</Text>
         {panel.status && <><Text> </Text><Text color="green">✓ {panel.status}</Text></>}
       </Frame>
     )

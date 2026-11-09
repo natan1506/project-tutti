@@ -16,12 +16,13 @@ import { eventLine, type Line } from './lines'
 // Estado da tela do terminal, sem React (spec tutti-terminal §4): projeto, conversa, linhas, pendência e comandos.
 
 export type Pending = { kind: 'approval' | 'plan' | 'question'; id: string; text: string }
-export type PanelKind = 'config' | 'agents' | 'history' | 'usage' | 'help'
+export type PanelKind = 'config' | 'agents' | 'history' | 'usage' | 'help' | 'mcp'
 export interface RunResult { exit?: true; message?: string; panel?: PanelKind }
 export interface Option { value: string; label: string; hint?: string }
 export interface ConfigRow { key: ConfigKey; label: string; value: string; hint: string; options: Option[] }
 export interface AgentRow { nome: string; ia: string; modelo: string; papel: string; uso: string; color?: string }
 export interface HistoryRow { index: number; title: string; when: string; prompts: number; current: boolean }
+export interface McpRow { id: string; nome: string; estado: string; modo: string; leitura: number; escrita: number; precisaDoApp: boolean }
 export interface UsageView { gasto: { nome: string; tokens: string }[]; limites: { ia: string; uso: string; volta: string }[] }
 
 /** O que a tela (App) usa da sessão. */
@@ -42,6 +43,10 @@ export interface SessionView {
   historyView(): HistoryRow[]
   resume(index: number): string
   usageView(): UsageView
+  mcpView(): McpRow[]
+  toggleMcp(id: string): void
+  mcpImportable(): Promise<{ nome: string }[]>
+  importMcp(nome: string): Promise<string>
   subscribe(fn: () => void): () => void
 }
 
@@ -197,6 +202,12 @@ export class Session implements SessionView {
       case 'agents': return { panel: 'agents' }
       case 'usage': return { panel: 'usage' }
       case 'config': return cmd.key ? this.config(cmd.key, cmd.value) : { panel: 'config' }
+      case 'mcp': {
+        if (!cmd.add) return { panel: 'mcp' }
+        const r = await this.core.mcp.save({ id: '', nome: cmd.add.nome, transport: { kind: 'stdio', command: cmd.add.command, args: cmd.add.args }, secretNames: [], mode: 'read', agents: 'all', enabled: true, tools: [] })
+        if (!r.ok) return { message: r.errors.join(' ') }
+        return { message: r.def.lastError ? `${r.def.nome} salvo desligado: não conectou (${r.def.lastError}).` : `${r.def.nome} instalado, só leitura, para todos os agentes (${r.def.tools.filter(t => t.read).length} ferramentas de leitura).` }
+      }
       case 'unknown': return { message: `Comando desconhecido: /${cmd.name}` }
     }
   }
@@ -339,6 +350,32 @@ export class Session implements SessionView {
         volta: r.resetsAt ? new Date(r.resetsAt).toLocaleString('pt-BR', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
       })),
     }
+  }
+
+  mcpView(): McpRow[] {
+    return this.core.mcp.all().map(d => ({
+      id: d.id, nome: d.nome, estado: d.lastError ? 'com erro' : d.enabled ? 'ligado' : 'desligado', modo: d.mode === 'write' ? 'pode escrever' : 'só leitura',
+      leitura: d.tools.filter(t => t.read).length, escrita: d.tools.filter(t => !t.read).length,
+      // O terminal não lê o Keychain do app: MCP com segredo só funciona pelo app.
+      precisaDoApp: d.secretNames.some(n => this.core.mcp.secretsOf(d.id)[n] === undefined),
+    }))
+  }
+
+  toggleMcp(id: string): void {
+    const d = this.core.mcp.all().find(x => x.id === id)
+    if (d) this.core.mcp.setEnabled(id, !d.enabled)
+    this.changed()
+  }
+
+  async mcpImportable(): Promise<{ nome: string }[]> {
+    return this.core.mcp.importableFromClaudeCode().map(i => ({ nome: i.nome }))
+  }
+
+  async importMcp(nome: string): Promise<string> {
+    const r = await this.core.mcp.importFromClaudeCode(nome)
+    this.changed()
+    if (!r.ok) return r.errors.join(' ')
+    return r.def.lastError ? `${nome} importado, mas não conectou: ${r.def.lastError}` : `${nome} importado${r.def.enabled ? ', só leitura, para todos' : ' (desligado)'}.`
   }
 
   reply(text: string): void {

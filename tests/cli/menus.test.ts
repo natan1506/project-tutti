@@ -7,7 +7,7 @@ describe('menu de comandos', () => {
     const all = matchCommands('/')
     expect(all.map(c => c.name)).toEqual(COMMANDS.map(c => c.name))
     expect(all.every(c => c.desc.length > 10)).toBe(true)
-    for (const n of ['config', 'agents', 'usage', 'history', 'new', 'clear', 'undo', 'stop', 'help', 'exit']) expect(all.map(c => c.name)).toContain(n)
+    for (const n of ['config', 'agents', 'mcp', 'usage', 'history', 'new', 'clear', 'undo', 'stop', 'help', 'exit']) expect(all.map(c => c.name)).toContain(n)
   })
   it('filtra pelo começo e depois por trecho', () => {
     expect(matchCommands('/co').map(c => c.name)).toEqual(['config'])
@@ -29,5 +29,13 @@ describe('comandos digitados sem barra', () => {
     expect(parseCommand('sair')).toEqual({ kind: 'exit' })
     expect(parseCommand('/help')).toEqual({ kind: 'help' })
     expect(parseCommand('clear o cache do redis')).toEqual({ kind: 'send', text: 'clear o cache do redis' })
+  })
+})
+
+describe('/mcp', () => {
+  it('abre o painel ou adiciona direto', () => {
+    expect(parseCommand('/mcp')).toEqual({ kind: 'mcp' })
+    expect(parseCommand('/mcp add x npx -y y')).toEqual({ kind: 'mcp', add: { nome: 'x', command: 'npx', args: ['-y', 'y'] } })
+    expect(parseCommand('/mcp add')).toEqual({ kind: 'unknown', name: 'mcp add' })
   })
 })
