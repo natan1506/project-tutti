@@ -11,6 +11,7 @@ const saveInput = z.object({
 })
 const toolInput = z.object({ id: z.string().max(100), tool: z.string().max(200), read: z.boolean() })
 const enabledInput = z.object({ id: z.string().max(100), enabled: z.boolean() })
+const accessInput = z.object({ id: z.string().max(100), mode: z.enum(['read', 'write']), agents: z.union([z.literal('all'), z.array(z.string().max(80)).max(50)]) })
 const id = z.string().min(1).max(100)
 
 export function mcpHandlers(svc: McpService) {
@@ -24,6 +25,7 @@ export function mcpHandlers(svc: McpService) {
     removeMcp: (raw: unknown) => svc.remove(id.parse(raw)),
     setMcpTool(raw: unknown) { const p = toolInput.parse(raw); svc.setTool(p.id, p.tool, p.read) },
     setMcpEnabled(raw: unknown) { const p = enabledInput.parse(raw); svc.setEnabled(p.id, p.enabled) },
+    setMcpAccess(raw: unknown) { const p = accessInput.parse(raw); svc.setAccess(p.id, p.mode, p.agents) },
     mcpImportable: () => svc.importableFromClaudeCode(),
     importMcp: (raw: unknown) => svc.importFromClaudeCode(z.string().max(40).parse(raw)),
     /** Testa de novo com os segredos já guardados; volta ligado se conectar. */

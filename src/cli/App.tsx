@@ -69,7 +69,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
         if (key.return && p.importList[p.picking ?? 0]) {
           const nome = p.importList[p.picking ?? 0].nome
           setPanel({ ...p, importList: undefined, picking: null, status: `Importando ${nome}…` })
-          void session.importMcp(nome).then(status => { if (panelRef.current?.kind === 'mcp') setPanel({ ...panelRef.current, status }) })
+          void session.importMcp(nome).catch(e => `Não consegui importar ${nome}: ${String(e)}`).then(status => { if (panelRef.current?.kind === 'mcp') setPanel({ ...panelRef.current, status }) })
         }
         return
       }

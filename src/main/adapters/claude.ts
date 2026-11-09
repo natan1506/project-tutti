@@ -121,7 +121,9 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
     if (mcp === 'read') return { behavior: 'allow', updatedInput: input }
     if (mcp === 'write') {
       const [, server, tool] = toolName.match(/^mcp__(.+?)__(.+)$/)!
-      const ok = await opts.requestApproval({ toolName, summary: `${server}: ${tool}`, reason: 'mcp' })
+      const args = JSON.stringify(input ?? {})
+      // O cartão mostra o que vai ser escrito, não só o nome da ferramenta.
+      const ok = await opts.requestApproval({ toolName, summary: `${server}: ${tool} ${args.length > 400 ? `${args.slice(0, 399)}…` : args}`, reason: 'mcp' })
       return ok ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: 'Natan negou esta ação do MCP.' }
     }
     if (mcp === 'deny' && !(opts.browser && toolName.startsWith(BROWSER_TOOL_PREFIX)) && !(opts.askAgent && toolName === AGENT_CALL_TOOL)) {

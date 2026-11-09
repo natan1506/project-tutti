@@ -41,11 +41,16 @@ export interface ResolvedMcp {
 }
 
 /** Prepara os MCPs de um pedido; `cleanup` apaga os arquivos de segredo que o lançador ainda não leu. */
-export function resolveMcps(mcps: AgentMcp[], dir: string): { list: ResolvedMcp[]; cleanup(): void } {
+/**
+ * `direct`: segredo vai no próprio env da config, sem lançador — só para quem grava a config num arquivo 0600 que
+ * nunca vai para a linha de comando (o opencode.json, como as chaves de API).
+ */
+export function resolveMcps(mcps: AgentMcp[], dir: string, o: { direct?: boolean } = {}): { list: ResolvedMcp[]; cleanup(): void } {
   const cleanups: (() => void)[] = []
   const list = mcps.map(m => {
     const base = { nome: m.def.nome, read: readToolNames(m.def), write: m.allowed === 'all' }
     if (m.def.transport.kind === 'http') return { ...base, launch: { kind: 'http' as const, url: m.def.transport.url } }
+    if (o.direct) return { ...base, launch: { kind: 'stdio' as const, command: m.def.transport.command, args: m.def.transport.args, env: m.secrets } }
     const l = launchCommand(m.def, m.secrets, dir)
     cleanups.push(l.cleanup)
     return { ...base, launch: { kind: 'stdio' as const, command: l.command, args: l.args, env: l.env } }

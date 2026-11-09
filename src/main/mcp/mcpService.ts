@@ -13,6 +13,8 @@ const secretKey = (id: string, name: string) => `mcp:${id}:${name}`
 
 export class McpService {
   private listeners = new Set<() => void>()
+  /** Salvamentos em fila: o teste de conexão demora, e dois ao mesmo tempo não podem se sobrescrever. */
+  private queue: Promise<unknown> = Promise.resolve()
   private probe: typeof probeMcp
 
   constructor(private deps: { store: Store; keys: KeyStore; homeDir: string; probe?: typeof probeMcp }) {
@@ -42,7 +44,13 @@ export class McpService {
   }
 
   /** Valida, guarda os segredos, testa a conexão e classifica as ferramentas; falhou → salvo desligado com o erro. */
-  async save(raw: unknown, secrets: Record<string, string> = {}): Promise<{ ok: true; def: McpServerDef } | { ok: false; errors: string[] }> {
+  save(raw: unknown, secrets: Record<string, string> = {}): Promise<{ ok: true; def: McpServerDef } | { ok: false; errors: string[] }> {
+    const run = this.queue.then(() => this.saveNow(raw, secrets))
+    this.queue = run.catch(() => {})
+    return run
+  }
+
+  private async saveNow(raw: unknown, secrets: Record<string, string>): Promise<{ ok: true; def: McpServerDef } | { ok: false; errors: string[] }> {
     const list = this.all()
     const r = raw as Partial<McpServerDef>
     const id = r.id && list.some(d => d.id === r.id) ? r.id : `mcp_${randomUUID()}`
@@ -55,11 +63,16 @@ export class McpService {
       ? {
         ...v.def, enabled: v.def.enabled, lastError: undefined,
         // Ajustes que o Natan fez continuam valendo; ferramenta nova é classificada pela regra.
-        tools: probed.tools.map(t => ({ name: t.name, read: prev?.tools.find(p => p.name === t.name)?.read ?? isReadTool(t.name, t.annotations) })).sort((a, b) => a.name.localeCompare(b.name)),
+        // Num MCP já salvo, ferramenta que apareceu agora entra como escrita até o Natan rever (spec §4).
+        tools: probed.tools.map(t => ({ name: t.name, read: prev ? (prev.tools.find(p => p.name === t.name)?.read ?? false) : isReadTool(t.name, t.annotations) })).sort((a, b) => a.name.localeCompare(b.name)),
       }
       : { ...v.def, enabled: false, lastError: probed.error }
     if (!def.lastError) delete def.lastError
-    this.write([...list.filter(d => d.id !== id), def])
+    // Relê a lista: o que mudou enquanto o teste de conexão rodava (ligar, desligar, ferramentas) continua valendo.
+    const now = this.all()
+    const cur = now.find(d => d.id === id)
+    const changedMeanwhile = cur && prev && cur.enabled !== prev.enabled
+    this.write([...now.filter(d => d.id !== id), changedMeanwhile ? { ...def, enabled: probed.ok && cur.enabled } : def])
     return { ok: true, def }
   }
 
@@ -71,6 +84,11 @@ export class McpService {
 
   setTool(id: string, tool: string, read: boolean): void {
     this.write(this.all().map(d => (d.id === id ? { ...d, tools: d.tools.map(t => (t.name === tool ? { ...t, read } : t)) } : d)))
+  }
+
+  /** Modo e quem usa, sem testar de novo (as ferramentas reclassificadas ficam). */
+  setAccess(id: string, mode: McpServerDef['mode'], agents: McpServerDef['agents']): void {
+    this.write(this.all().map(d => (d.id === id ? { ...d, mode, agents } : d)))
   }
 
   setEnabled(id: string, enabled: boolean): void {

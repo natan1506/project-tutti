@@ -5,14 +5,14 @@ import type { McpServerDef } from '@shared/mcp'
 
 // Segredo de MCP fora da linha de comando (spec mcps §6): o SDK do Claude passa a config em --mcp-config e o do Codex
 // em --config, e os dois aparecem no `ps`. Com segredo, o MCP sobe por este lançador, que lê comando e env de um
-// arquivo 0600, apaga o arquivo e só então executa o MCP de verdade.
+// arquivo 0600 e executa o MCP de verdade. O arquivo some no fim do pedido (cleanup): a ferramenta pode subir o MCP
+// mais de uma vez no mesmo pedido.
 
 export const LAUNCHER_JS = `'use strict'
-const { readFileSync, unlinkSync } = require('node:fs')
+const { readFileSync } = require('node:fs')
 const { spawn } = require('node:child_process')
 const file = process.argv[2]
 const spec = JSON.parse(readFileSync(file, 'utf8'))
-try { unlinkSync(file) } catch {}
 const env = { ...process.env, ...spec.env }
 delete env.ELECTRON_RUN_AS_NODE
 const child = spawn(spec.command, spec.args, { stdio: 'inherit', env })

@@ -372,7 +372,14 @@ export class Session implements SessionView {
   }
 
   async importMcp(nome: string): Promise<string> {
-    const r = await this.core.mcp.importFromClaudeCode(nome)
+    let r: Awaited<ReturnType<Core['mcp']['importFromClaudeCode']>>
+    try {
+      r = await this.core.mcp.importFromClaudeCode(nome)
+    } catch (e) {
+      // O terminal não lê o Keychain do app: MCP com segredo só se importa pelo app.
+      if (e instanceof Error && e.message === 'KEYCHAIN_UNAVAILABLE') return `${nome} tem segredo: importe pelo app (o terminal não lê o Keychain).`
+      return `Não consegui importar ${nome}: ${e instanceof Error ? e.message : String(e)}`
+    }
     this.changed()
     if (!r.ok) return r.errors.join(' ')
     return r.def.lastError ? `${nome} importado, mas não conectou: ${r.def.lastError}` : `${nome} importado${r.def.enabled ? ', só leitura, para todos' : ' (desligado)'}.`

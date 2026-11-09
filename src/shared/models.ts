@@ -68,6 +68,7 @@ export interface TimeApi {
   removeMcp(id: string): Promise<void>
   setMcpTool(input: { id: string; tool: string; read: boolean }): Promise<void>
   setMcpEnabled(input: { id: string; enabled: boolean }): Promise<void>
+  setMcpAccess(input: { id: string; mode: 'read' | 'write'; agents: 'all' | string[] }): Promise<void>
   mcpImportable(): Promise<{ nome: string; transport: import('./mcp').McpTransport }[]>
   importMcp(nome: string): Promise<{ ok: true; def: import('./mcp').McpServerDef } | { ok: false; errors: string[] }>
   retestMcp(id: string): Promise<{ ok: true; def: import('./mcp').McpServerDef } | { ok: false; errors: string[] }>

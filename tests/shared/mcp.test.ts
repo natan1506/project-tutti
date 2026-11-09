@@ -36,3 +36,14 @@ describe('validação', () => {
     expect(validateMcp({ ...linear, transport: { kind: 'http', url: 'https://mcp.x.com/mcp' } }, []).ok).toBe(true)
   })
 })
+
+import { parseSecretLines } from '@shared/mcp'
+describe('revisão: segredos e nomes', () => {
+  it('linha sem "=" é recusada, sem virar nome de variável', () => {
+    expect(parseSecretLines('ghp_abc123XYZ')).toEqual({ ok: false, error: 'Cada linha precisa ser NOME=valor (ex.: GITHUB_TOKEN=ghp_…).' })
+    expect(parseSecretLines('TOKEN = abc \n\nOUTRO=x=y')).toEqual({ ok: true, secrets: { TOKEN: 'abc', OUTRO: 'x=y' } })
+  })
+  it('nomes reservados do Tutti são recusados', () => {
+    for (const nome of ['tutti', 'navegador']) expect(validateMcp({ ...linear, nome }, [])).toMatchObject({ ok: false })
+  })
+})

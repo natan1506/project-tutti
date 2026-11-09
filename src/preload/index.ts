@@ -50,6 +50,7 @@ const api: TimeApi = {
   removeMcp: id => ipcRenderer.invoke('removeMcp', id),
   setMcpTool: input => ipcRenderer.invoke('setMcpTool', input),
   setMcpEnabled: input => ipcRenderer.invoke('setMcpEnabled', input),
+  setMcpAccess: input => ipcRenderer.invoke('setMcpAccess', input),
   mcpImportable: () => ipcRenderer.invoke('mcpImportable'),
   importMcp: nome => ipcRenderer.invoke('importMcp', nome),
   retestMcp: id => ipcRenderer.invoke('retestMcp', id),

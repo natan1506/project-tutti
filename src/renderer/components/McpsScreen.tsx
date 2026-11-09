@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { resolveAgentDefs } from '@shared/profiles'
-import { splitCommandLine, type McpMode, type McpServerDef, type McpTransport } from '@shared/mcp'
+import { parseSecretLines, splitCommandLine, type McpMode, type McpServerDef, type McpTransport } from '@shared/mcp'
 import { useMcpStore } from '../state/mcpStore'
 import { useProfileStore } from '../state/profileStore'
 
@@ -27,7 +27,8 @@ export function McpsScreen() {
   const run = async (fn: () => Promise<{ ok: boolean; errors?: string[]; def?: McpServerDef } | void>) => {
     setBusy(true); setErrors([])
     try {
-      const r = await fn()
+      let r: Awaited<ReturnType<typeof fn>>
+      try { r = await fn() } catch (e) { setErrors([e instanceof Error && e.message.includes('KEYCHAIN_UNAVAILABLE') ? 'O Keychain do macOS não está disponível para guardar o segredo.' : 'Algo deu errado. Tente de novo.']); return }
       if (r && !r.ok) setErrors(r.errors ?? ['Algo deu errado.'])
       else if (r && r.def) { setCurrentId(r.def.id); setForm(undefined); setImportable(undefined) }
       await load()
@@ -37,7 +38,9 @@ export function McpsScreen() {
   const saveForm = () => form && run(async () => {
     const parts = splitCommandLine(form.line)
     const transport: McpTransport = form.kind === 'http' ? { kind: 'http', url: form.line.trim() } : { kind: 'stdio', command: parts[0] ?? '', args: parts.slice(1) }
-    const secrets = Object.fromEntries(form.secrets.split('\n').map(l => l.trim()).filter(Boolean).map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1)]).filter(([k]) => k))
+    const parsed = parseSecretLines(form.secrets)
+    if (!parsed.ok) return { ok: false, errors: [parsed.error] }
+    const secrets = parsed.secrets
     return window.time.saveMcp({ def: { id: '', nome: form.nome.trim(), transport, secretNames: Object.keys(secrets), mode: form.mode, agents: form.agents, enabled: true, tools: [] }, secrets })
   })
 
@@ -108,7 +111,12 @@ export function McpsScreen() {
                 </div>
                 <p className="muted mono">{transportText(current.transport)}</p>
                 {current.lastError && <p className="error">Não conectou: {current.lastError}</p>}
-                <p className="muted">{current.mode === 'write' ? 'Pode escrever. ' : 'Só leitura. '}Escrita só nos agentes Claude, e cada uso pede a sua aprovação. Codex e opencode recebem só as ferramentas de leitura.</p>
+                <div className="opt-line wrap">
+                  <label><input type="radio" checked={current.mode === 'read'} disabled={busy} onChange={() => void run(() => window.time.setMcpAccess({ id: current.id, mode: 'read', agents: current.agents }))} /> Só leitura</label>
+                  <label><input type="radio" checked={current.mode === 'write'} disabled={busy} onChange={() => void run(() => window.time.setMcpAccess({ id: current.id, mode: 'write', agents: current.agents }))} /> Pode escrever (só agentes Claude, com sua aprovação a cada uso)</label>
+                </div>
+                {agentChecks(current.agents, agentsV => void run(() => window.time.setMcpAccess({ id: current.id, mode: current.mode, agents: agentsV })))}
+                <p className="muted">Escrita só nos agentes Claude, e cada uso pede a sua aprovação. Codex e opencode recebem só as ferramentas de leitura.</p>
                 <div className="mcp-tools">
                   {(['read', 'write'] as const).map(side => (
                     <div key={side}>

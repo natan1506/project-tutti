@@ -91,3 +91,35 @@ describe('McpService', () => {
     expect(svc.all()).toEqual([])
   }, 20000)
 })
+
+describe('revisão: gravações durante o teste de conexão', () => {
+  it('mudança feita enquanto outro MCP testa a conexão não se perde; nome repetido ao mesmo tempo é recusado', async () => {
+    const { svc } = setup()
+    await svc.save(fakeDef({ nome: 'a' }))
+    const id = svc.all()[0].id
+    const slow = svc.save(fakeDef({ nome: 'b' }))
+    svc.setEnabled(id, false)
+    const dup = svc.save(fakeDef({ nome: 'b' }))
+    const [r1, r2] = await Promise.all([slow, dup])
+    expect(svc.all().find(d => d.nome === 'a')!.enabled).toBe(false)
+    expect([r1.ok, r2.ok].sort()).toEqual([false, true])
+    expect(svc.all().filter(d => d.nome === 'b')).toHaveLength(1)
+  }, 30000)
+  it('"testar de novo" com ferramenta nova: entra como escrita até você rever', async () => {
+    const { svc } = setup()
+    await svc.save(fakeDef())
+    const d = svc.all()[0]
+    svc['write']([{ ...d, tools: d.tools.filter(t => t.name !== 'get_secret') }])
+    await svc.save({ ...svc.all()[0], enabled: true })
+    expect(svc.all()[0].tools.find(t => t.name === 'get_secret')!.read).toBe(false)
+  }, 30000)
+  it('mudar modo e agentes de um MCP existente sem perder as ferramentas reclassificadas', async () => {
+    const { svc } = setup()
+    await svc.save(fakeDef())
+    const id = svc.all()[0].id
+    svc.setTool(id, 'save_thing', true)
+    svc.setAccess(id, 'write', ['forja'])
+    expect(svc.all()[0]).toMatchObject({ mode: 'write', agents: ['forja'] })
+    expect(svc.all()[0].tools.find(t => t.name === 'save_thing')!.read).toBe(true)
+  }, 30000)
+})

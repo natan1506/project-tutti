@@ -231,3 +231,15 @@ describe('/mcp no terminal', () => {
     await t.core.close()
   }, 30000)
 })
+
+describe('revisão: importar MCP com segredo pelo terminal', () => {
+  it('não cai: diz para importar pelo app', async () => {
+    const t = await setup()
+    const fake = join(process.cwd(), 'tests/main/mcp/fixtures/fake-mcp.mjs')
+    const home = mkdtempSync(join(tmpdir(), 'h-'))
+    writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { gh: { command: process.execPath, args: [fake], env: { GITHUB_TOKEN: 'x' } } } }))
+    ;(t.core.mcp as unknown as { deps: { homeDir: string } }).deps.homeDir = home
+    expect(await t.session.importMcp('gh')).toBe('gh tem segredo: importe pelo app (o terminal não lê o Keychain).')
+    await t.core.close()
+  }, 30000)
+})

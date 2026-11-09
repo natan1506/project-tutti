@@ -12,7 +12,7 @@ let api: Record<string, ReturnType<typeof vi.fn>>
 beforeEach(() => {
   api = {
     mcps: vi.fn(async () => [linear]), saveMcp: vi.fn(async () => ({ ok: true, def: linear })), removeMcp: vi.fn(async () => {}),
-    setMcpTool: vi.fn(async () => {}), setMcpEnabled: vi.fn(async () => {}), retestMcp: vi.fn(async () => ({ ok: true, def: linear })),
+    setMcpTool: vi.fn(async () => {}), setMcpAccess: vi.fn(async () => {}), setMcpEnabled: vi.fn(async () => {}), retestMcp: vi.fn(async () => ({ ok: true, def: linear })),
     mcpImportable: vi.fn(async () => [{ nome: 'playwright', transport: { kind: 'stdio', command: 'npx', args: ['@playwright/mcp@latest'] } }]),
     importMcp: vi.fn(async () => ({ ok: true, def: linear })),
   }
@@ -57,5 +57,25 @@ describe('tela de MCPs', () => {
     expect(arg.def.transport).toEqual({ kind: 'stdio', command: 'npx', args: ['-y', '@x/mcp'] })
     expect(arg.def.mode).toBe('read')
     expect(arg.secrets).toEqual({ TOKEN: 'abc' })
+  })
+})
+
+describe('revisão: tela', () => {
+  it('segredo sem "=" é recusado na tela e não é enviado', async () => {
+    const r = render(<McpsScreen />)
+    fireEvent.click(r.getByRole('button', { name: 'Adicionar MCP' }))
+    fireEvent.change(r.getByLabelText('Nome'), { target: { value: 'gh' } })
+    fireEvent.change(r.getByLabelText('Comando'), { target: { value: 'npx x' } })
+    fireEvent.change(r.getByLabelText('Variáveis secretas'), { target: { value: 'ghp_abc123XYZ' } })
+    fireEvent.click(r.getByRole('button', { name: 'Salvar e testar' }))
+    await waitFor(() => r.getByText(/Cada linha precisa ser NOME=valor/))
+    expect(api.saveMcp).not.toHaveBeenCalled()
+  })
+  it('MCP existente: dá para mudar modo e agentes', async () => {
+    const r = render(<McpsScreen />)
+    await waitFor(() => r.getByRole('button', { name: /linear/ }))
+    fireEvent.click(r.getByRole('button', { name: /linear/ }))
+    fireEvent.click(r.getByLabelText('Pode escrever (só agentes Claude, com sua aprovação a cada uso)'))
+    await waitFor(() => expect(api.setMcpAccess).toHaveBeenCalledWith({ id: 'm1', mode: 'write', agents: 'all' }))
   })
 })

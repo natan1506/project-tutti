@@ -85,7 +85,7 @@ export async function createCore(o: CoreOptions): Promise<Core> {
     const agent = { id: '', transport: { kind: 'cli', tool: 'opencode' } } as unknown as AgentDef
     const defs = usableMcps().filter(d => d.agents === 'all' || d.agents.some(a => ids.includes(a)))
     mkdirSync(opencodeMcpDir, { recursive: true })
-    return resolveMcps(mcpForAgent(agent, defs.map(d => ({ ...d, agents: 'all' as const })), mcpOpts('work', false)), opencodeMcpDir).list
+    return resolveMcps(mcpForAgent(agent, defs.map(d => ({ ...d, agents: 'all' as const })), mcpOpts('work', false)), opencodeMcpDir, { direct: true }).list
   }
   const opencode = new OpencodeHost(() => startOpencodeServer(undefined, keys.all(), opencodeMcps()))
   const restartOpencode = new RestartWhenIdle(() => { if (opencode.isRunning) void opencode.restart() })

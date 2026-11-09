@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { getAgent } from '@shared/agents'
 import type { McpServerDef } from '@shared/mcp'
-import { isAllowedMcpTool, mcpForAgent } from '../../../src/main/mcp/forAgent'
+import { isAllowedMcpTool, mcpForAgent, resolveMcps } from '../../../src/main/mcp/forAgent'
 import { LAUNCHER_JS, launchCommand } from '../../../src/main/mcp/launcher'
 
 const def = (o: Partial<McpServerDef> = {}): McpServerDef => ({
@@ -61,10 +61,20 @@ describe('lançador: segredo fora da linha de comando', () => {
     const r = launchCommand(def({ transport: { kind: 'stdio', command: process.execPath, args: [child] } }), { TOKEN: 'segredo-xyz' }, dir)
     expect(JSON.stringify([r.command, r.args, r.env])).not.toContain('segredo-xyz')
     expect(existsSync(r.args[0])).toBe(true)
-    const out = execFileSync(r.command, r.args, { env: { ...process.env, ...r.env }, encoding: 'utf8' })
-    expect(out).toBe('segredo-xyz')
-    expect(readdirSync(dir).filter(f => f.endsWith('.json'))).toEqual([])
+    // O MCP pode subir mais de uma vez no mesmo pedido: o arquivo fica até o fim do pedido (cleanup).
+    expect(execFileSync(r.command, r.args, { env: { ...process.env, ...r.env }, encoding: 'utf8' })).toBe('segredo-xyz')
+    expect(execFileSync(r.command, r.args, { env: { ...process.env, ...r.env }, encoding: 'utf8' })).toBe('segredo-xyz')
     r.cleanup()
-    expect(LAUNCHER_JS).toContain('unlinkSync')
+    expect(readdirSync(dir).filter(f => f.endsWith('.json'))).toEqual([])
+    expect(LAUNCHER_JS).not.toContain('unlinkSync')
+  })
+})
+
+describe('revisão: opencode recebe o segredo direto no opencode.json 0600', () => {
+  it('direct: sem lançador, sem arquivo no disco, env com o segredo', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'l-'))
+    const r = resolveMcps(mcpForAgent(codex, [def()], { ...o, secretsOf: () => ({ T: 's' }) }), dir, { direct: true })
+    expect(r.list[0].launch).toEqual({ kind: 'stdio', command: 'node', args: ['fake.mjs'], env: { T: 's' } })
+    expect(readdirSync(dir)).toEqual([])
   })
 })

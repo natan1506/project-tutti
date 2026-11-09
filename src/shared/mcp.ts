@@ -34,6 +34,8 @@ export function isReadTool(name: string, annotations?: { readOnlyHint?: boolean;
 export const readToolNames = (def: McpServerDef): string[] => def.tools.filter(t => t.read).map(t => t.name)
 
 const NAME_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/
+/** Servidores do próprio Tutti nos agentes Claude (consulta ao time e navegador). */
+const RESERVED = new Set(['tutti', 'navegador'])
 const schema = z.object({
   id: z.string().max(80),
   nome: z.string().max(40),
@@ -56,6 +58,7 @@ export function validateMcp(raw: unknown, others: McpServerDef[]): { ok: true; d
   const def = p.data as McpServerDef
   const errors: string[] = []
   if (!NAME_RE.test(def.nome)) errors.push('Nome: só letras minúsculas, números e hífen (ex.: linear).')
+  else if (RESERVED.has(def.nome)) errors.push(`"${def.nome}" é um nome usado pelo próprio Tutti; escolha outro.`)
   if (others.some(o => o.nome === def.nome && o.id !== def.id)) errors.push(`Já existe um MCP chamado "${def.nome}".`)
   if (def.transport.kind === 'stdio' && !def.transport.command.trim()) errors.push('Informe o comando que inicia o MCP.')
   if (def.transport.kind === 'http' && !/^https?:\/\//.test(def.transport.url)) errors.push('A URL precisa começar com http:// ou https://.')
@@ -68,4 +71,18 @@ export function splitCommandLine(line: string): string[] {
   const re = /"([^"]*)"|'([^']*)'|(\S+)/g
   for (const m of line.matchAll(re)) out.push(m[1] ?? m[2] ?? m[3])
   return out
+}
+
+/** Variáveis secretas do formulário: uma por linha, NOME=valor. Linha sem "=" é recusada (nunca vira nome). */
+export function parseSecretLines(text: string): { ok: true; secrets: Record<string, string> } | { ok: false; error: string } {
+  const secrets: Record<string, string> = {}
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
+    const i = line.indexOf('=')
+    const name = i > 0 ? line.slice(0, i).trim() : ''
+    if (i <= 0 || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return { ok: false, error: 'Cada linha precisa ser NOME=valor (ex.: GITHUB_TOKEN=ghp_…).' }
+    secrets[name] = line.slice(i + 1).trim()
+  }
+  return { ok: true, secrets }
 }
