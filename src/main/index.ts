@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, safeStorage, shell } from 'electron'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { RunEvent } from '@shared/events'
 import type { Profile } from '@shared/profiles'
@@ -6,6 +7,7 @@ import { agentsOfProfile, getAgent } from '@shared/agents'
 import { checkForUpdate } from './updates/updateCheck'
 import { windowOptions } from './windowOptions'
 import { createCore } from './core'
+import { installLauncher } from './cliLauncher'
 import { registerIpc } from './ipc'
 import { VoiceService } from './voice/voiceService'
 import { sayToWav, sayVoices } from './voice/say'
@@ -72,6 +74,10 @@ app.whenReady().then(async () => {
   if (app.isPackaged) {
     setTimeout(() => void checkUpdate(), 15_000)
     setInterval(() => void checkUpdate(), 6 * 60 * 60_000)
+  }
+  // Comando `tutti` no terminal (spec tutti-terminal §6): só no app instalado; falha não atrapalha o app.
+  if (app.isPackaged) {
+    try { installLauncher({ exePath: process.execPath, entryPath: join(app.getAppPath(), 'out', 'main', 'cli.js'), binDir: join(homedir(), '.local', 'bin') }) } catch { /* sem permissão: segue sem o comando */ }
   }
   const stopPolling = usage.startPolling()
   app.on('will-quit', stopPolling)
