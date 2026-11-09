@@ -2,7 +2,7 @@
   "compilerOptions": {
     "composite": true, "target": "ES2023", "module": "ESNext", "moduleResolution": "Bundler",
     "strict": true, "skipLibCheck": true, "esModuleInterop": true, "types": ["node"],
-    "paths": { "@shared/*": ["./src/shared/*"] }, "noEmit": true
+    "paths": { "@shared/*": ["./src/shared/*"] }, "noEmit": true, "jsx": "react-jsx"
   },
-  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "tests/main/**/*", "tests/shared/**/*"]
+  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "tests/main/**/*", "tests/shared/**/*", "src/cli/**/*", "tests/cli/**/*"]
 }
