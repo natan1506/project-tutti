@@ -29,6 +29,8 @@ export interface AdapterRunOptions {
   skillPlugin?: { path: string; names: string[] }
   /** Passo da esteira: ferramentas só-leitura (Codex) passam a escrever na pasta do projeto, sem rede. */
   write?: boolean
+  /** MCPs instalados no Tutti que este agente recebe (spec mcps §3). */
+  mcp?: import('../mcp/forAgent').ResolvedMcp[]
   /** Navegador do Tutti (só o adaptador Claude usa, no modo de trabalho). */
   browser?: BrowserService
 }

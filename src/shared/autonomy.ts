@@ -16,7 +16,7 @@ export const DEFAULT_AUTONOMY: AutonomyLevel = 'accept_edits'
 export const isAutonomyLevel = (x: unknown): x is AutonomyLevel => typeof x === 'string' && (AUTONOMY_LEVELS as readonly string[]).includes(x)
 
 /** Por que a política pediu aprovação; aparece no cartão. */
-export type ApprovalReason = 'ask_all' | 'destructive' | 'outside' | 'network' | 'unknown'
+export type ApprovalReason = 'ask_all' | 'destructive' | 'outside' | 'network' | 'unknown' | 'mcp'
 
 export const APPROVAL_REASON_LABEL: Record<ApprovalReason, string> = {
   ask_all: 'você pediu para perguntar tudo',
@@ -24,4 +24,5 @@ export const APPROVAL_REASON_LABEL: Record<ApprovalReason, string> = {
   outside: 'fora do projeto',
   network: 'acesso à internet',
   unknown: 'comando que o Tutti não reconhece',
+  mcp: 'ação de um MCP fora do projeto',
 }

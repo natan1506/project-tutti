@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { homedir } from 'node:os'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { agentsOfProfile, getAgent, knownAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
 import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
@@ -14,12 +16,17 @@ import { isGitRepo, runGit } from '../git/git'
 import { tryLock, unlock, waitLock } from './projectLock'
 import { buildContext, collectEntries } from '../context/conversationContext'
 import { loadInstructions } from '../instructions/loadInstructions'
+import { resolveMcps, type AgentMcp } from '../mcp/forAgent'
 import { loadProjectMemory, loadUserSkills } from '../instructions/userContext'
 import type { Store } from '../store/db'
 import { ProjectQueue } from './projectQueue'
 import { writeClaudePlugin } from '../skills/claudePlugin'
 
+export type RunDeps = Deps
+
 interface Deps {
+  /** MCPs que o agente recebe neste pedido (spec mcps §3). */
+  mcpFor?: (agent: AgentDef, mode: 'work' | 'consult', hasTuttiBrowser: boolean) => AgentMcp[]
   store: Store
   adapters: Record<ToolKind, AgentAdapter | undefined>
   emit: (runId: string, ev: RunEvent) => void
@@ -437,6 +444,8 @@ export class RunService {
   private async execute(runId: string, input: StartRunInput, adapter: AgentAdapter, signal: AbortSignal, withCheckpoint: boolean): Promise<void> {
     let status: RunStatus = 'done'
     let sessionId: string | undefined
+    let resolved: ReturnType<typeof resolveMcps> | undefined
+    let mcpDir: string | undefined
     this.executing.add(runId)
     try {
       const home = this.deps.homeDir ?? homedir()
@@ -461,6 +470,13 @@ export class RunService {
       const wantsSandbox = input.mode !== 'consult' && claudeCli && autonomy() === 'autonomous'
       const sandbox = wantsSandbox && (this.deps.sandboxAvailable?.() ?? true)
       if (wantsSandbox && !sandbox) this.record(runId, { type: 'notice', text: 'Sozinho indisponível: usando Aceitar edições.' })
+      // MCPs (spec mcps §3): preparados neste pedido; os arquivos de segredo do lançador somem no fim.
+      const mcpMode = input.mode === 'consult' ? 'consult' : 'work'
+      const agentMcps = this.deps.mcpFor?.(agent, mcpMode, claudeCli && mcpMode === 'work' && !!this.deps.browser) ?? []
+      if (agentMcps.length) {
+        mcpDir = mkdtempSync(join(tmpdir(), 'tutti-mcp-'))
+        resolved = resolveMcps(agentMcps, mcpDir)
+      }
       // Spec §5.7.1: o agente retoma a própria sessão nesta conversa; se a CLI já não a reconhece, começa outra uma vez.
       let resume = this.deps.store.lastSessionFor(input.conversationId, agent.id, agentSignature(agent)) ?? undefined
       // Agente por API usa sempre o modelo do perfil (o modelo escolhido no pedido é da lista das CLIs).
@@ -482,6 +498,7 @@ export class RunService {
           ...(model ? { model } : {}), ...(input.mode ? { mode: input.mode } : {}),
           // Escrita fora do normal só em passo de time (a esteira pede); pedido direto nunca.
           ...(input.write && input.parentRunId ? { write: true } : {}),
+          ...(resolved?.list.length ? { mcp: resolved.list } : {}),
           requestApproval: this.requestApproval(runId, signal), askUser: this.askUser(runId, signal), ...(skillPlugin ? { skillPlugin } : {}),
           autonomy, ...(sandbox ? { sandbox } : {}), ...(claudeCli && input.mode !== 'consult' && this.deps.browser ? { browser: this.deps.browser } : {}),
           ...(input.mode !== 'consult' && consultable.length ? { askAgent: this.askAgent(runId, agent.id, input.projectPath, signal), consultable } : {}),
@@ -513,6 +530,8 @@ export class RunService {
         this.record(runId, { type: 'error', message: e instanceof Error ? e.message : String(e) })
       }
     } finally {
+      resolved?.cleanup()
+      if (mcpDir) rmSync(mcpDir, { recursive: true, force: true })
       this.executing.delete(runId)
       this.delivered.delete(runId)
       for (const k of this.warned) if (k.startsWith(`${runId}:`)) this.warned.delete(k)

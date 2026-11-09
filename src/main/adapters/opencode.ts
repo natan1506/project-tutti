@@ -8,6 +8,7 @@ import { addTokens, zeroTokens, type TokenUsage } from '@shared/usage'
 import { decide, summarizeToolCall } from '../policy/commandPolicy'
 import { PROVIDERS, type ProviderId } from '@shared/profiles'
 import { safeEnv } from './env'
+import type { ResolvedMcp } from '../mcp/forAgent'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 // Curinga roda no opencode 2.x. O SDK do npm não fala com o CLI 2.x (spike da Fase 3A),
@@ -289,19 +290,24 @@ export class HttpOpencodeApi implements OpencodeApi {
  * Config do servidor (spec custos-e-perfis §8): sem MCP/plugins; os seis provedores declarados (assim os modelos listam
  * mesmo sem chave) e `apiKey` só onde o Natan salvou chave. É o único lugar por onde uma chave sai do app.
  */
-export function opencodeConfigContent(keys: Partial<Record<ProviderId, string>>): string {
+/** `mcps`: MCPs dos agentes opencode (spec mcps §3) — ligados, com tudo que não é leitura desligado em `tools`. */
+export function opencodeConfigContent(keys: Partial<Record<ProviderId, string>>, mcps: ResolvedMcp[] = []): string {
   const provider = Object.fromEntries(PROVIDERS.map(p => [p.id, keys[p.id] ? { options: { apiKey: keys[p.id] } } : {}]))
-  return JSON.stringify({ mcp: {}, plugin: [], provider })
+  const mcp = Object.fromEntries(mcps.map(m => [m.nome, m.launch.kind === 'http'
+    ? { type: 'remote', url: m.launch.url, enabled: true }
+    : { type: 'local', command: [m.launch.command, ...m.launch.args], environment: m.launch.env, enabled: true }]))
+  const tools = Object.fromEntries(mcps.flatMap(m => [[`${m.nome}_*`, false], ...m.read.map(t => [`${m.nome}_${t}`, true])]))
+  return JSON.stringify({ mcp, plugin: [], provider, ...(mcps.length ? { tools } : {}) })
 }
 
 /** Sobe `opencode serve` com senha aleatória e sem MCP do usuário; fecha matando o processo. */
-export async function startOpencodeServer(spawnFn: typeof spawn = spawn, keys: Partial<Record<ProviderId, string>> = {}): Promise<{ api: OpencodeApi; close(): Promise<void>; onExit(cb: () => void): void }> {
+export async function startOpencodeServer(spawnFn: typeof spawn = spawn, keys: Partial<Record<ProviderId, string>> = {}, mcps: ResolvedMcp[] = []): Promise<{ api: OpencodeApi; close(): Promise<void>; onExit(cb: () => void): void }> {
   const password = randomBytes(18).toString('base64url')
   // Só instruções do Natan (spec §7): sem config/plugins do projeto nem do usuário, sem MCP.
   // As chaves vão num opencode.json só do Natan (0600) no diretório de config temporário, nunca no env:
   // comandos que o opencode roda herdam o env do servidor.
   const configDir = mkdtempSync(join(tmpdir(), 'tutti-opencode-config-'))
-  writeFileSync(join(configDir, 'opencode.json'), opencodeConfigContent(keys), { mode: 0o600 })
+  writeFileSync(join(configDir, 'opencode.json'), opencodeConfigContent(keys, mcps), { mode: 0o600 })
   const proc: ChildProcess = spawnFn('opencode', ['serve', '--hostname=127.0.0.1', '--port=0'], {
     env: {
       ...safeEnv(),

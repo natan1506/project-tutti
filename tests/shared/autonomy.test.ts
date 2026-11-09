@@ -15,7 +15,7 @@ describe('autonomia', () => {
   it('motivos da aprovação', () => {
     expect(APPROVAL_REASON_LABEL).toEqual({
       ask_all: 'você pediu para perguntar tudo', destructive: 'destrutivo ou irreversível', outside: 'fora do projeto',
-      network: 'acesso à internet', unknown: 'comando que o Tutti não reconhece',
+      network: 'acesso à internet', unknown: 'comando que o Tutti não reconhece', mcp: 'ação de um MCP fora do projeto',
     })
   })
 })

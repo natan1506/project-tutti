@@ -378,3 +378,19 @@ describe('modo consulta no opencode', () => {
     expect(api.replies).toEqual([expect.objectContaining({ requestId: 'per_c', decision: 'reject' })])
   })
 })
+
+const MCP: import('../../../src/main/mcp/forAgent').ResolvedMcp = {
+  nome: 'fake', launch: { kind: 'stdio', command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' } },
+  read: ['get_thing'], write: true,
+}
+
+describe('MCPs no opencode', () => {
+  it('liga o MCP e desliga o que não é leitura', () => {
+    const c = JSON.parse(opencodeConfigContent({}, [MCP]))
+    expect(c.mcp.fake).toEqual({ type: 'local', command: ['/usr/bin/node', '/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], environment: { ELECTRON_RUN_AS_NODE: '1' }, enabled: true })
+    expect(c.tools).toEqual({ 'fake_*': false, fake_get_thing: true })
+  })
+  it('sem MCP, como hoje', () => {
+    expect(JSON.parse(opencodeConfigContent({})).mcp).toEqual({})
+  })
+})

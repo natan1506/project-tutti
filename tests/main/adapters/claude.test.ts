@@ -228,3 +228,25 @@ describe('navegador do Tutti', () => {
     expect(ev).toEqual({ type: 'tool', name: 'Navegador', summary: 'Digitando em e1' })
   })
 })
+
+const MCP: import('../../../src/main/mcp/forAgent').ResolvedMcp = {
+  nome: 'fake', launch: { kind: 'stdio', command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' } },
+  read: ['get_thing'], write: true,
+}
+
+describe('MCPs instalados no Tutti', () => {
+  it('entram em mcpServers como estão (o segredo já ficou no arquivo do lançador)', () => {
+    const o = buildClaudeOptions(opts({ mcp: [MCP] }), async () => ({ behavior: 'allow', updatedInput: {} }))
+    expect(o.mcpServers!.fake).toEqual({ type: 'stdio', command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' } })
+  })
+  it('leitura passa direto; escrita pede aprovação mesmo no Sozinho; ferramenta de fora é negada', async () => {
+    const asked: unknown[] = []
+    const can = makeCanUseTool(opts({ mcp: [MCP], autonomy: () => 'autonomous', sandbox: true, requestApproval: async r => { asked.push(r); return false } }))
+    expect(await can('mcp__fake__get_thing', {}, { signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'allow' })
+    expect(asked).toEqual([])
+    expect(await can('mcp__fake__save_thing', {}, { signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'deny' })
+    expect(asked).toEqual([{ toolName: 'mcp__fake__save_thing', summary: 'fake: save_thing', reason: 'mcp' }])
+    expect(await can('mcp__outro__get_x', {}, { signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'deny' })
+    expect(await can('ToolSearch', {}, { signal: new AbortController().signal } as never)).toMatchObject({ behavior: 'allow' })
+  })
+})

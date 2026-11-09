@@ -5,7 +5,7 @@ import type { AdapterRunOptions } from '../../../src/main/adapters/types'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildCodexPrompt, buildCodexThreadOptions, codexEnv, codexLimitsFromLog, findRolloutFile, mapCodexEvent, unwrapShell } from '../../../src/main/adapters/codex'
+import { buildCodexConfig, buildCodexPrompt, buildCodexThreadOptions, codexEnv, codexLimitsFromLog, findRolloutFile, mapCodexEvent, unwrapShell } from '../../../src/main/adapters/codex'
 
 const cwd = '/tmp/proj'
 const opts = (o: Partial<AdapterRunOptions> = {}): AdapterRunOptions => ({
@@ -112,5 +112,23 @@ describe('uso e limite do Codex', () => {
     writeFileSync(join(root, '2026/10/31/rollout-2026-10-31T08-22-10-abc-123.jsonl'), '')
     expect(findRolloutFile('abc-123', root)).toBe(join(root, '2026/10/31/rollout-2026-10-31T08-22-10-abc-123.jsonl'))
     expect(findRolloutFile('zzz', root)).toBeUndefined()
+  })
+})
+
+const MCP: import('../../../src/main/mcp/forAgent').ResolvedMcp = {
+  nome: 'fake', launch: { kind: 'stdio', command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' } },
+  read: ['get_thing'], write: true,
+}
+
+describe('MCPs no Codex', () => {
+  it('só as ferramentas de leitura (enabled_tools); sem MCP, nenhum', () => {
+    expect(buildCodexConfig(opts())).toEqual({ mcp_servers: {} })
+    expect(buildCodexConfig(opts({ mcp: [MCP] }))).toEqual({ mcp_servers: { fake: {
+      command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' }, enabled_tools: ['get_thing'],
+    } } })
+  })
+  it('MCP por URL vira url', () => {
+    const http = { ...MCP, launch: { kind: 'http' as const, url: 'https://mcp.x/mcp' } }
+    expect(buildCodexConfig(opts({ mcp: [http] })).mcp_servers.fake).toEqual({ url: 'https://mcp.x/mcp', enabled_tools: ['get_thing'] })
   })
 })

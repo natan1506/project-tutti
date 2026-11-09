@@ -1,5 +1,6 @@
 import type { AgentDef } from '@shared/agents'
 import { readToolNames, type McpServerDef } from '@shared/mcp'
+import { launchCommand } from './launcher'
 
 // Quem recebe qual MCP e com quais ferramentas (spec mcps §3): escrita só no Claude por CLI (com aprovação a cada uso);
 // Codex, opencode e APIs só leitura; consulta nada; Playwright não vai para quem tem o navegador do Tutti.
@@ -29,4 +30,35 @@ export function isAllowedMcpTool(mcps: AgentMcp[], toolName: string): 'read' | '
   if (!hit) return 'deny'
   if (readToolNames(hit.def).includes(m[2])) return 'read'
   return hit.allowed === 'all' ? 'write' : 'deny'
+}
+
+/** MCP pronto para o adaptador: como iniciar (já pelo lançador, se houver segredo) e o que pode ser usado. */
+export interface ResolvedMcp {
+  nome: string
+  launch: { kind: 'stdio'; command: string; args: string[]; env: Record<string, string> } | { kind: 'http'; url: string }
+  read: string[]
+  write: boolean
+}
+
+/** Prepara os MCPs de um pedido; `cleanup` apaga os arquivos de segredo que o lançador ainda não leu. */
+export function resolveMcps(mcps: AgentMcp[], dir: string): { list: ResolvedMcp[]; cleanup(): void } {
+  const cleanups: (() => void)[] = []
+  const list = mcps.map(m => {
+    const base = { nome: m.def.nome, read: readToolNames(m.def), write: m.allowed === 'all' }
+    if (m.def.transport.kind === 'http') return { ...base, launch: { kind: 'http' as const, url: m.def.transport.url } }
+    const l = launchCommand(m.def, m.secrets, dir)
+    cleanups.push(l.cleanup)
+    return { ...base, launch: { kind: 'stdio' as const, command: l.command, args: l.args, env: l.env } }
+  })
+  return { list, cleanup: () => cleanups.forEach(c => c()) }
+}
+
+/** Mesma regra de `isAllowedMcpTool`, para os MCPs já prontos no adaptador. */
+export function mcpToolAccess(mcps: ResolvedMcp[], toolName: string): 'read' | 'write' | 'deny' | 'not-mcp' {
+  const m = toolName.match(/^mcp__(.+?)__(.+)$/)
+  if (!m) return 'not-mcp'
+  const hit = mcps.find(x => x.nome === m[1])
+  if (!hit) return 'deny'
+  if (hit.read.includes(m[2])) return 'read'
+  return hit.write ? 'write' : 'deny'
 }

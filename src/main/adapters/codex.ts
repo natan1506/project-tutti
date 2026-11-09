@@ -20,6 +20,14 @@ export function buildCodexThreadOptions(opts: AdapterRunOptions): ThreadOptions 
   }
 }
 
+/** MCPs do Codex (spec mcps §3): só as ferramentas de leitura, pela lista `enabled_tools` do próprio Codex. */
+export function buildCodexConfig(opts: AdapterRunOptions): { mcp_servers: Record<string, Record<string, unknown>> } {
+  const list = opts.mode === 'consult' ? [] : opts.mcp ?? []
+  return { mcp_servers: Object.fromEntries(list.map(m => [m.nome, m.launch.kind === 'http'
+    ? { url: m.launch.url, enabled_tools: m.read }
+    : { command: m.launch.command, args: m.launch.args, env: m.launch.env, enabled_tools: m.read }])) }
+}
+
 export function buildCodexPrompt(opts: AdapterRunOptions): string {
   return [systemAppend(opts.agent, opts.instructions), opts.prompt].join('\n\n')
 }
@@ -110,7 +118,7 @@ export function codexEnv(): Record<string, string> {
 
 export class CodexAdapter implements AgentAdapter {
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
-    const codex = new Codex({ env: codexEnv(), config: { mcp_servers: {} } })
+    const codex = new Codex({ env: codexEnv(), config: buildCodexConfig(opts) as never })
     const threadOptions = buildCodexThreadOptions(opts)
     const thread = opts.resumeSessionId ? codex.resumeThread(opts.resumeSessionId, threadOptions) : codex.startThread(threadOptions)
     const state: { threadId?: string } = { threadId: opts.resumeSessionId }

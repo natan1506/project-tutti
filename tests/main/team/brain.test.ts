@@ -50,7 +50,6 @@ describe('ClaudeBrain', () => {
 describe('ClaudeBrain na esteira: o que o Natan configurou no Claude Code', () => {
   function home() {
     const h = mkdtempSync(join(tmpdir(), 'home-'))
-    writeFileSync(join(h, '.claude.json'), JSON.stringify({ mcpServers: { linear: { type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'] }, playwright: { command: 'npx' } } }))
     const sk = join(h, '.claude', 'skills', 'entregar-card')
     mkdirSync(sk, { recursive: true })
     writeFileSync(join(sk, 'SKILL.md'), '---\nname: entregar-card\ndescription: Use ao entregar um card\n---\nLeia o card.')
@@ -61,7 +60,9 @@ describe('ClaudeBrain na esteira: o que o Natan configurou no Claude Code', () =
   it('plano: instruções do projeto no pedido, Linear ligado só para leitura, skills como plugin', async () => {
     const h = home()
     const q = fakeQuery({ subtype: 'success', structured_output: { tarefa: 't', pronto: 'p' } })
-    await new ClaudeBrain(q.fn, { homeDir: h, pluginDir: join(h, 'plug') }).plan({ cwd: '/p', prompt: 'entrega o DOKZ-1', cerebro: 'bussola', signal, instructions: 'use pnpm sempre' })
+    const linear = { id: 'm', nome: 'linear', transport: { kind: 'stdio' as const, command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'] }, secretNames: [], mode: 'write' as const, agents: 'all' as const, enabled: true, tools: [{ name: 'get_issue', read: true }, { name: 'save_issue', read: false }] }
+    const mcpFor = (id: string) => (id === 'bussola' ? [{ def: linear, allowed: 'all' as const, secrets: {} }] : [])
+    await new ClaudeBrain(q.fn, { homeDir: h, pluginDir: join(h, 'plug'), mcpFor }).plan({ cwd: '/p', prompt: 'entrega o DOKZ-1', cerebro: 'bussola', signal, instructions: 'use pnpm sempre' })
     const { prompt, options: o } = q.seen[0]
     expect(prompt).toContain('use pnpm sempre')
     expect(prompt).toContain('Linear')

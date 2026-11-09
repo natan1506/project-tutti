@@ -11,7 +11,7 @@ import { runGit } from '../../../src/main/git/git'
 import { snapshot } from '../../../src/main/git/checkpoint'
 import { openStore } from '../../../src/main/store/db'
 import { claudeProjectSlug } from '../../../src/main/instructions/userContext'
-import { consultableFor, RunService } from '../../../src/main/runs/runService'
+import { consultableFor, RunService, type RunDeps } from '../../../src/main/runs/runService'
 
 type Script = (opts: AdapterRunOptions) => AsyncGenerator<AgentEvent>
 class FakeAdapter implements AgentAdapter {
@@ -21,7 +21,7 @@ class FakeAdapter implements AgentAdapter {
   run(opts: AdapterRunOptions) { this.seen = opts; this.calls.push(opts); return this.script(opts) }
 }
 
-async function setup(script: Script, { git = true, toolReady, radar = false, all = false, keyReady }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean; all?: boolean; keyReady?: (p: ProviderId) => boolean } = {}) {
+async function setup(script: Script, { git = true, toolReady, radar = false, all = false, keyReady, mcpFor }: { git?: boolean; toolReady?: (t: ToolKind) => Promise<boolean>; radar?: boolean; all?: boolean; keyReady?: (p: ProviderId) => boolean; mcpFor?: RunDeps['mcpFor'] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'run-'))
   if (git) {
     await runGit(dir, ['init', '-q'])
@@ -35,7 +35,7 @@ async function setup(script: Script, { git = true, toolReady, radar = false, all
   const fake = new FakeAdapter(script)
   const svc = new RunService({
     store, adapters: { claude: fake, codex: all ? fake : undefined, gemini: radar || all ? fake : undefined, opencode: all ? fake : undefined },
-    emit: (_id, ev) => emitted.push(ev), homeDir: home, toolReady, keyReady, skillPluginDir: id => join(home, 'plugins', id),
+    emit: (_id, ev) => emitted.push(ev), homeDir: home, toolReady, keyReady, skillPluginDir: id => join(home, 'plugins', id), mcpFor,
   })
   const start = (prompt = 'faz') => svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt })
   // Espera o agente ser chamado (o ponto de restauração usa git e pode passar de 300 ms numa máquina carregada).
@@ -107,6 +107,22 @@ describe('RunService', () => {
     expect(fake.seen!.instructions).toContain('regra do time')
     expect(fake.seen!.instructions).toContain('passos do qa')
     expect(fake.seen!.instructions).toContain(`Arquivos desta skill: ${sk}`)
+  })
+
+  it('MCPs: o agente recebe os dele já prontos; consulta não recebe; o segredo some no fim do pedido', async () => {
+    const def = { id: 'm1', nome: 'fake', transport: { kind: 'stdio' as const, command: 'node', args: ['x.mjs'] }, secretNames: ['T'], mode: 'read' as const, agents: 'all' as const, enabled: true, tools: [{ name: 'get_thing', read: true }] }
+    const seen: string[] = []
+    const { fake, svc, start, store, conv, dir } = await setup(async function* () { yield { type: 'done' } }, {
+      mcpFor: (agent, mode) => { seen.push(`${agent.id}:${mode}`); return mode === 'consult' ? [] : [{ def, allowed: ['get_thing'], secrets: { T: 'segredo' } }] },
+    })
+    await svc.whenFinished(await start())
+    const m = fake.seen!.mcp![0]
+    expect(m).toMatchObject({ nome: 'fake', read: ['get_thing'], write: false })
+    expect(JSON.stringify(m)).not.toContain('segredo')
+    const file = m.launch.kind === 'stdio' ? m.launch.args[1] : ''
+    expect(existsSync(file)).toBe(false)
+    expect(seen).toContain('forja:work')
+    void store; void conv; void dir
   })
 
   it('o Curinga (opencode) não recebe memórias nem skills do Claude Code', async () => {

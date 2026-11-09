@@ -2,9 +2,9 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULT_AUTONOMY, isAutonomyLevel } from '@shared/autonomy'
-import { agentsOfProfile, getAgent, type ToolKind } from '@shared/agents'
+import { agentsOfProfile, getAgent, type AgentDef, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
-import { isPaidApi, PADRAO, type Profile } from '@shared/profiles'
+import { isPaidApi, PADRAO, resolveAgentDefs, type Profile } from '@shared/profiles'
 import type { UsageSnapshot } from '@shared/usage'
 import { AntigravityAdapter } from './adapters/antigravity'
 import { ClaudeAdapter, pollClaudeUsage } from './adapters/claude'
@@ -14,6 +14,8 @@ import type { AgentAdapter } from './adapters/types'
 import type { BrowserService } from './browser/browserService'
 import { KeyStore, type KeyCrypto } from './keys/keyStore'
 import { McpService } from './mcp/mcpService'
+import { mcpForAgent, resolveMcps } from './mcp/forAgent'
+import { RestartWhenIdle } from './mcp/restartWhenIdle'
 import { ProfileService } from './profiles/profileService'
 import { RunService } from './runs/runService'
 import { SkillService } from './skills/skillService'
@@ -73,7 +75,21 @@ export async function createCore(o: CoreOptions): Promise<Core> {
   void mcp.seedLinear().catch(() => {})
   const tools = cachedDetector(realExec)
   // Spec custos-e-perfis §8: as chaves vão só para o processo do opencode.
-  const opencode = new OpencodeHost(() => startOpencodeServer(undefined, keys.all()))
+  // MCPs (spec mcps): só os que têm todos os segredos à mão (o terminal não lê o Keychain do app).
+  const usableMcps = () => mcp.all().filter(d => d.secretNames.every(n => mcp.secretsOf(d.id)[n] !== undefined))
+  const mcpOpts = (mode: 'work' | 'consult', hasTuttiBrowser: boolean) => ({ mode, hasTuttiBrowser, secretsOf: (id: string) => mcp.secretsOf(id) })
+  // O servidor do opencode é um só (Curinga e APIs): sobe com os MCPs de leitura marcados para algum agente opencode.
+  const opencodeMcpDir = join(o.dataDir, 'mcp-opencode')
+  const opencodeMcps = () => {
+    const ids = profiles.all().flatMap(p => resolveAgentDefs(p)).filter(a => a.tool === 'opencode').map(a => a.id)
+    const agent = { id: '', transport: { kind: 'cli', tool: 'opencode' } } as unknown as AgentDef
+    const defs = usableMcps().filter(d => d.agents === 'all' || d.agents.some(a => ids.includes(a)))
+    mkdirSync(opencodeMcpDir, { recursive: true })
+    return resolveMcps(mcpForAgent(agent, defs.map(d => ({ ...d, agents: 'all' as const })), mcpOpts('work', false)), opencodeMcpDir).list
+  }
+  const opencode = new OpencodeHost(() => startOpencodeServer(undefined, keys.all(), opencodeMcps()))
+  const restartOpencode = new RestartWhenIdle(() => { if (opencode.isRunning) void opencode.restart() })
+  mcp.onChange(() => restartOpencode.request())
   const adapters = o.adapters ?? { claude: new ClaudeAdapter(), codex: new CodexAdapter(), gemini: new AntigravityAdapter(), opencode: new OpencodeAdapter(opencode) }
   const toolReady = o.toolReady ?? (async (t: ToolKind) => { const s = (await tools())[t]; return s.installed && s.loggedIn })
   const usage = new UsageService({ store, emit: s => o.onUsage?.(s), pollClaude: async () => ((await toolReady('claude')) ? pollClaudeUsage() : []) })
@@ -90,7 +106,8 @@ export async function createCore(o: CoreOptions): Promise<Core> {
     autonomyFor: p => { const v = store.getSetting(`autonomy:${p}`); return isAutonomyLevel(v) ? v : DEFAULT_AUTONOMY },
     // O sandbox do Agent SDK no macOS usa o sandbox-exec do sistema (spike-sandbox).
     sandboxAvailable: () => process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
-    onActivity: n => o.onActivity?.(n),
+    onActivity: n => { restartOpencode.activity(n); o.onActivity?.(n) },
+    mcpFor: (agent, mode, hasTuttiBrowser) => mcpForAgent(agent, usableMcps(), mcpOpts(mode, hasTuttiBrowser)),
   })
   // Skills (plano skills): quem cria roda numa pasta vazia do app, em consulta.
   const skillWork = join(o.dataDir, 'skill-work')
@@ -103,7 +120,10 @@ export async function createCore(o: CoreOptions): Promise<Core> {
       return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
     })
   })
-  const claudeBrain: Brain = o.brain ?? new ClaudeBrain(undefined, { pluginDir: join(o.dataDir, 'skill-plugins', 'cerebro') })
+  const claudeBrain: Brain = o.brain ?? new ClaudeBrain(undefined, {
+    pluginDir: join(o.dataDir, 'skill-plugins', 'cerebro'),
+    mcpFor: id => mcpForAgent(getAgent(id), usableMcps(), mcpOpts('work', false)),
+  })
   const team = new TeamService({
     runs, store, brain: claudeBrain, adapters, toolReady, emit: o.emit,
     profileOf: id => (id && profiles.get(id)) || PADRAO,

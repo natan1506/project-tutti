@@ -9,6 +9,7 @@ import { BROWSER_TOOL_PREFIX, browserToolEvent } from '../browser/browserPolicy'
 import { BROWSER_HINT, makeBrowserServer } from '../browser/browserTools'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
+import { mcpToolAccess } from '../mcp/forAgent'
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 /** Partes do .git que mudam o que o git executa (hooks, filtros, outro repositório comum). */
@@ -30,6 +31,9 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     plugins: opts.skillPlugin ? [{ type: 'local', path: opts.skillPlugin.path }] : [], skills: opts.skillPlugin?.names ?? [],
     mcpServers: {
       ...(opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent, opts.consultable) } : {}),
+      ...(opts.mode !== 'consult' ? Object.fromEntries((opts.mcp ?? []).map(m => [m.nome, m.launch.kind === 'http'
+        ? { type: 'http' as const, url: m.launch.url }
+        : { type: 'stdio' as const, command: m.launch.command, args: m.launch.args, env: m.launch.env }])) : {}),
       ...(opts.browser && opts.mode !== 'consult' ? { navegador: makeBrowserServer(opts.browser, opts.agent.id, {
         autonomy: () => opts.autonomy?.() ?? 'accept_edits', requestApproval: opts.requestApproval, signal: opts.signal,
       }, opts.askUser) } : {}),
@@ -111,7 +115,18 @@ export function makeCanUseTool(opts: AdapterRunOptions): CanUseTool {
     }
     // A ferramenta do app é carregada sob demanda: o Claude Code passa por ToolSearch antes (spike da Fase 3B).
     if (opts.askAgent && toolName === AGENT_CALL_TOOL) return { behavior: 'allow', updatedInput: input }
-    if ((opts.askAgent || opts.browser) && toolName === 'ToolSearch') return { behavior: 'allow', updatedInput: input }
+    if ((opts.askAgent || opts.browser || opts.mcp?.length) && toolName === 'ToolSearch') return { behavior: 'allow', updatedInput: input }
+    // MCPs instalados (spec mcps §3): leitura livre; escrita pede aprovação em qualquer nível, inclusive no Sozinho.
+    const mcp = mcpToolAccess(opts.mcp ?? [], toolName)
+    if (mcp === 'read') return { behavior: 'allow', updatedInput: input }
+    if (mcp === 'write') {
+      const [, server, tool] = toolName.match(/^mcp__(.+?)__(.+)$/)!
+      const ok = await opts.requestApproval({ toolName, summary: `${server}: ${tool}`, reason: 'mcp' })
+      return ok ? { behavior: 'allow', updatedInput: input } : { behavior: 'deny', message: 'Natan negou esta ação do MCP.' }
+    }
+    if (mcp === 'deny' && !(opts.browser && toolName.startsWith(BROWSER_TOOL_PREFIX)) && !(opts.askAgent && toolName === AGENT_CALL_TOOL)) {
+      return { behavior: 'deny', message: 'Ferramenta de MCP não liberada para este agente.' }
+    }
     // Cada ação no navegador é decidida lá dentro, olhando o site de verdade (browserService).
     if (opts.browser && toolName.startsWith(BROWSER_TOOL_PREFIX)) return { behavior: 'allow', updatedInput: input }
     if (toolName === 'AskUserQuestion') {
