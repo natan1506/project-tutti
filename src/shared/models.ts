@@ -27,8 +27,7 @@ export type SkillRunResult<T> = ({ ok: true } & T) | { ok: false; error: SkillRu
 /** API exposta ao renderer pelo preload como `window.time`. */
 export interface TimeApi {
   pickFolder(): Promise<string | null>
-  openProject(path: string): Promise<{ project: Project; isGitRepo: boolean }>
-  initGit(path: string): Promise<void>
+  openProject(path: string): Promise<{ project: Project }>
   recentProjects(): Promise<Project[]>
   newConversation(projectId: string, title: string): Promise<Conversation>
   listConversations(projectId: string): Promise<Conversation[]>

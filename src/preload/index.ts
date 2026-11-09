@@ -7,7 +7,6 @@ import type { UsageSnapshot } from '@shared/usage'
 const api: TimeApi = {
   pickFolder: () => ipcRenderer.invoke('pickFolder'),
   openProject: path => ipcRenderer.invoke('openProject', path),
-  initGit: path => ipcRenderer.invoke('initGit', path),
   recentProjects: () => ipcRenderer.invoke('recentProjects'),
   newConversation: (projectId, title) => ipcRenderer.invoke('newConversation', projectId, title),
   listConversations: projectId => ipcRenderer.invoke('listConversations', projectId),

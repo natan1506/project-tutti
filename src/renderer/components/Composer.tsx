@@ -8,7 +8,6 @@ import { agentColor } from '../stage/colors'
 
 const ERRORS: Record<string, string> = {
   PROJECT_BUSY: 'Já tem um pedido rodando neste projeto. Espere terminar ou cancele.',
-  NOT_A_GIT_REPO: 'Esta pasta não usa git; abra o projeto de novo para iniciar um repositório.',
   TOOL_UNAVAILABLE: 'A ferramenta deste agente não está pronta (instale ou entre nela).',
   NO_COORDINATOR: 'Este perfil não tem coordenador: fale direto com um agente.',
 }

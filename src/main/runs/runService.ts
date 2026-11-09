@@ -83,14 +83,15 @@ export class RunService {
   /** Pedido direto a um agente: espera a vez do projeto, ponto de restauração, agente, diff. */
   async start(input: StartRunInput): Promise<string> {
     const adapter = await this.readyAdapter(input.agentId)
-    if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
-    const runId = this.open(input, true)
+    // Pasta sem git também funciona: só fica sem ponto de restauração (sem diff e sem Desfazer).
+    const git = await isGitRepo(input.projectPath)
+    const runId = this.open(input, git)
     const signal = this.controllers.get(runId)!.signal
     this.finished.set(runId, (async () => {
       if (!(await this.waitTurn(runId, input.projectPath, signal))) return
       try {
-        await snapshot(input.projectPath, refs(runId).before)
-        await this.execute(runId, input, adapter, signal, true)
+        if (git) await snapshot(input.projectPath, refs(runId).before)
+        await this.execute(runId, input, adapter, signal, git)
       } catch (e) {
         this.record(runId, { type: 'error', message: e instanceof Error ? e.message : String(e) })
         this.close(runId, 'error')

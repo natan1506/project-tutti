@@ -57,10 +57,10 @@ function fakeBrain(triages: unknown[], lineups: unknown[] = [LINEUP]): Brain & {
 
 async function setup(opts: {
   brain?: Brain; confirm?: (id: AgentId) => string | null; work?: Behaviour; ready?: (t: ToolKind) => boolean; confirmTimeoutMs?: number
-  profile?: Profile; brainFor?: (coord: AgentDef) => Brain
+  profile?: Profile; brainFor?: (coord: AgentDef) => Brain; git?: boolean
 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'team-'))
-  await runGit(dir, ['init', '-q'])
+  if (opts.git !== false) await runGit(dir, ['init', '-q'])
   writeFileSync(join(dir, 'README.md'), 'x\n')
   const store = openStore(':memory:')
   const conv = store.createConversation(store.upsertProject(dir).id, 't')
@@ -103,6 +103,16 @@ describe('TeamService', () => {
     expect(evs.at(-1)).toEqual({ type: 'run_finished', status: 'done' })
     expect(existsSync(join(t.dir, 'server/health.js')) && existsSync(join(t.dir, 'web/status.html'))).toBe(true)
     expect(t.store.listChildren(id).map(r => r.agentId)).toEqual(['forja', 'pincel'])
+  })
+
+  it('pasta sem git: o time trabalha igual, só sem diff', async () => {
+    const t = await setup({ git: false })
+    const id = await t.start()
+    await t.team.whenFinished(id)
+    const evs = t.parentEvents(id)
+    expect(evs.map(e => e.type)).toEqual(['run_started', 'team_started', 'triage', 'confirmation', 'confirmation', 'lineup', 'child_started', 'child_started', 'run_finished'])
+    expect(evs.at(-1)).toEqual({ type: 'run_finished', status: 'done' })
+    expect(existsSync(join(t.dir, 'server/health.js'))).toBe(true)
   })
 
   it('os dois filhos da mesma onda começam antes de qualquer um terminar', async () => {

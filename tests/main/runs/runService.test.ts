@@ -68,10 +68,12 @@ describe('RunService', () => {
     expect(fake.seen!.instructions).toContain('use pnpm')
   })
 
-  it('recusa pasta sem git sem criar run', async () => {
-    const { store, conv, start } = await setup(async function* () { yield { type: 'done' } }, { git: false })
-    await expect(start()).rejects.toThrow('NOT_A_GIT_REPO')
-    expect(store.listRuns(conv.id)).toEqual([])
+  it('roda em pasta sem git, só sem ponto de restauração nem diff', async () => {
+    const { store, conv, emitted, svc, start } = await setup(async function* () { yield { type: 'done' } }, { git: false })
+    const runId = await start()
+    await svc.whenFinished(runId)
+    expect(types(emitted)).toEqual(['run_started', 'done', 'run_finished'])
+    expect(store.listRuns(conv.id)[0]).toMatchObject({ status: 'done', hasCheckpoint: false })
   })
 
   it('recusa agente cuja ferramenta não tem adaptador', async () => {

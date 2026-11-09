@@ -84,10 +84,11 @@ export class TeamService {
     const coordinator = profile.coordinatorId
     if (!coordinator) throw new Error('NO_COORDINATOR')
     if (!(await this.deps.runs.availability(coordinator)).ok) throw new Error('TOOL_UNAVAILABLE')
-    if (!(await isGitRepo(input.projectPath))) throw new Error('NOT_A_GIT_REPO')
-    const parentId = this.deps.runs.open({ projectPath: input.projectPath, conversationId: input.conversationId, agentId: coordinator, prompt: input.prompt }, true)
+    // Pasta sem git também funciona: só fica sem ponto de restauração (sem diff e sem Desfazer).
+    const git = await isGitRepo(input.projectPath)
+    const parentId = this.deps.runs.open({ projectPath: input.projectPath, conversationId: input.conversationId, agentId: coordinator, prompt: input.prompt }, git)
     this.say(parentId, { type: 'team_started' })
-    this.finished.set(parentId, this.lifecycle(parentId, input, profile, this.deps.runs.signalOf(parentId)!))
+    this.finished.set(parentId, this.lifecycle(parentId, input, profile, this.deps.runs.signalOf(parentId)!, git))
     return parentId
   }
 
@@ -105,7 +106,7 @@ export class TeamService {
 
   private say(id: string, ev: RunEvent) { this.deps.runs.record(id, ev) }
 
-  private async lifecycle(parentId: string, input: TeamStartInput, profile: Profile, signal: AbortSignal): Promise<void> {
+  private async lifecycle(parentId: string, input: TeamStartInput, profile: Profile, signal: AbortSignal, git: boolean): Promise<void> {
     const { runs } = this.deps
     if (!(await runs.waitTurn(parentId, input.projectPath, signal))) return
     // Cancelar o pai cancela todos os filhos ativos.
@@ -114,8 +115,10 @@ export class TeamService {
     let status: RunStatus = 'done'
     let checkpoint = false
     try {
-      await runs.snapshotBefore(parentId, input.projectPath)
-      checkpoint = true
+      if (git) {
+        await runs.snapshotBefore(parentId, input.projectPath)
+        checkpoint = true
+      }
       status = await this.orchestrate(parentId, input, profile, signal, active)
     } catch (e) {
       if (!signal.aborted) {

@@ -3,7 +3,6 @@ import { isAbsolute } from 'node:path'
 import { knownAgent, type AgentId, type ToolKind } from '@shared/agents'
 import type { RunEvent } from '@shared/events'
 import type { StartRunInput, ToolStatus } from '@shared/models'
-import { initRepo, isGitRepo } from './git/git'
 import type { RunService } from './runs/runService'
 import type { TeamService } from './team/teamService'
 import type { UsageService } from './usage/usageService'
@@ -121,9 +120,8 @@ export function registerIpc(win: BrowserWindow, store: Store, runs: RunService, 
   })
   ipcMain.handle('openProject', async (_e, p) => {
     const path = absolutePath(p)
-    return { project: store.upsertProject(path), isGitRepo: await isGitRepo(path) }
+    return { project: store.upsertProject(path) }
   })
-  ipcMain.handle('initGit', (_e, p) => initRepo(absolutePath(p)))
   ipcMain.handle('recentProjects', () => store.recentProjects())
   ipcMain.handle('newConversation', (_e, projectId, title) => store.createConversation(text(projectId), text(title)))
   ipcMain.handle('listConversations', (_e, projectId) => store.listConversations(text(projectId)))
