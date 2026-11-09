@@ -10,6 +10,7 @@ import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
 import { diffBetween, patchBetween, snapshot, undo, type UndoResult } from '../git/checkpoint'
 import { isGitRepo, runGit } from '../git/git'
+import { tryLock, unlock, waitLock } from './projectLock'
 import { buildContext, collectEntries } from '../context/conversationContext'
 import { loadInstructions } from '../instructions/loadInstructions'
 import type { Store } from '../store/db'
@@ -96,7 +97,7 @@ export class RunService {
         this.record(runId, { type: 'error', message: e instanceof Error ? e.message : String(e) })
         this.close(runId, 'error')
       } finally {
-        this.queue.release(input.projectPath, runId)
+        this.releaseTurn(input.projectPath, runId)
       }
     })())
     return runId
@@ -123,7 +124,23 @@ export class RunService {
       this.close(runId, 'cancelled')
       return false
     }
-    return !signal.aborted || this.queue.position(projectPath, runId) === 0
+    if (signal.aborted && this.queue.position(projectPath, runId) !== 0) return false
+    // A vez neste processo saiu; falta a do outro processo (app e terminal no mesmo projeto).
+    if (tryLock(this.deps.store, projectPath, runId)) return true
+    if (!waited) this.record(runId, { type: 'queued', position: 1 })
+    if (await waitLock(this.deps.store, projectPath, runId, signal)) {
+      this.record(runId, { type: 'queued', position: 0 })
+      return true
+    }
+    this.queue.release(projectPath, runId)
+    this.close(runId, 'cancelled')
+    return false
+  }
+
+  /** Libera a vez do projeto: a fila deste processo e a trava entre processos. */
+  releaseTurn(projectPath: string, runId: string): void {
+    this.queue.release(projectPath, runId)
+    unlock(this.deps.store, projectPath, runId)
   }
 
   /** O agente pode trabalhar agora? CLI: ferramenta instalada e logada. API: opencode pronto e chave do provedor salva. */
@@ -233,7 +250,8 @@ export class RunService {
 
   /** Na inicialização: pedidos que ficaram rodando viram 'interrupted' e ganham ponto final para poderem ser desfeitos. */
   async recover(): Promise<void> {
-    const orphans = this.deps.store.listRunsByStatus('running')
+    // Só runs de processo morto: o app e o terminal podem estar rodando pedidos ao mesmo tempo.
+    const orphans = this.deps.store.listOrphanRuns()
     this.deps.store.markInterruptedRuns()
     for (const run of orphans) {
       const dir = this.deps.store.projectPathForRun(run.id)

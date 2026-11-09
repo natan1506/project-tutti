@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { pidAlive } from './pid'
 import type { AgentId } from '@shared/agents'
 import type { Profile } from '@shared/profiles'
 import type { Skill } from '@shared/skills'
@@ -16,7 +17,8 @@ export interface Store {
   recentProjects(limit?: number): Project[]
   createConversation(projectId: string, title: string): Conversation
   listConversations(projectId: string): Conversation[]
-  createRun(r: Omit<RunRow, 'status' | 'finishedAt' | 'sessionId' | 'parentRunId'> & { parentRunId?: string; agentSig?: string }): RunRow
+  /** `ownerPid`: processo dono do run (padrão: este). App e terminal usam o mesmo banco. */
+  createRun(r: Omit<RunRow, 'status' | 'finishedAt' | 'sessionId' | 'parentRunId'> & { parentRunId?: string; agentSig?: string; ownerPid?: number }): RunRow
   listChildren(parentRunId: string): RunRow[]
   finishRun(id: string, status: RunStatus, sessionId?: string): void
   getRun(id: string): RunRow | undefined
@@ -26,7 +28,12 @@ export interface Store {
   listRunsByStatus(status: RunStatus): RunRow[]
   /** Última sessão do agente na conversa com a mesma assinatura (transporte e modelo); runs antigos sem assinatura valem. */
   lastSessionFor(conversationId: string, agentId: AgentId, agentSig?: string): string | null
-  markInterruptedRuns(): number
+  /** Runs `running` cujo processo dono morreu (ou sem dono gravado). */
+  listOrphanRuns(isAlive?: (pid: number) => boolean): RunRow[]
+  markInterruptedRuns(isAlive?: (pid: number) => boolean): number
+  /** Trava de projeto entre processos: true se `owner` ficou com ela. */
+  lockProject(path: string, owner: string, pid: number, isAlive: (pid: number) => boolean): boolean
+  unlockProject(path: string, owner: string): void
   projectPathForRun(runId: string): string | undefined
   recordUsage(runId: string, agentId: AgentId, tool: UsageSource, tokens: TokenUsage, at: number): void
   recordLimit(l: LimitWindow): void
@@ -61,6 +68,7 @@ CREATE TABLE IF NOT EXISTS limits (tool TEXT NOT NULL, window TEXT NOT NULL, uti
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS skills (id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS project_locks (path TEXT PRIMARY KEY, owner TEXT NOT NULL, pid INTEGER NOT NULL, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS events (run_id TEXT NOT NULL REFERENCES runs(id), seq INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (run_id, seq));
 `
 
@@ -77,10 +85,15 @@ const toRun = (r: Row): RunRow => ({
 export function openStore(file: string): Store {
   const db = new DatabaseSync(file)
   if (file !== ':memory:') db.exec('PRAGMA journal_mode=WAL')
+  // App e terminal abrem o mesmo arquivo: espera a vez em vez de falhar com SQLITE_BUSY.
+  db.exec('PRAGMA busy_timeout=5000')
   db.exec(SCHEMA)
   // Fase 3B: runs-filhos de um pedido de time.
   if (!(db.prepare('PRAGMA table_info(runs)').all() as Row[]).some(c => c.name === 'parent_run_id')) db.exec('ALTER TABLE runs ADD COLUMN parent_run_id TEXT')
   if (!(db.prepare('PRAGMA table_info(runs)').all() as Row[]).some(c => c.name === 'agent_sig')) db.exec('ALTER TABLE runs ADD COLUMN agent_sig TEXT')
+  if (!(db.prepare('PRAGMA table_info(runs)').all() as Row[]).some(c => c.name === 'owner_pid')) db.exec('ALTER TABLE runs ADD COLUMN owner_pid INTEGER')
+  const orphans = (isAlive: (pid: number) => boolean) =>
+    (db.prepare("SELECT * FROM runs WHERE status = 'running'").all() as Row[]).filter(r => r.owner_pid == null || !isAlive(r.owner_pid as number))
   // Date.now() pode repetir dentro do mesmo milissegundo; o relógio do store nunca anda para trás nem empata.
   let last = 0
   const now = () => (last = Math.max(Date.now(), last + 1))
@@ -103,8 +116,8 @@ export function openStore(file: string): Store {
       return (db.prepare('SELECT * FROM conversations WHERE project_id = ? ORDER BY created_at DESC').all(projectId) as Row[]).map(toConversation)
     },
     createRun(r) {
-      db.prepare(`INSERT INTO runs (id, conversation_id, agent_id, prompt, status, started_at, has_checkpoint, parent_run_id, agent_sig)
-        VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`).run(r.id, r.conversationId, r.agentId, r.prompt, r.startedAt, r.hasCheckpoint ? 1 : 0, r.parentRunId ?? null, r.agentSig ?? null)
+      db.prepare(`INSERT INTO runs (id, conversation_id, agent_id, prompt, status, started_at, has_checkpoint, parent_run_id, agent_sig, owner_pid)
+        VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)`).run(r.id, r.conversationId, r.agentId, r.prompt, r.startedAt, r.hasCheckpoint ? 1 : 0, r.parentRunId ?? null, r.agentSig ?? null, r.ownerPid ?? process.pid)
       return this.getRun(r.id)!
     },
     finishRun(id, status, sessionId) {
@@ -136,8 +149,29 @@ export function openStore(file: string): Store {
         .get(conversationId, agentId, agentSig ?? null, agentSig ?? null) as Row | undefined
       return (r?.session_id as string | undefined) ?? null
     },
-    markInterruptedRuns() {
-      return Number(db.prepare("UPDATE runs SET status = 'interrupted', finished_at = ? WHERE status = 'running'").run(now()).changes)
+    listOrphanRuns(isAlive = pidAlive) {
+      return orphans(isAlive).map(toRun)
+    },
+    markInterruptedRuns(isAlive = pidAlive) {
+      const at = now()
+      const mark = db.prepare("UPDATE runs SET status = 'interrupted', finished_at = ? WHERE id = ? AND status = 'running'")
+      return orphans(isAlive).reduce((n, r) => n + Number(mark.run(at, r.id as string).changes), 0)
+    },
+    lockProject(path, owner, pid, isAlive) {
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        const cur = db.prepare('SELECT owner, pid FROM project_locks WHERE path = ?').get(path) as Row | undefined
+        const free = !cur || cur.owner === owner || !isAlive(cur.pid as number)
+        if (free) db.prepare('INSERT OR REPLACE INTO project_locks (path, owner, pid, at) VALUES (?, ?, ?, ?)').run(path, owner, pid, now())
+        db.exec('COMMIT')
+        return free
+      } catch (e) {
+        db.exec('ROLLBACK')
+        throw e
+      }
+    },
+    unlockProject(path, owner) {
+      db.prepare('DELETE FROM project_locks WHERE path = ? AND owner = ?').run(path, owner)
     },
     projectPathForRun(runId) {
       const r = db.prepare(`SELECT p.path FROM runs r JOIN conversations c ON c.id = r.conversation_id

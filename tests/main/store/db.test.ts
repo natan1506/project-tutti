@@ -2,7 +2,10 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DatabaseSync } from 'node:sqlite'
 import { openStore } from '../../../src/main/store/db'
+
+const DEAD_PID = 4_194_303
 
 describe('store', () => {
   it('upsertProject não duplica e atualiza lastOpenedAt', async () => {
@@ -46,12 +49,35 @@ describe('store', () => {
     const s1 = openStore(file)
     const p = s1.upsertProject('/a')
     const c = s1.createConversation(p.id, 't')
-    s1.createRun({ id: 'r1', conversationId: c.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    s1.createRun({ id: 'r1', conversationId: c.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true, ownerPid: DEAD_PID })
     s1.close()
     const s2 = openStore(file)
     expect(s2.markInterruptedRuns()).toBe(1)
     expect(s2.listRuns(c.id)[0]).toMatchObject({ status: 'interrupted', hasCheckpoint: true })
   })
+  it('recover não marca runs de outro processo vivo', () => {
+    const s = openStore(':memory:')
+    const c = s.createConversation(s.upsertProject('/a').id, 't')
+    s.createRun({ id: 'vivo', conversationId: c.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true, ownerPid: 4242 })
+    expect(s.listOrphanRuns(() => true)).toEqual([])
+    expect(s.markInterruptedRuns(() => true)).toBe(0)
+    expect(s.getRun('vivo')!.status).toBe('running')
+    expect(s.listOrphanRuns(() => false).map(r => r.id)).toEqual(['vivo'])
+    expect(s.markInterruptedRuns(() => false)).toBe(1)
+  })
+
+  it('run sem dono gravado (de versão antiga) conta como órfão', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'db-')), 'time.db')
+    const s = openStore(file)
+    const c = s.createConversation(s.upsertProject('/a').id, 't')
+    s.createRun({ id: 'velho', conversationId: c.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    s.close()
+    const raw = new DatabaseSync(file)
+    raw.exec("UPDATE runs SET owner_pid = NULL")
+    raw.close()
+    expect(openStore(file).markInterruptedRuns(() => true)).toBe(1)
+  })
+
   it('lastSessionFor devolve a sessão do pedido concluído mais recente daquele agente naquela conversa', () => {
     const s = openStore(':memory:')
     const p = s.upsertProject('/a')

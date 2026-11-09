@@ -132,7 +132,7 @@ export class TeamService {
       if (signal.aborted) status = 'cancelled'
       if (checkpoint && !(await runs.finalDiff(parentId, input.projectPath))) status = 'error'
       runs.close(parentId, status)
-      runs.queue.release(input.projectPath, parentId)
+      runs.releaseTurn(input.projectPath, parentId)
     }
   }
 

@@ -152,14 +152,14 @@ describe('RunService', () => {
 
   it('recover marca interrompido; sem ponto final, desfazer fica indisponível', async () => {
     const { store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
-    store.createRun({ id: 'orfao', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    store.createRun({ id: 'orfao', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true, ownerPid: 4_194_303 })
     await svc.recover()
     expect(store.getRun('orfao')!.status).toBe('interrupted')
     expect(await svc.undo('orfao')).toEqual({ ok: false, conflicts: [] })
   })
   it('recover grava o ponto final do run interrompido e permite desfazer', async () => {
     const { dir, store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
-    store.createRun({ id: 'caiu', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true })
+    store.createRun({ id: 'caiu', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: true, ownerPid: 4_194_303 })
     await snapshot(dir, 'refs/time/runs/caiu/before')
     writeFileSync(join(dir, 'do-agente.ts'), 'a\n')
     await svc.recover()
@@ -212,7 +212,7 @@ describe('RunService', () => {
 
   it('run que estava na fila quando o app fechou vira interrompido sem refs', async () => {
     const { store, conv, svc } = await setup(async function* () { yield { type: 'done' } })
-    store.createRun({ id: 'na-fila', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: false })
+    store.createRun({ id: 'na-fila', conversationId: conv.id, agentId: 'forja', prompt: 'x', startedAt: 1, hasCheckpoint: false, ownerPid: 4_194_303 })
     await svc.recover()
     expect(store.getRun('na-fila')!.status).toBe('interrupted')
     expect(await svc.undo('na-fila')).toEqual({ ok: false, conflicts: [] })
