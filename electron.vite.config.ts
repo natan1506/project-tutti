@@ -8,7 +8,6 @@ export default defineConfig({
   main: {
     resolve: { alias: shared },
     // O comando `tutti` (src/cli) sai junto do processo principal: out/main/cli.js.
-    esbuild: { jsx: 'automatic' },
     // React e Ink empacotados no cli.js: versão de produção (sem avisos de desenvolvimento, mais leve).
     define: { 'process.env.NODE_ENV': JSON.stringify('production') },
     build: { rollupOptions: { input: { index: resolve('src/main/index.ts'), cli: resolve('src/cli/index.tsx') } } },
