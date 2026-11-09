@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -54,7 +54,8 @@ describe('Parar tudo', () => {
     expect(calls).toHaveLength(2)
     const diffs = emitted.filter(e => e.ev.type === 'diff' && (e.runId === a || e.runId === b))
     expect(diffs).toHaveLength(2)
-    expect(existsSync(join(p1, 'feito-1.txt'))).toBe(true)
+    // Os dois projetos começam em paralelo: o número do arquivo depende de qual chamou o agente primeiro.
+    expect(readdirSync(p1).some(f => /^feito-\d\.txt$/.test(f))).toBe(true)
   })
 
   it('aprovação pendente fecha negada', async () => {
