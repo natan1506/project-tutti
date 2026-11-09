@@ -16,7 +16,7 @@ import { ProfileService } from './profiles/profileService'
 import { RunService } from './runs/runService'
 import { SkillService } from './skills/skillService'
 import { openStore, type Store } from './store/db'
-import { ClaudeBrain } from './team/brain'
+import { ClaudeBrain, type Brain } from './team/brain'
 import { TeamService } from './team/teamService'
 import { TextBrain } from './team/textBrain'
 import { cachedDetector, realExec } from './tools/detect'
@@ -34,6 +34,8 @@ export interface CoreOptions {
   adapters?: Record<ToolKind, AgentAdapter | undefined>
   /** Testes dizem quais ferramentas estão prontas; padrão: detecção real (instalada e logada). */
   toolReady?: (t: ToolKind) => Promise<boolean>
+  /** Testes injetam um cérebro falso (padrão: Claude por CLI para coordenador Claude, texto para os outros). */
+  brain?: Brain
   /** Navegador embutido: só o app passa. */
   browser?: BrowserService
   emit(runId: string, ev: RunEvent): void
@@ -93,12 +95,12 @@ export async function createCore(o: CoreOptions): Promise<Core> {
       return pickReplacement(from, ready.filter((x): x is NonNullable<typeof x> => !!x), usage.snapshot(), t => usage.alertAt(t))
     })
   })
-  const claudeBrain = new ClaudeBrain()
+  const claudeBrain: Brain = o.brain ?? new ClaudeBrain()
   const team = new TeamService({
     runs, store, brain: claudeBrain, adapters, toolReady, emit: o.emit,
     profileOf: id => (id && profiles.get(id)) || PADRAO,
     // Coordenador Claude por CLI usa a saída estruturada; qualquer outro responde JSON em texto.
-    brainFor: c => (c.transport.kind === 'cli' && c.tool === 'claude' ? claudeBrain : new TextBrain(adapters[c.tool]!, c)),
+    brainFor: c => (o.brain ?? (c.transport.kind === 'cli' && c.tool === 'claude' ? claudeBrain : new TextBrain(adapters[c.tool]!, c))),
   })
   await runs.recover()
   return {

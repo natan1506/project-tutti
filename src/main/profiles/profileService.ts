@@ -14,6 +14,11 @@ export class ProfileService {
     for (const p of deps.store.listProfiles()) registerAgents(resolveAgentDefs(p))
   }
 
+  /** Relê os perfis do banco (o app pode ter editado enquanto o terminal estava aberto). */
+  reload(): void {
+    for (const p of this.deps.store.listProfiles()) registerAgents(resolveAgentDefs(p))
+  }
+
   all(): Profile[] {
     return [PADRAO, ...this.deps.store.listProfiles()]
   }
