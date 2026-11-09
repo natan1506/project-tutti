@@ -58,9 +58,14 @@ export class ClaudeBrain implements Brain {
     }
   }
 
-  private async ask(prompt: string, options: Options): Promise<unknown> {
+  private async ask(prompt: string, options: Options, onUsage?: UsageSink): Promise<unknown> {
     for await (const m of this.queryFn({ prompt, options })) {
       if (m.type !== 'result') continue
+      // O gasto do cérebro conta no uso (spec tutti-terminal §1: ver se a divisão economiza de verdade).
+      const u = (m as { usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number } }).usage
+      if (u && typeof u.input_tokens === 'number') {
+        onUsage?.({ type: 'usage', tool: 'claude', tokens: { input: u.input_tokens, output: u.output_tokens ?? 0, cacheRead: u.cache_read_input_tokens ?? 0, reasoning: 0 } })
+      }
       if (m.subtype === 'success') return (m as { structured_output?: unknown }).structured_output
       throw new Error(`O Bússola não devolveu um resultado válido (${m.subtype}).`)
     }
@@ -68,18 +73,18 @@ export class ClaudeBrain implements Brain {
   }
 
   triage(i: Parameters<Brain['triage']>[0]) {
-    return this.ask(triagePrompt(i.prompt, i.available, i.coordinator), this.options(i.cwd, TRIAGE_SCHEMA, i.signal))
+    return this.ask(triagePrompt(i.prompt, i.available, i.coordinator), this.options(i.cwd, TRIAGE_SCHEMA, i.signal), i.onUsage)
   }
 
   lineup(i: Parameters<Brain['lineup']>[0]) {
-    return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, i.coordinator), this.options(i.cwd, LINEUP_SCHEMA, i.signal))
+    return this.ask(lineupPrompt(i.prompt, i.triage, i.confirmations, i.available, i.coordinator), this.options(i.cwd, LINEUP_SCHEMA, i.signal), i.onUsage)
   }
 
   plan(i: Parameters<Brain['plan']>[0]) {
-    return this.ask(esteiraPlanPrompt(i.prompt, i.cerebro), this.options(i.cwd, PLAN_SCHEMA, i.signal))
+    return this.ask(esteiraPlanPrompt(i.prompt, i.cerebro), this.options(i.cwd, PLAN_SCHEMA, i.signal), i.onUsage)
   }
 
   review(i: Parameters<Brain['review']>[0]) {
-    return this.ask(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro), this.options(i.cwd, REVIEW_SCHEMA, i.signal))
+    return this.ask(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro), this.options(i.cwd, REVIEW_SCHEMA, i.signal), i.onUsage)
   }
 }

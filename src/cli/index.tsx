@@ -22,7 +22,7 @@ async function main() {
     emit: (runId, ev) => session?.onEvent(runId, ev),
     onUsage: s => session?.onUsage(s),
   })
-  session = new Session(core, process.cwd())
+  session = await Session.open(core, process.cwd())
   const stopPolling = core.usage.startPolling()
   const out = process.stdout
   let ink: ReturnType<typeof render> | undefined
@@ -35,7 +35,7 @@ async function main() {
   const draw = () => <App session={session!} exit={() => void close()} width={out.columns || 100} height={out.rows || 40} />
   ink = render(draw(), { exitOnCtrlC: false })
   out.on('resize', () => ink?.rerender(draw()))
-  process.on('SIGINT', () => void close())
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => void close())
 }
 
 void main().catch(e => {

@@ -39,8 +39,10 @@ export class ProfileService {
       idMap.set(a.id, next)
       return { ...a, id: next }
     })
-    const coordinatorId = v.profile.coordinatorId === undefined ? undefined : idMap.get(v.profile.coordinatorId)
     const e = v.profile.esteira
+    // Com esteira, o coordenador é o cérebro (quem o pedido de time checa ao começar).
+    const coordId = e ? e.cerebro : v.profile.coordinatorId
+    const coordinatorId = coordId === undefined ? undefined : idMap.get(coordId)
     // A esteira segue os ids novos dos agentes (renomeados ou recriados).
     const esteira = e && {
       cerebro: idMap.get(e.cerebro)!, executor: idMap.get(e.executor)!, tester: idMap.get(e.tester)!,

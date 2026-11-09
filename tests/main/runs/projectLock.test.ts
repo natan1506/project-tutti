@@ -40,6 +40,25 @@ describe('trava de projeto entre processos', () => {
     expect(await p).toBe(false)
   })
 
+  it('erro na trava fecha o pedido com erro e não prende a fila do projeto', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lockerr-'))
+    await runGit(dir, ['init', '-q'])
+    writeFileSync(join(dir, 'a.txt'), 'a\n')
+    const store = openStore(':memory:')
+    let fail = true
+    const lock = store.lockProject.bind(store)
+    store.lockProject = (...a) => { if (fail) { fail = false; throw new Error('database is locked') } return lock(...a) }
+    const done: AgentAdapter = { async *run(): AsyncGenerator<AgentEvent> { yield { type: 'done' } } }
+    const svc = new RunService({ store, adapters: { claude: done, codex: undefined, gemini: undefined, opencode: undefined }, emit: () => {}, homeDir: mkdtempSync(join(tmpdir(), 'h-')) })
+    const conv = store.createConversation(store.upsertProject(dir).id, 't')
+    const first = await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt: '1' })
+    await svc.whenFinished(first)
+    expect(store.getRun(first)!.status).toBe('error')
+    const second = await svc.start({ projectPath: dir, conversationId: conv.id, agentId: 'forja', prompt: '2' })
+    await svc.whenFinished(second)
+    expect(store.getRun(second)!.status).toBe('done')
+  })
+
   it('dois processos no mesmo projeto: o segundo espera o primeiro terminar', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'lock-'))
     await runGit(dir, ['init', '-q'])

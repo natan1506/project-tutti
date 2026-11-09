@@ -21,13 +21,13 @@ export function colorFor(pct: number | null): CellColor {
   return pct <= 60 ? 'green' : pct <= 85 ? 'yellow' : 'red'
 }
 
-function cell(nome: string, tool: UsageSource, snap: UsageSnapshot, size: number, now: number): Cell {
+function cell(nome: string, tool: UsageSource, snap: UsageSnapshot, size: number, now: number, compact = false): Cell {
   const row = snap.rows.find(r => r.tool === tool)
   const pct = row?.utilization ?? null
   if (pct === null) return { nome, text: `${'░'.repeat(size)}  —`, color: 'gray' }
   if (pct >= 100) {
     const back = row?.resetsAt && row.resetsAt > now ? ` · ${DAYS[new Date(row.resetsAt).getDay()]}` : ''
-    return { nome, text: `${bar(100, size)} esgotado${back}`, color: 'red' }
+    return { nome, text: compact ? `${bar(100, size)} ✕${back.replace(' · ', '')}` : `${bar(100, size)} esgotado${back}`, color: 'red' }
   }
   const p = Math.round(pct)
   return { nome, text: `${bar(p, size)} ${`${row?.estimated ? '~' : ''}${p}%`.padStart(4)}`, color: colorFor(p) }
@@ -43,12 +43,15 @@ export function placarWidth(p: Placar): number {
  * e, por último, o cabeçalho perde o nome do projeto.
  */
 export function placar(header: string, agents: readonly { nome: string; tool: UsageSource }[], snap: UsageSnapshot, width: number, now: number): Placar {
-  const build = (size: number, short: boolean, head = header): Placar =>
-    ({ header: head, cells: agents.map(a => cell(short ? [...a.nome].slice(0, 3).join('') : a.nome, a.tool, snap, size, now)) })
+  const build = (size: number, short: boolean, head = header, compact = false): Placar =>
+    ({ header: head, cells: agents.map(a => cell(short ? [...a.nome].slice(0, 3).join('') : a.nome, a.tool, snap, size, now, compact)) })
   for (let size = MAX_BAR; size >= MIN_BAR; size--) {
     const p = build(size, false)
     if (placarWidth(p) <= width) return p
   }
   const short = build(MIN_BAR, true)
-  return placarWidth(short) <= width ? short : build(MIN_BAR, true, header.split(' · ')[0])
+  if (placarWidth(short) <= width) return short
+  const bare = build(MIN_BAR, true, header.split(' · ')[0])
+  // Último recurso (sexta com esgotados): "esgotado · seg" vira "✕seg".
+  return placarWidth(bare) <= width ? bare : build(MIN_BAR, true, header.split(' · ')[0], true)
 }

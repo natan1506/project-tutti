@@ -126,14 +126,21 @@ export class RunService {
     }
     if (signal.aborted && this.queue.position(projectPath, runId) !== 0) return false
     // A vez neste processo saiu; falta a do outro processo (app e terminal no mesmo projeto).
-    if (tryLock(this.deps.store, projectPath, runId)) return true
-    if (!waited) this.record(runId, { type: 'queued', position: 1 })
-    if (await waitLock(this.deps.store, projectPath, runId, signal)) {
-      this.record(runId, { type: 'queued', position: 0 })
-      return true
+    try {
+      if (tryLock(this.deps.store, projectPath, runId)) return true
+      if (!waited) this.record(runId, { type: 'queued', position: 1 })
+      if (await waitLock(this.deps.store, projectPath, runId, signal)) {
+        this.record(runId, { type: 'queued', position: 0 })
+        return true
+      }
+      this.queue.release(projectPath, runId)
+      this.close(runId, 'cancelled')
+    } catch (e) {
+      // Banco ocupado demais: o pedido fecha com erro e a fila do projeto anda (nunca fica presa).
+      this.queue.release(projectPath, runId)
+      this.record(runId, { type: 'error', message: `Não consegui a vez do projeto: ${e instanceof Error ? e.message : String(e)}` })
+      this.close(runId, 'error')
     }
-    this.queue.release(projectPath, runId)
-    this.close(runId, 'cancelled')
     return false
   }
 

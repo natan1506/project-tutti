@@ -111,3 +111,11 @@ describe('perfil com esteira', () => {
     expect(validateProfile({ ...TRABALHO_SEED, esteira: { ...e, executor: e.cerebro } }).ok).toBe(false)
   })
 })
+
+describe('esteira: quem escreve', () => {
+  it('executor, tester e reserva precisam poder escrever', () => {
+    const agents = TRABALHO_SEED.agents.map(a => (a.id === 'lupa' ? { ...a, readOnly: true } : a))
+    const r = validateProfile({ ...TRABALHO_SEED, agents })
+    expect(r).toEqual({ ok: false, errors: ['Executor, tester e reserva da esteira precisam poder escrever.'] })
+  })
+})

@@ -219,6 +219,7 @@ export function validateProfile(raw: unknown): { ok: true; profile: Profile } | 
     const all = [e.cerebro, e.executor, e.tester, ...(e.reserva ? [e.reserva] : [])]
     if (all.some(id => !p.agents.some(a => a.id === id))) errors.push('A esteira aponta para um agente que não está no perfil.')
     else if ([e.executor, e.tester, e.reserva].includes(e.cerebro)) errors.push('O cérebro não pode também executar, testar ou ser a reserva.')
+    else if ([e.executor, e.tester, e.reserva].some(id => id && p.agents.find(a => a.id === id)!.readOnly)) errors.push('Executor, tester e reserva da esteira precisam poder escrever.')
   }
   return errors.length ? { ok: false, errors } : { ok: true, profile: p }
 }

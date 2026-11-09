@@ -82,6 +82,15 @@ describe('tela do terminal', () => {
     expect(r.lastFrame()).toContain('› x')
   })
 
+  it('Ctrl+C fecha', async () => {
+    const exit = vi.fn()
+    const r = render(<App session={stub()} exit={exit} width={100} />)
+    await tick()
+    r.stdin.write('\x03')
+    await tick()
+    expect(exit).toHaveBeenCalled()
+  })
+
   it('com pendência, "s" + Enter responde a ela', async () => {
     const s = stub({ pending: () => ({ kind: 'plan', id: 'p1', text: 'Plano: X' }) })
     const r = render(<App session={s} exit={() => {}} width={100} />)

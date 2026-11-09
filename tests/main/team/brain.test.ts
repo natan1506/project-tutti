@@ -31,6 +31,13 @@ describe('ClaudeBrain', () => {
     expect(q.seen[0].options.outputFormat).toEqual({ type: 'json_schema', schema: LINEUP_SCHEMA })
   })
 
+  it('o gasto do cérebro vai para o uso (plano e revisão contam)', async () => {
+    const q = fakeQuery({ subtype: 'success', structured_output: { tarefa: 't', pronto: 'p' }, usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 5 } })
+    const seen: unknown[] = []
+    await new ClaudeBrain(q.fn).plan({ cwd: '/p', prompt: 'x', cerebro: 'bussola', signal: new AbortController().signal, onUsage: ev => seen.push(ev) })
+    expect(seen).toEqual([{ type: 'usage', tool: 'claude', tokens: { input: 100, output: 20, cacheRead: 5, reasoning: 0 } }])
+  })
+
   it('falha de saída estruturada vira exceção', async () => {
     const q = fakeQuery({ subtype: 'error_max_structured_output_retries' })
     await expect(new ClaudeBrain(q.fn).triage({ ...input, available: [...input.available] })).rejects.toThrow(/error_max_structured_output_retries/)

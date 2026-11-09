@@ -82,7 +82,8 @@ export class TeamService {
     // Spec custos-e-perfis §6: sem coordenador no perfil, não há pedido de time.
     // O perfil vale como estava no envio (o pedido pode esperar na fila enquanto o Natan edita perfis).
     const profile = this.profile(input.profileId)
-    const coordinator = profile.coordinatorId
+    // Com esteira, quem precisa estar pronto é o cérebro.
+    const coordinator = profile.esteira?.cerebro ?? profile.coordinatorId
     if (!coordinator) throw new Error('NO_COORDINATOR')
     if (!(await this.deps.runs.availability(coordinator)).ok) throw new Error('TOOL_UNAVAILABLE')
     // Pasta sem git também funciona: só fica sem ponto de restauração (sem diff e sem Desfazer).

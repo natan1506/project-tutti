@@ -158,7 +158,7 @@ export function openStore(file: string): Store {
       return orphans(isAlive).reduce((n, r) => n + Number(mark.run(at, r.id as string).changes), 0)
     },
     lockProject(path, owner, pid, isAlive) {
-      db.exec('BEGIN IMMEDIATE')
+      db.exec('BEGIN IMMEDIATE') // se falhar (banco ocupado), não há transação para desfazer
       try {
         const cur = db.prepare('SELECT owner, pid FROM project_locks WHERE path = ?').get(path) as Row | undefined
         const free = !cur || cur.owner === owner || !isAlive(cur.pid as number)

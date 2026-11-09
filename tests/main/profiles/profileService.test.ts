@@ -105,3 +105,15 @@ describe('esteira no perfil', () => {
     expect(svc.all().some(p => p.nome === 'Trabalho')).toBe(false)
   })
 })
+
+describe('esteira e coordenador', () => {
+  it('trocar o cérebro da esteira troca o coordenador junto', () => {
+    const { svc } = setup()
+    const p = svc.seedTrabalho()!
+    const curinga = p.agents.find(a => a.nome === 'Curinga')!.id
+    const forja = p.agents.find(a => a.nome === 'Forja')!.id
+    const r = svc.save({ ...p, esteira: { ...p.esteira!, cerebro: curinga, reserva: forja, executor: forja } })
+    if (!r.ok) throw new Error(r.errors.join())
+    expect(r.profile.coordinatorId).toBe(curinga)
+  })
+})

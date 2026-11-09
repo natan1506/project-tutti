@@ -1,5 +1,5 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { AutonomyLevel } from '@shared/autonomy'
@@ -25,7 +25,7 @@ class Work implements AgentAdapter {
 }
 
 async function setup(o: { git?: boolean; autonomy?: AutonomyLevel } = {}) {
-  const cwd = mkdtempSync(join(tmpdir(), 'proj-'))
+  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "proj-")))
   if (o.git !== false) { await runGit(cwd, ['init', '-q']); writeFileSync(join(cwd, 'a.txt'), 'a\n') }
   let session: Session | undefined
   const w = new Work()
@@ -35,7 +35,7 @@ async function setup(o: { git?: boolean; autonomy?: AutonomyLevel } = {}) {
     emit: (id, ev) => session?.onEvent(id, ev),
   })
   core.store.setSetting(`autonomy:${cwd}`, o.autonomy ?? 'autonomous')
-  session = new Session(core, cwd)
+  session = await Session.open(core, cwd)
   const until = async (cond: () => boolean) => { for (let i = 0; i < 300 && !cond(); i++) await new Promise(r => setTimeout(r, 10)) }
   const texts = () => session!.lines().map(l => l.text)
   return { session, core, cwd, until, texts }
@@ -101,6 +101,24 @@ describe('sessão do terminal', () => {
   it('/exit pede para sair', async () => {
     const t = await setup()
     expect(await t.session.run({ kind: 'exit' })).toEqual({ exit: true })
+    await t.core.close()
+  })
+})
+
+describe('onde o tutti abre', () => {
+  it('numa subpasta do repositório, o projeto é a raiz (mesma trava do app)', async () => {
+    const t = await setup()
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(join(t.cwd, 'src'))
+    const s = await Session.open(t.core, join(t.cwd, 'src'))
+    expect(s.project.path).toBe(realpathSync(t.cwd))
+    await t.core.close()
+  })
+  it('na pasta pessoal não roda o time', async () => {
+    const t = await setup()
+    const s = await Session.open(t.core, homedir())
+    expect((await s.run({ kind: 'send', text: 'oi' })).message).toBe('Abra o tutti dentro da pasta de um projeto (não na pasta pessoal nem na raiz).')
+    expect(t.core.store.listRuns(s.conversationId)).toEqual([])
     await t.core.close()
   })
 })

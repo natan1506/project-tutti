@@ -26,6 +26,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const typed = useRef('')
   const type = (next: string) => { typed.current = next; setInput(next) }
   useInput((ch, key) => {
+    if (key.ctrl && ch === 'c') { exit(); return }
     if (key.return) { const text = typed.current; type(''); void submit(text); return }
     if (key.backspace || key.delete) { type(typed.current.slice(0, -1)); return }
     if (key.ctrl || key.meta || key.escape || key.tab || key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) return

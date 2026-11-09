@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename } from 'node:path'
 import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
 import { AUTONOMY_LEVELS, isAutonomyLevel } from '@shared/autonomy'
@@ -6,7 +8,7 @@ import type { Project } from '@shared/models'
 import type { EsteiraRole, Profile } from '@shared/profiles'
 import type { UsageSnapshot, UsageSource } from '@shared/usage'
 import type { Core } from '../main/core'
-import { isGitRepo } from '../main/git/git'
+import { isGitRepo, runGit } from '../main/git/git'
 import type { Command, ConfigKey } from './commands'
 import { eventLine, type Line } from './lines'
 
@@ -43,6 +45,16 @@ export class Session implements SessionView {
   private listeners = new Set<() => void>()
   private snap: UsageSnapshot
   private lastPlan = ''
+
+  /**
+   * Abre na raiz do repositório quando `cwd` está dentro de um: o projeto (e a trava entre app e terminal)
+   * é o mesmo, seja qual for a subpasta.
+   */
+  static async open(core: Core, cwd: string): Promise<Session> {
+    let root = realpathSync(cwd)
+    try { root = realpathSync((await runGit(cwd, ['rev-parse', '--show-toplevel'])).trim()) } catch { /* sem git: a própria pasta */ }
+    return new Session(core, root)
+  }
 
   constructor(private core: Core, readonly cwd: string) {
     this.project = core.store.upsertProject(cwd)
@@ -146,6 +158,8 @@ export class Session implements SessionView {
 
   private async send(text: string): Promise<RunResult> {
     if (!text) return {}
+    // Sem git, a pasta pessoal ou a raiz dariam escrita ao executor em tudo, sem ponto de restauração.
+    if ([homedir(), '/'].some(p => realpathSync(p) === this.cwd)) return { message: 'Abra o tutti dentro da pasta de um projeto (não na pasta pessoal nem na raiz).' }
     this.core.profiles.reload()
     const profile = this.profile()
     if (!profile.esteira) return { message: `Este projeto usa o perfil ${profile.nome}, sem esteira. Use /config perfil Trabalho.` }
