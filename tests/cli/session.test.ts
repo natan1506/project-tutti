@@ -224,8 +224,8 @@ describe('cores da conversa', () => {
     const e = t.session.profile().esteira!
     t.session.onEvent(p.id, { type: 'child_started', runId: 'c', agentId: e.executor as never, task: 'faz' })
     t.core.store.createRun({ id: 'c', conversationId: t.session.conversationId, agentId: e.executor as never, prompt: 'faz', startedAt: 2, hasCheckpoint: false, parentRunId: 'p' })
-    t.session.onEvent('c', { type: 'text', text: 'Vou olhar o card.' })
-    expect(t.session.lines().at(-1)).toMatchObject({ color: 'gray' })
+    t.session.onEvent('c', { type: 'text', text: 'Vou olhar o **card**.' })
+    expect(t.session.lines().at(-1)).toMatchObject({ color: 'gray', md: true, dim: true })
     t.session.onEvent(p.id, { type: 'text', text: '## Feito\n- item' })
     expect(t.session.lines().at(-1)).toMatchObject({ text: '## Feito\n- item', md: true })
     expect(t.session.lines().at(-2)?.text).toBe('')

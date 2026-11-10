@@ -262,7 +262,7 @@ export class Session implements SessionView {
       const l = eventLine(ev, id => getAgent(id).nome)
       if (!l) return null
       // O que o agente vai dizendo no meio do trabalho: cinza, para separar da resposta.
-      return ev.type === 'text' ? { text: `    ${getAgent(agentId).nome}: ${l.text.slice(0, 600)}`, color: 'gray' } : { ...l, text: `  ${l.text}` }
+      return ev.type === 'text' ? { text: `${getAgent(agentId).nome}: ${l.text.slice(0, 600)}`, color: 'gray', md: true, dim: true } : { ...l, text: `  ${l.text}` }
     }
     // A tarefa de uma etapa pode ser o plano inteiro: na linha vai só o começo.
     if (ev.type === 'child_started') {

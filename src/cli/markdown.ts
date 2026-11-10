@@ -13,7 +13,14 @@ function inline(s: string, base: Omit<Part, 'text'> = {}): Line {
   return { text: parts.map(p => p.text).join(''), parts, wrap: true }
 }
 
-export function mdLines(text: string): Line[] {
+export function mdLines(text: string, o: { dim?: boolean } = {}): Line[] {
+  const rows = format(text)
+  if (!o.dim) return rows
+  // Fala do agente no meio do trabalho: a mesma formatação, toda em cinza.
+  return rows.map(l => (l.parts ? { ...l, parts: l.parts.map(p => ({ ...p, color: 'gray' })) } : { ...l, color: 'gray' as const }))
+}
+
+function format(text: string): Line[] {
   const out: Line[] = []
   const blank = () => { if (out.length && out.at(-1)!.text !== '') out.push({ text: '' }) }
   let code = false
@@ -22,6 +29,7 @@ export function mdLines(text: string): Line[] {
     if (code) { out.push({ text: `    ${raw}`, color: 'gray' }); continue }
     const line = raw.trimEnd()
     if (!line.trim()) { blank(); continue }
+    if (/^\s*\|?[\s:|-]*-{2,}[\s:|-]*$/.test(line)) continue // separação de tabela
     const h = line.match(/^#{1,6}\s+(.*)$/)
     if (h) { blank(); out.push(inline(h[1].replace(/\*\*/g, ''), { bold: true, color: 'cyan' })); continue }
     const li = line.match(/^(\s*)[-*+]\s+(.*)$/)

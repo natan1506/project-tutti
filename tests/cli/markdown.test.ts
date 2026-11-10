@@ -27,4 +27,13 @@ describe('resposta da IA formatada no terminal', () => {
   it('citação com barra cinza e texto em itálico (com negrito dentro)', () => {
     expect(mdLines('> nota **forte**')).toEqual([{ text: '│ nota forte', wrap: true, parts: [{ text: '│ ', color: 'gray' }, { text: 'nota ', italic: true }, { text: 'forte', italic: true, bold: true }] }])
   })
+  it('tabela: a linha de separação some e as células perdem o negrito cru', () => {
+    expect(texts('| A | B |\n|---|---|\n| **x** | y |')).toEqual(['| A | B |', '| x | y |'])
+  })
+  it('modo apagado (fala do agente no meio do trabalho): tudo cinza, inclusive negrito', () => {
+    const l = mdLines('use **isto** e `aquilo`', { dim: true })
+    expect(l[0].parts?.every(p => p.color === 'gray')).toBe(true)
+    expect(l[0].text).toBe('use isto e aquilo')
+  })
 })
+

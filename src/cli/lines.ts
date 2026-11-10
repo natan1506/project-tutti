@@ -10,6 +10,8 @@ export interface Line {
   head?: boolean
   /** Texto em markdown (resposta da IA): a tela formata títulos, listas, negrito e código. */
   md?: boolean
+  /** Markdown todo em cinza e recuado (fala de um agente no meio do trabalho). */
+  dim?: boolean
   /** Linha com `parts` que quebra na largura (as outras com `parts` são cortadas). */
   wrap?: boolean
   parts?: { text: string; color?: string; bg?: string; bold?: boolean; italic?: boolean }[]

@@ -51,6 +51,7 @@ function promptRows(text: string, width: number): Line[] {
 
 /** Resposta em markdown; com `bullet`, ● na primeira linha e o resto alinhado com ela. */
 function answerRows(l: Line): Line[] {
+  if (l.dim) return mdLines(l.text, { dim: true }).map(r => (r.text === '' ? r : prefix(r, '    ')))
   const rows = mdLines(l.text)
   if (!l.bullet) return rows
   let first = true
