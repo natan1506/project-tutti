@@ -1,6 +1,6 @@
 {
   "name": "time-de-agentes",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Tutti: um time de agentes de IA (Claude Code, Codex, Antigravity, opencode) trabalhando no seu projeto.",
   "scripts": {
     "test": "vitest run",
