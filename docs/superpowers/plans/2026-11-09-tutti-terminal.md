@@ -35,7 +35,7 @@ Nesta entrega:
 - Chaves de API nunca em arquivo do projeto, log, banco em texto puro ou env de agentes CLI. O terminal não lê chaves: o `KeyStore` dele tem `isAvailable: () => false`.
 - Nada de API cobrada por uso no caminho padrão. Agentes por API ficam indisponíveis no terminal nesta entrega e aparecem com `—` no placar.
 - Codex e Antigravity escrevem **só dentro da esteira** (`write: true`). Fora dela continuam só-leitura (`sandboxMode: 'read-only'`, `--mode plan`).
-- Na esteira, Codex escreve com `sandboxMode: 'workspace-write'` e `networkAccessEnabled: false`.
+- Na esteira, Codex escreve com `sandboxMode: 'workspace-write'` e `networkAccessEnabled: false` (rede liberada depois, em 2026-11-10, decisão do Natan).
 - Pasta sem git funciona: sem ponto de restauração, sem diff, sem `/undo`.
 - Banco: `~/Library/Application Support/Tutti/time.db`, o mesmo arquivo do app.
 - Máquina alvo: Mac Intel (x86_64).

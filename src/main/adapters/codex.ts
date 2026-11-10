@@ -10,13 +10,14 @@ import { executableFor } from './executables'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 // O SDK do Codex não permite interceptar comandos: roda em sandbox só-leitura, exceto num passo da esteira (`write`),
-// em que escreve só dentro da pasta do projeto e sem rede (cerca do próprio Codex).
+// em que escreve só dentro da pasta do projeto, com rede (gh, npm, APIs do ambiente de teste). A rede foi liberada pelo
+// Natan em 2026-11-10: sem ela o executor e o tester não conferiam PRs nem nada fora da máquina.
 
 export function buildCodexThreadOptions(opts: AdapterRunOptions): ThreadOptions {
   const write = opts.write === true && opts.mode !== 'consult'
   return {
     sandboxMode: write ? 'workspace-write' : 'read-only', approvalPolicy: 'never', workingDirectory: opts.cwd, skipGitRepoCheck: true,
-    ...(write ? { networkAccessEnabled: false } : {}),
+    ...(write ? { networkAccessEnabled: true } : {}),
     ...(opts.model ? { model: opts.model } : {}),
   }
 }
