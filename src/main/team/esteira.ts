@@ -108,6 +108,10 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
   if (plan === 'abort') return 'cancelled'
   if (!plan) return brainFailed()
   say({ type: 'esteira_plan', plan, volta: 0 })
+  if (input.planOnly) {
+    say({ type: 'text', text: 'Modo só plano: nada foi executado. Para executar, troque o modo (Shift+Tab) e peça de novo.' })
+    return 'done'
+  }
 
   if (ctx.autonomy !== 'autonomous' && !(await ctx.waitPlan())) {
     if (!signal.aborted) say({ type: 'text', text: 'Plano recusado; nada foi alterado.' })

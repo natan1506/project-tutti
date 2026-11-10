@@ -260,6 +260,30 @@ describe('jeito do Claude Code', () => {
   })
 })
 
+describe('modos (Shift+Tab)', () => {
+  it('circula pedir permissão → automático → só plano, e grava no projeto', async () => {
+    const t = await setup({ autonomy: 'ask_all' })
+    expect(t.session.mode()).toBe('ask')
+    expect(t.session.cycleMode()).toBe('auto')
+    expect(t.core.store.getSetting(`autonomy:${t.cwd}`)).toBe('autonomous')
+    expect(t.session.cycleMode()).toBe('plan')
+    expect(t.session.cycleMode()).toBe('ask')
+    expect(t.core.store.getSetting(`autonomy:${t.cwd}`)).toBe('ask_all')
+    await t.core.close()
+  })
+  it('no modo só plano o pedido termina no plano, sem executor', async () => {
+    const t = await setup()
+    expect(t.session.mode()).toBe('auto')
+    t.session.cycleMode()
+    expect(t.session.mode()).toBe('plan')
+    await t.session.run({ kind: 'send', text: 'crie soma' })
+    await t.until(() => t.texts().some(l => l.startsWith('✻ Pronto')))
+    expect(t.texts().some(l => l.startsWith('## Plano'))).toBe(true)
+    expect(t.texts().some(l => l.startsWith('Forja  '))).toBe(false)
+    await t.core.close()
+  })
+})
+
 describe('abrir o tutti de novo', () => {
   it('começa zerado: conversa nova e só a tela de entrada; a anterior fica no /history', async () => {
     const t = await setup()

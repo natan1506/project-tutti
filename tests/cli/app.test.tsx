@@ -30,6 +30,8 @@ function stub(over: Partial<SessionView> = {}): SessionView {
     mcpImportable: async () => [{ nome: 'playwright' }],
     importMcp: vi.fn(async () => 'playwright importado (desligado).'),
     activity: () => null,
+    mode: () => 'ask' as const,
+    cycleMode: vi.fn(() => 'auto' as const),
     subscribe: () => () => {},
     ...over,
   }
@@ -405,14 +407,15 @@ describe('rolar a conversa com a roda do mouse', () => {
   it('roda para cima mostra o que ficou para trás; para baixo volta ao fim', async () => {
     const w = wheelBus()
     const r = render(<App session={stub({ lines: () => many })} exit={() => {}} width={100} height={20} onWheel={w.onWheel} />)
-    await tick(120)
+    const until = async (ok: () => boolean) => { for (let i = 0; i < 100 && !ok(); i++) await tick(30) }
+    await until(() => r.lastFrame()!.includes('linha 99'))
     expect(r.lastFrame()).toContain('linha 99')
     for (let i = 0; i < 5; i++) w.spin(-1)
-    await tick(120)
+    await until(() => r.lastFrame()!.includes('mais 15 linhas abaixo'))
     expect(r.lastFrame()).not.toContain('linha 99')
     expect(r.lastFrame()).toContain('mais 15 linhas abaixo')
     for (let i = 0; i < 5; i++) w.spin(1)
-    await tick(120)
+    await until(() => r.lastFrame()!.includes('linha 99'))
     expect(r.lastFrame()).toContain('linha 99')
   })
   it('a roda não mexe na opção escolhida da aprovação', async () => {
@@ -424,6 +427,38 @@ describe('rolar a conversa com a roda do mouse', () => {
     await tick(120)
     r.stdin.write('\r'); await tick(120)
     expect(s.answer).toHaveBeenCalledWith('s')
+  })
+})
+
+describe('Esc e modos', () => {
+  it('Esc com o time trabalhando cancela (e não apaga o que você digitou)', async () => {
+    const s = stub({ activity: () => ({ text: 'Forja executando a tarefa', since: Date.now() }) })
+    const r = render(<App session={s} exit={() => {}} width={100} height={30} />)
+    await tick()
+    r.stdin.write('abc'); await tick()
+    r.stdin.write('\u001B'); await tick(80)
+    expect(s.run).toHaveBeenCalledWith({ kind: 'stop' })
+    expect(r.lastFrame()).toContain('abc')
+  })
+  it('Esc parado limpa a caixa, sem cancelar nada', async () => {
+    const s = stub()
+    const r = render(<App session={s} exit={() => {}} width={100} height={30} />)
+    await tick()
+    r.stdin.write('abc'); await tick()
+    r.stdin.write('\u001B'); await tick(80)
+    expect(s.run).not.toHaveBeenCalled()
+    expect(r.lastFrame()).not.toContain('abc')
+  })
+  it('Shift+Tab troca o modo; o rodapé mostra o modo atual', async () => {
+    let mode: 'ask' | 'auto' | 'plan' = 'ask'
+    const s = stub({ mode: () => mode, cycleMode: vi.fn(() => (mode = 'plan' as const)) })
+    const r = render(<App session={s} exit={() => {}} width={140} height={30} />)
+    await tick()
+    expect(r.lastFrame()).toContain('pedir permissão')
+    r.stdin.write('\u001B[Z'); await tick()
+    expect(s.cycleMode).toHaveBeenCalled()
+    expect(r.lastFrame()).toContain('só plano')
+    expect(r.lastFrame()).toContain('Shift+Tab')
   })
 })
 

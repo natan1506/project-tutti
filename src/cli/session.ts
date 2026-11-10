@@ -26,6 +26,8 @@ export interface HistoryRow { index: number; title: string; when: string; prompt
 export interface McpRow { id: string; nome: string; estado: string; modo: string; leitura: number; escrita: number; precisaDoApp: boolean; livre?: string }
 export interface UsageView { gasto: { nome: string; tokens: string }[]; limites: { ia: string; uso: string; volta: string }[] }
 
+export type Mode = 'ask' | 'auto' | 'plan'
+
 export interface Activity { text: string; detail?: string; since: number }
 
 /** O que a tela (App) usa da sessão. */
@@ -37,6 +39,10 @@ export interface SessionView {
   pending(): Pending | null
   /** O que o time está fazendo agora (null = parado). */
   activity(): Activity | null
+  /** Modo do terminal: pedir permissão, automático ou só plano. */
+  mode(): Mode
+  /** Passa para o próximo modo (Shift+Tab) e devolve o novo. */
+  cycleMode(): Mode
   run(cmd: Command): Promise<RunResult>
   answer(value: string): void
   say(text: string, color?: Line['color']): void
@@ -136,6 +142,20 @@ export class Session implements SessionView {
   lines(): Line[] { return this.out }
   pending(): Pending | null { return this.waiting }
   activity(): Activity | null { return this.act }
+
+  mode(): Mode {
+    if (this.core.store.getSetting<boolean>(`planOnly:${this.cwd}`)) return 'plan'
+    return this.core.store.getSetting<string>(`autonomy:${this.cwd}`) === 'autonomous' ? 'auto' : 'ask'
+  }
+
+  cycleMode(): Mode {
+    const next: Mode = { ask: 'auto', auto: 'plan', plan: 'ask' }[this.mode()] as Mode
+    this.core.store.setSetting(`planOnly:${this.cwd}`, next === 'plan')
+    if (next === 'auto') this.core.store.setSetting(`autonomy:${this.cwd}`, 'autonomous')
+    if (next === 'ask') this.core.store.setSetting(`autonomy:${this.cwd}`, 'ask_all')
+    this.changed()
+    return next
+  }
 
   private doing(text: string, detail?: string): void {
     this.act = { text, ...(detail ? { detail } : {}), since: this.act?.text === text ? this.act.since : Date.now() }
@@ -311,7 +331,7 @@ export class Session implements SessionView {
     this.push(promptLine(text))
     this.doing(`${getAgent(profile.esteira.cerebro as AgentId).nome} pensando no plano`)
     try {
-      await this.core.team.start({ projectPath: this.cwd, conversationId: this.conversationId, prompt: text, profileId: profile.id })
+      await this.core.team.start({ projectPath: this.cwd, conversationId: this.conversationId, prompt: text, profileId: profile.id, planOnly: this.mode() === 'plan' })
       return {}
     } catch (e) {
       this.act = null

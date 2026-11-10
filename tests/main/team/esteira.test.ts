@@ -65,7 +65,7 @@ async function setup(o: { brain?: ReturnType<typeof fakeBrain>; ready?: (t: Tool
   const runs = new RunService({ store, adapters, emit, homeDir: mkdtempSync(join(tmpdir(), 'h-')), toolReady, autonomyFor: () => o.autonomy ?? 'autonomous' })
   const brain = o.brain ?? fakeBrain()
   const team = new TeamService({ runs, store, brain, adapters, toolReady, emit, profileOf: () => PROFILE, brainFor: () => brain })
-  const start = () => team.start({ projectPath: dir, conversationId: conv.id, prompt: 'crie soma(a,b) com teste', profileId: 'trab' })
+  const start = (more: { planOnly?: boolean } = {}) => team.start({ projectPath: dir, conversationId: conv.id, prompt: 'crie soma(a,b) com teste', profileId: 'trab', ...more })
   const events = (id: string) => emitted.filter(e => e.runId === id).map(e => e.ev)
   const childAgents = (id: string) => store.listChildren(id).map(r => r.agentId)
   return { dir, store, fake, runs, team, start, events, childAgents, brain, emitted }
@@ -165,6 +165,16 @@ describe('esteira', () => {
     expect(t.childAgents(id)).toEqual([])
     expect(t.events(id)).toContainEqual({ type: 'text', text: 'Plano recusado; nada foi alterado.' })
     expect(t.events(id).at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
+  })
+
+  it('só plano: o cérebro planeja, ninguém executa e não pede aprovação', async () => {
+    const t = await setup({ autonomy: 'ask_all' })
+    const id = await t.start({ planOnly: true })
+    await t.team.whenFinished(id)
+    expect(kinds(t.events(id))).toContain('esteira_plan')
+    expect(kinds(t.events(id))).not.toContain('plan_request')
+    expect(t.childAgents(id)).toEqual([])
+    expect(t.events(id).at(-1)).toEqual({ type: 'run_finished', status: 'done' })
   })
 
   it('pasta sem git: esteira roda sem diff', async () => {

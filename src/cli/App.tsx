@@ -58,6 +58,11 @@ function answerRows(l: Line): Line[] {
 }
 
 const PAD_X = 2
+const MODE: Record<'ask' | 'auto' | 'plan', { label: string; color: string }> = {
+  ask: { label: '⏸ pedir permissão', color: 'gray' },
+  auto: { label: '⏵⏵ automático', color: 'yellow' },
+  plan: { label: '◇ só plano', color: 'cyan' },
+}
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const elapsed = (since: number) => { const s = Math.max(0, Math.round((Date.now() - since) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}min ${s % 60}s` }
 
@@ -184,7 +189,10 @@ export function App({ session, exit, width, height = 40, onWheel }: { session: S
       setMenuSel(sel.current)
       return
     }
+    if (key.tab && key.shift) { session.cycleMode(); redraw(); return }
     if (matches.length && key.tab) { type(`/${matches[sel.current].name}`); return }
+    // Esc com o time trabalhando cancela o pedido (como no Claude Code); parado, limpa a caixa.
+    if (key.escape && session.activity()) { void session.run({ kind: 'stop' }).then(r => r.message && session.reply(r.message)); return }
     if (key.escape) { type(''); return }
     // Nova linha sem enviar, como no Claude Code: Shift+Enter (terminais com o protocolo kitty), Option+Enter ou \ + Enter.
     if (key.return && (key.shift || key.meta)) { type(`${typed.current}\n`); return }
@@ -295,7 +303,10 @@ export function App({ session, exit, width, height = 40, onWheel }: { session: S
           ))}
         </Box>
       ) : (
-        <Text color={MUTED} wrap="truncate">  / comandos  ·  Shift+⏎ nova linha  ·  ↑↓ navegar  ·  Tab completar  ·  Esc limpar  ·  Ctrl+C sair</Text>
+        <Text wrap="truncate">
+          <Text color={MODE[session.mode()].color}>{`  ${MODE[session.mode()].label}`}</Text>
+          <Text color={MUTED}>{`  (Shift+Tab muda)  ·  / comandos  ·  Shift+⏎ nova linha  ·  Esc ${session.activity() ? 'cancela' : 'limpa'}  ·  Ctrl+C sair`}</Text>
+        </Text>
       ))}
     </Box>
   )

@@ -16,7 +16,11 @@ import { runEsteira } from './esteira'
 // Spec §5.2–5.4: um pedido de time é um run-pai do Bússola (ponto de restauração e diff do pedido inteiro)
 // com um run-filho por passo da escalação.
 
-export interface TeamStartInput { projectPath: string; conversationId: string; prompt: string; fullRound?: boolean; forcePlan?: boolean; profileId?: string }
+export interface TeamStartInput {
+  projectPath: string; conversationId: string; prompt: string; fullRound?: boolean; forcePlan?: boolean; profileId?: string
+  /** Modo só plano (terminal): na esteira, o cérebro planeja e o pedido termina aí, sem executar. */
+  planOnly?: boolean
+}
 
 interface Deps {
   runs: RunService
