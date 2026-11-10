@@ -12,15 +12,58 @@ export interface Line {
   md?: boolean
   /** Linha com `parts` que quebra na largura (as outras com `parts` são cortadas). */
   wrap?: boolean
-  parts?: { text: string; color?: string; bg?: string; bold?: boolean }[]
+  parts?: { text: string; color?: string; bg?: string; bold?: boolean; italic?: boolean }[]
+  /** O pedido do Natan: a tela pinta com fundo cinza na largura toda. */
+  prompt?: boolean
+  /** Resposta do cérebro: ● na primeira linha, o resto alinhado. */
+  bullet?: boolean
+  /** Linha que resume as ferramentas seguidas de um pedido (vai sendo atualizada). */
+  toolGroup?: { runId: string; counts: [string, number][] }
 }
 
 /** O pedido na conversa: pedido colado de 68 linhas vira as 3 primeiras e quantas faltam. */
 export function promptLine(prompt: string): Line {
   const all = prompt.split('\n')
-  const shown = all.slice(0, 3).map((l, i) => (i ? `  ${l}` : `› ${l}`))
-  if (all.length > 3) shown.push(`  … (mais ${all.length - 3} linhas)`)
-  return { text: shown.join('\n'), color: 'cyan', bold: true, head: true }
+  const shown = all.slice(0, 3)
+  if (all.length > 3) shown.push(`… (mais ${all.length - 3} linhas)`)
+  return { text: shown.join('\n'), prompt: true }
+}
+
+const KIND_OF = (name: string): string => {
+  const m = name.match(/^mcp__(.+?)__/)
+  if (m) return `mcp:${m[1]}`
+  if (/^(Bash|Shell)$/.test(name)) return 'cmd'
+  if (name === 'Read') return 'read'
+  if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(name)) return 'edit'
+  if (/^(Grep|Glob)$/.test(name)) return 'search'
+  return `other:${name}`
+}
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+
+/** "Rodou 3 comandos, usou linear 2 vezes, leu 1 arquivo" — como o Claude Code resume as ferramentas. */
+export function toolGroupText(counts: [string, number][]): string {
+  const s = counts.map(([k, n]) => {
+    if (k === 'cmd') return `rodou ${plural(n, 'comando', 'comandos')}`
+    if (k === 'read') return `leu ${plural(n, 'arquivo', 'arquivos')}`
+    if (k === 'edit') return `editou ${plural(n, 'arquivo', 'arquivos')}`
+    if (k === 'search') return `buscou ${plural(n, 'vez', 'vezes')}`
+    return `usou ${k.slice(k.indexOf(':') + 1)} ${plural(n, 'vez', 'vezes')}`
+  }).join(', ')
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+export function addTool(counts: [string, number][], name: string): [string, number][] {
+  const k = KIND_OF(name)
+  const hit = counts.find(c => c[0] === k)
+  return hit ? counts.map(c => (c[0] === k ? [k, c[1] + 1] : c)) : [...counts, [k, 1]]
+}
+
+/** "5m 46s", "12s", "1h 3m". */
+export function duration(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
 }
 
 export function eventLine(ev: RunEvent, nomeDe: (id: AgentId) => string): Line | null {

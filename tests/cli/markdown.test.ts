@@ -10,7 +10,7 @@ describe('resposta da IA formatada no terminal', () => {
     expect(l[2].parts?.[0]).toMatchObject({ text: 'Resumo', bold: true, color: 'cyan' })
   })
   it('listas viram marcadores alinhados; numeradas mantêm o número', () => {
-    expect(texts('- um\n* dois\n  - sub\n1. primeiro\n2) segundo')).toEqual(['  • um', '  • dois', '    • sub', '  1. primeiro', '  2. segundo'])
+    expect(texts('- um\n* dois\n  - sub\n1. primeiro\n2) segundo')).toEqual(['- um', '- dois', '  - sub', '1. primeiro', '2. segundo'])
   })
   it('**negrito** e `código` sem os símbolos, na mesma linha que quebra', () => {
     const [l] = mdLines('use **npm test** e `ls`')
@@ -24,7 +24,7 @@ describe('resposta da IA formatada no terminal', () => {
   it('várias linhas em branco seguidas viram uma', () => {
     expect(texts('a\n\n\n\nb')).toEqual(['a', '', 'b'])
   })
-  it('citação fica cinza com barra', () => {
-    expect(mdLines('> nota')).toEqual([{ text: '│ nota', color: 'gray' }])
+  it('citação com barra cinza e texto em itálico (com negrito dentro)', () => {
+    expect(mdLines('> nota **forte**')).toEqual([{ text: '│ nota forte', wrap: true, parts: [{ text: '│ ', color: 'gray' }, { text: 'nota ', italic: true }, { text: 'forte', italic: true, bold: true }] }])
   })
 })

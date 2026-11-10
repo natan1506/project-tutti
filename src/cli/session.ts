@@ -12,7 +12,7 @@ import { isGitRepo, runGit } from '../main/git/git'
 import type { Command, ConfigKey } from './commands'
 import { bannerLines } from './banner'
 import { checkupLines } from './doctor'
-import { eventLine, promptLine, type Line } from './lines'
+import { addTool, duration, eventLine, promptLine, toolGroupText, type Line } from './lines'
 
 // Estado da tela do terminal, sem React (spec tutti-terminal §4): projeto, conversa, linhas, pendência e comandos.
 
@@ -202,11 +202,31 @@ export class Session implements SessionView {
     if ((ev.type === 'approval_resolved' || ev.type === 'plan_resolved' || ev.type === 'question_answered') && this.waiting?.id === ev.id) this.waiting = null
     if (ev.type === 'run_finished' && !run.parentRunId) this.waiting = null
     this.track(run, ev)
-    const line = this.lineFor(run.parentRunId, run.agentId, ev)
+    const line = this.lineFor(run, ev)
     // A posição na fila muda a cada pedido que termina: atualiza a mesma linha em vez de empilhar.
     if (line && ev.type === 'queued' && this.out.at(-1)?.text.startsWith('Na fila')) { this.out[this.out.length - 1] = line; this.changed(); return }
-    if (line) { if (!run.parentRunId && SPACED.has(ev.type)) this.space(); this.push(line) }
-    else this.changed()
+    this.place(run, ev, line)
+    if (this.out.length > MAX_LINES) this.out.splice(0, this.out.length - MAX_LINES)
+    this.changed()
+  }
+
+  /** Põe a linha do evento na conversa; ferramentas seguidas do mesmo pedido somam numa linha só (como no Claude Code). */
+  private place(run: { id: string; parentRunId: string | null; agentId: AgentId }, ev: RunEvent, line: Line | null): void {
+    if (ev.type === 'tool') {
+      const last = this.out.at(-1)
+      if (last?.toolGroup?.runId === run.id) {
+        const counts = addTool(last.toolGroup.counts, ev.name)
+        this.out[this.out.length - 1] = { ...last, text: `${run.parentRunId ? `    ${getAgent(run.agentId).nome}: ` : ''}${toolGroupText(counts)}`, toolGroup: { runId: run.id, counts } }
+        return
+      }
+      const counts = addTool([], ev.name)
+      if (!run.parentRunId) this.space()
+      this.out.push({ text: `${run.parentRunId ? `    ${getAgent(run.agentId).nome}: ` : ''}${toolGroupText(counts)}`, color: 'gray', toolGroup: { runId: run.id, counts } })
+      return
+    }
+    if (!line) return
+    if (!run.parentRunId && SPACED.has(ev.type)) this.space()
+    this.out.push(line)
   }
 
   /** Linha em branco antes de um bloco novo (sem repetir se já houver uma). */
@@ -214,7 +234,8 @@ export class Session implements SessionView {
     if (this.out.length && this.out.at(-1)!.text !== '') this.out.push({ text: '' })
   }
 
-  private lineFor(parentRunId: string | null, agentId: AgentId, ev: RunEvent): Line | null {
+  private lineFor(run: { parentRunId: string | null; agentId: AgentId; startedAt: number; finishedAt?: number | null }, ev: RunEvent): Line | null {
+    const { parentRunId, agentId } = run
     // Passo de um filho: só o texto final e as ferramentas, recuados; o fim do filho não vira "Pronto.".
     if (parentRunId) {
       if (ev.type === 'run_finished' || ev.type === 'diff' || ev.type === 'queued') return null
@@ -228,8 +249,13 @@ export class Session implements SessionView {
       const first = ev.task.split('\n')[0].trim()
       return { text: `${getAgent(ev.agentId).nome}  ${first.length > 110 ? `${first.slice(0, 109)}…` : first}`, color: 'gray' }
     }
+    if (ev.type === 'run_finished' && ev.status !== 'error') {
+      const end = run.finishedAt ?? Date.now()
+      const at = new Date(end).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      return { text: `✻ ${ev.status === 'done' ? 'Pronto em' : 'Cancelado depois de'} ${duration(end - run.startedAt)} · ${at}`, color: 'gray' }
+    }
     const l = eventLine(ev, id => getAgent(id).nome)
-    return l && ev.type === 'text' ? { ...l, md: true } : l
+    return l && ev.type === 'text' ? { ...l, md: true, bullet: true } : l
   }
 
   // ——— respostas e comandos ———
@@ -326,8 +352,7 @@ export class Session implements SessionView {
     const replay = (r: (typeof runs)[number]) => {
       for (const ev of this.core.store.listEvents(r.id)) {
         if (ev.type === 'queued') continue // só faz sentido ao vivo
-        const l = this.lineFor(r.parentRunId, r.agentId, ev)
-        if (l) { if (!r.parentRunId && SPACED.has(ev.type)) this.space(); this.out.push(l) }
+        this.place(r, ev, this.lineFor(r, ev))
         const child = ev.type === 'child_started' ? byId.get(ev.runId) : undefined
         if (child) replay(child)
       }

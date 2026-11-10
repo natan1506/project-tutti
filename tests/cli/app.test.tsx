@@ -1,6 +1,6 @@
 import { render } from 'ink-testing-library'
 import { describe, expect, it, vi } from 'vitest'
-import { App, fitLines, screenLines } from '../../src/cli/App'
+import { App, fitLines, PROMPT_BG, screenLines } from '../../src/cli/App'
 import type { SessionView } from '../../src/cli/session'
 
 function stub(over: Partial<SessionView> = {}): SessionView {
@@ -381,6 +381,49 @@ describe('nova linha sem enviar (como no Claude Code)', () => {
   it('o rodapé ensina o atalho', () => {
     const r = render(<App session={stub()} exit={() => {}} width={140} height={30} />)
     expect(r.lastFrame()).toContain('Shift+⏎ nova linha')
+  })
+})
+
+describe('aparência do Claude Code', () => {
+  it('pedido: fundo cinza na largura toda, texto branco, ❯ na primeira linha', () => {
+    const [a, b] = screenLines([{ text: 'oi\nmais', prompt: true }], 20)
+    expect(a.text).toBe('❯ oi'.padEnd(20))
+    expect(a.parts?.[0]).toMatchObject({ bg: PROMPT_BG, color: 'white' })
+    expect(b.text).toBe('  mais'.padEnd(20))
+  })
+  it('resposta com ●: primeira linha com a bolinha, o resto alinhado', () => {
+    expect(screenLines([{ text: 'a\n\nb', md: true, bullet: true }], 80).map(l => l.text)).toEqual(['● a', '', '  b'])
+  })
+})
+
+describe('rolar a conversa com a roda do mouse', () => {
+  const wheelBus = () => {
+    const fns = new Set<(d: number) => void>()
+    return { onWheel: (fn: (d: number) => void) => { fns.add(fn); return () => { fns.delete(fn) } }, spin: (d: number) => fns.forEach(f => f(d)) }
+  }
+  const many = Array.from({ length: 100 }, (_, i) => ({ text: `linha ${i}` }))
+  it('roda para cima mostra o que ficou para trás; para baixo volta ao fim', async () => {
+    const w = wheelBus()
+    const r = render(<App session={stub({ lines: () => many })} exit={() => {}} width={100} height={20} onWheel={w.onWheel} />)
+    await tick(120)
+    expect(r.lastFrame()).toContain('linha 99')
+    for (let i = 0; i < 5; i++) w.spin(-1)
+    await tick(120)
+    expect(r.lastFrame()).not.toContain('linha 99')
+    expect(r.lastFrame()).toContain('mais 15 linhas abaixo')
+    for (let i = 0; i < 5; i++) w.spin(1)
+    await tick(120)
+    expect(r.lastFrame()).toContain('linha 99')
+  })
+  it('a roda não mexe na opção escolhida da aprovação', async () => {
+    const w = wheelBus()
+    const s = stub({ lines: () => many, pending: () => ({ kind: 'plan', id: 'x', text: 'p' }) })
+    const r = render(<App session={s} exit={() => {}} width={100} height={30} onWheel={w.onWheel} />)
+    await tick(120)
+    w.spin(1); w.spin(1); w.spin(-1)
+    await tick(120)
+    r.stdin.write('\r'); await tick(120)
+    expect(s.answer).toHaveBeenCalledWith('s')
   })
 })
 

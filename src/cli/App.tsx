@@ -5,7 +5,7 @@ import { COMMANDS, matchCommands } from './menus'
 import { placar } from './placar'
 import type { PanelKind, SessionView } from './session'
 import type { Line } from './lines'
-import { mdLines } from './markdown'
+import { mdLines, prefix } from './markdown'
 
 // Tela do terminal (spec tutti-terminal §4), no estilo do Claude Code: placar no topo, conversa, caixa de texto com
 // moldura, menu de comandos ao digitar "/", painéis navegáveis (/config, /agents, /history, /usage, /help) e
@@ -34,8 +34,27 @@ const PASTE_TOKEN = /\[Texto colado #(\d+) \+\d+ linhas?\]/g
 const pasteToken = (n: number, text: string) => { const k = text.split('\n').length; return `[Texto colado #${n} +${k} ${k === 1 ? 'linha' : 'linhas'}]` }
 
 /** Uma linha da tela por linha do texto; em linha com título (`head`), cor e negrito ficam só na primeira. */
-export function screenLines(lines: Line[]): Line[] {
-  return lines.flatMap(l => (l.md ? mdLines(l.text) : l.parts ? [l] : l.text.split('\n').map((t, i) => ({ ...l, text: t, ...(l.head && i > 0 ? { color: undefined, bold: false } : {}) }))))
+export const PROMPT_BG = '#4a4a4a'
+
+export function screenLines(lines: Line[], width = 100): Line[] {
+  return lines.flatMap(l => (l.prompt ? promptRows(l.text, width) : l.md ? answerRows(l) : l.parts ? [l] : l.text.split('\n').map((t, i) => ({ ...l, text: t, ...(l.head && i > 0 ? { color: undefined, bold: false } : {}) }))))
+}
+
+/** Pedido como no Claude Code: fundo cinza na largura toda, ❯ na primeira linha, quebra na mão (o fundo vai até o fim). */
+function promptRows(text: string, width: number): Line[] {
+  const room = Math.max(10, width - 2)
+  return text.split('\n').flatMap((l, i) => {
+    const chunks = l.length ? Array.from({ length: Math.ceil(l.length / room) }, (_, k) => l.slice(k * room, (k + 1) * room)) : ['']
+    return chunks.map((c, k) => { const t = `${i === 0 && k === 0 ? '❯ ' : '  '}${c}`.padEnd(width); return { text: t, parts: [{ text: t, bg: PROMPT_BG, color: 'white' }] } })
+  })
+}
+
+/** Resposta em markdown; com `bullet`, ● na primeira linha e o resto alinhado com ela. */
+function answerRows(l: Line): Line[] {
+  const rows = mdLines(l.text)
+  if (!l.bullet) return rows
+  let first = true
+  return rows.map(r => { if (r.text === '') return r; const p = first ? '● ' : '  '; first = false; return prefix(r, p) })
 }
 
 const PAD_X = 2
@@ -44,7 +63,10 @@ const elapsed = (since: number) => { const s = Math.max(0, Math.round((Date.now(
 
 type Panel = { kind: PanelKind; row: number; picking: number | null; status?: string; importList?: { nome: string }[] }
 
-export function App({ session, exit, width, height = 40 }: { session: SessionView; exit: () => void; width: number; height?: number }) {
+export function App({ session, exit, width, height = 40, onWheel }: { session: SessionView; exit: () => void; width: number; height?: number; onWheel?: (fn: (d: number) => void) => () => void }) {
+  // Quantas linhas da conversa acima do fim estão sendo vistas (0 = no fim, acompanhando).
+  const [scroll, setScroll] = useState(0)
+  useEffect(() => onWheel?.(d => setScroll(s => Math.max(0, s - d * 3))), [onWheel])
   const [, redraw] = useReducer((n: number) => n + 1, 0)
   const [input, setInput] = useState('')
   const [menuSel, setMenuSel] = useState(0)
@@ -142,6 +164,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
 
   useInput((ch, key) => {
     if (key.ctrl && ch === 'c') { exit(); return }
+    if (key.pageUp || key.pageDown) { setScroll(s => Math.max(0, s + (key.pageUp ? 10 : -10))); return }
     const p = panelRef.current
     if (p) { panelKeys(p, ch, key); return }
 
@@ -171,6 +194,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
       const pick = matches[sel.current]
       type('')
       if (pending) { if (text.trim()) session.answer(expand(text)); pastes.current = []; return }
+      setScroll(0)
       void submit(pick ? `/${pick.name}` : text)
       return
     }
@@ -212,8 +236,9 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   // Caixa de entrada: 2 de borda + uma por linha digitada (e as que quebram).
   const inputRows = panel ? 0 : input.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil((l.length + 3) / Math.max(10, inner - 4))), 0)
   const room = Math.max(3, height - 1 - 2 - 2 - inputRows - below - pendingRows - (act ? 1 : 0))
-  const all = screenLines(session.lines())
-  const lines = fitLines(all, inner, room)
+  const all = screenLines(session.lines(), inner)
+  const back = Math.min(scroll, Math.max(0, all.length - 1))
+  const lines = fitLines(all.slice(0, all.length - back), inner, room - (back ? 1 : 0))
 
   // Tela cheia: placar fixo no topo, entrada fixa embaixo, conversa no meio (corta por cima o que não cabe).
   return (
@@ -225,11 +250,12 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
         ))}
       </Text>
       <Text color={MUTED}>{'─'.repeat(inner)}</Text>
-      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden" justifyContent={lines.length < all.length ? 'flex-end' : 'flex-start'}>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden" justifyContent={lines.length < all.length - back ? 'flex-end' : 'flex-start'}>
       {lines.map((l, i) => (l.parts
-        ? <Text key={i} wrap={l.wrap ? 'wrap' : 'truncate'}>{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})} bold={!!x.bold}>{x.text}</Text>)}</Text>
+        ? <Text key={i} wrap={l.wrap ? 'wrap' : 'truncate'}>{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})} bold={!!x.bold} italic={!!x.italic}>{x.text}</Text>)}</Text>
         : <Text key={i} {...(l.color ? { color: l.color } : {})} bold={!!l.bold} wrap="wrap">{l.text || ' '}</Text>))}
       </Box>
+      {back > 0 && <Text color={MUTED} wrap="truncate">{`  ↓ mais ${back} linhas abaixo  ·  role para baixo ou PgDn`}</Text>}
 
       {pending && pending.kind !== 'question' && (
         <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} width={boxWidth}>

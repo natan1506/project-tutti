@@ -25,17 +25,17 @@ export function mdLines(text: string): Line[] {
     const h = line.match(/^#{1,6}\s+(.*)$/)
     if (h) { blank(); out.push(inline(h[1].replace(/\*\*/g, ''), { bold: true, color: 'cyan' })); continue }
     const li = line.match(/^(\s*)[-*+]\s+(.*)$/)
-    if (li) { const l = inline(li[2]); out.push(prefix(l, `  ${' '.repeat(li[1].length)}• `)); continue }
+    if (li) { const l = inline(li[2]); out.push(prefix(l, `${' '.repeat(li[1].length)}- `)); continue }
     const ol = line.match(/^(\s*)(\d+)[.)]\s+(.*)$/)
-    if (ol) { const l = inline(ol[3]); out.push(prefix(l, `  ${' '.repeat(ol[1].length)}${ol[2]}. `)); continue }
+    if (ol) { const l = inline(ol[3]); out.push(prefix(l, `${' '.repeat(ol[1].length)}${ol[2]}. `)); continue }
     const q = line.match(/^>\s?(.*)$/)
-    if (q) { out.push({ text: `│ ${q[1]}`, color: 'gray' }); continue }
+    if (q) { const l = inline(q[1], { italic: true }); out.push({ text: `│ ${l.text}`, wrap: true, parts: [{ text: '│ ', color: 'gray' }, ...(l.parts ?? [])] }); continue }
     out.push(inline(line))
   }
   while (out.at(-1)?.text === '') out.pop()
   return out
 }
 
-function prefix(l: Line, p: string): Line {
+export function prefix(l: Line, p: string): Line {
   return l.parts ? { ...l, text: p + l.text, parts: [{ text: p }, ...l.parts] } : { ...l, text: p + l.text }
 }

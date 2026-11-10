@@ -1,4 +1,5 @@
 import { render } from 'ink'
+import { MOUSE_OFF, MOUSE_ON, wheelStdin } from './mouse'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createCore } from '../main/core'
@@ -39,15 +40,19 @@ async function main() {
   const stopPolling = core.usage.startPolling()
   const out = process.stdout
   let ink: ReturnType<typeof render> | undefined
+  const input = wheelStdin(process.stdin)
   const close = async () => {
     stopPolling()
+    out.write(MOUSE_OFF)
     ink?.unmount()
     await core.close()
     process.exit(0)
   }
-  const draw = () => <App session={session!} exit={() => void close()} width={out.columns || 100} height={out.rows || 40} />
+  const draw = () => <App session={session!} exit={() => void close()} width={out.columns || 100} height={out.rows || 40} onWheel={input.onWheel} />
   // kitty: o terminal que suporta (Warp, iTerm2, Ghostty, kitty) diferencia Shift+Enter de Enter.
-  ink = render(draw(), { exitOnCtrlC: false, alternateScreen: true, kittyKeyboard: { mode: KITTY_TERMINALS.has(process.env.TERM_PROGRAM ?? '') ? 'enabled' : 'auto' } })
+  ink = render(draw(), { stdin: input.stdin, exitOnCtrlC: false, alternateScreen: true, kittyKeyboard: { mode: KITTY_TERMINALS.has(process.env.TERM_PROGRAM ?? '') ? 'enabled' : 'auto' } })
+  // Roda do mouse rola a conversa (sem isto o terminal a transforma em ↑/↓).
+  out.write(MOUSE_ON)
   out.on('resize', () => ink?.rerender(draw()))
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => void close())
 }

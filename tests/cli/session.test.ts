@@ -60,17 +60,18 @@ describe('sessão do terminal', () => {
   it('texto livre roda a esteira e as etapas viram linhas', async () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
-    await t.until(() => t.texts().includes('Pronto.'))
-    expect(t.texts()).toEqual(expect.arrayContaining(['## Plano\nCriar soma.js\n\n**Pronto quando:** teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto', 'Pronto.']))
+    await t.until(() => t.texts().some(l => l.startsWith('✻ Pronto')))
+    expect(t.texts()).toEqual(expect.arrayContaining(['## Plano\nCriar soma.js\n\n**Pronto quando:** teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto']))
+    expect(t.texts().at(-1)).toMatch(/^✻ Pronto em \d+s · \d\d:\d\d$/)
     await t.core.close()
   })
 
   it('pedido, plano, cada etapa e a revisão vêm separados por uma linha em branco', async () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
-    await t.until(() => t.texts().includes('Pronto.'))
+    await t.until(() => t.texts().some(l => l.startsWith('✻ Pronto')))
     const x = t.texts()
-    for (const start of ['› crie soma', '## Plano', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
+    for (const start of ['crie soma', '## Plano', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
       const i = x.findIndex(l => l.startsWith(start))
       expect(i, start).toBeGreaterThan(0)
       expect(x[i - 1], start).toBe('')
@@ -81,13 +82,13 @@ describe('sessão do terminal', () => {
   it('ao retomar, o trabalho de cada etapa aparece no lugar certo, antes do "Pronto."', async () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
-    await t.until(() => t.texts().includes('Pronto.'))
+    await t.until(() => t.texts().some(l => l.startsWith('✻ Pronto')))
     const reopened = await Session.open(t.core, t.cwd)
     reopened.resume(reopened.historyView().find(h => h.title === 'crie soma')!.index)
     const lines = reopened.lines().map(l => l.text)
     const forja = lines.findIndex(l => l.includes('Forja: Forja trabalhou.'))
     expect(forja).toBeGreaterThan(lines.findIndex(l => l.startsWith('Forja  ')))
-    expect(forja).toBeLessThan(lines.indexOf('Pronto.'))
+    expect(forja).toBeLessThan(lines.findIndex(l => l.startsWith('✻ Pronto')))
     await t.core.close()
   })
 
@@ -107,7 +108,7 @@ describe('sessão do terminal', () => {
     await t.until(() => t.session.pending()?.kind === 'plan')
     expect(t.session.pending()!.text).toContain('Criar soma.js')
     t.session.answer('s')
-    await t.until(() => t.texts().includes('Pronto.'))
+    await t.until(() => t.texts().some(l => l.startsWith('✻ Pronto')))
     expect(t.session.pending()).toBeNull()
     await t.core.close()
   })
@@ -228,6 +229,33 @@ describe('cores da conversa', () => {
     t.session.onEvent(p.id, { type: 'text', text: '## Feito\n- item' })
     expect(t.session.lines().at(-1)).toMatchObject({ text: '## Feito\n- item', md: true })
     expect(t.session.lines().at(-2)?.text).toBe('')
+    await t.core.close()
+  })
+})
+
+describe('jeito do Claude Code', () => {
+  it('ferramentas seguidas viram uma linha cinza com o resumo; texto no meio começa outra', async () => {
+    const t = await setup()
+    const p = t.core.store.createRun({ id: 'p', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    for (const name of ['Bash', 'Bash', 'mcp__linear__get_issue', 'Bash', 'mcp__linear__list_comments', 'Read']) t.session.onEvent(p.id, { type: 'tool', name, summary: 'x' })
+    expect(t.session.lines().at(-1)).toMatchObject({ text: 'Rodou 3 comandos, usou linear 2 vezes, leu 1 arquivo', color: 'gray' })
+    expect(t.texts().filter(l => l.startsWith('Rodou'))).toHaveLength(1)
+    t.session.onEvent(p.id, { type: 'text', text: 'olhei' })
+    t.session.onEvent(p.id, { type: 'tool', name: 'Bash', summary: 'x' })
+    expect(t.texts().at(-1)).toBe('Rodou 1 comando')
+    await t.core.close()
+  })
+  it('a resposta do cérebro vem com ●', async () => {
+    const t = await setup()
+    const p = t.core.store.createRun({ id: 'p', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    t.session.onEvent(p.id, { type: 'text', text: 'oi' })
+    expect(t.session.lines().at(-1)).toMatchObject({ md: true, bullet: true })
+    await t.core.close()
+  })
+  it('o seu pedido fica marcado como pedido (fundo cinza na tela)', async () => {
+    const t = await setup()
+    await t.session.run({ kind: 'send', text: 'faz' })
+    expect(t.session.lines().find(l => l.text.includes('faz'))).toMatchObject({ prompt: true })
     await t.core.close()
   })
 })
