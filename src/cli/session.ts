@@ -78,7 +78,7 @@ const ROLE_NAME: Record<EsteiraRole, string> = { cerebro: 'cérebro', executor: 
 const TOOL_NAME: Record<ToolKind, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode' }
 const MAX_LINES = 500
 /** Eventos do pedido que abrem um bloco novo na conversa. */
-const SPACED = new Set<RunEvent['type']>(['esteira_plan', 'child_started', 'esteira_check', 'esteira_review'])
+const SPACED = new Set<RunEvent['type']>(['esteira_plan', 'child_started', 'esteira_check', 'esteira_review', 'text'])
 const sum = (t: { input: number; output: number }) => t.input + t.output
 const fmtTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')}k` : String(n))
 
@@ -220,14 +220,16 @@ export class Session implements SessionView {
       if (ev.type === 'run_finished' || ev.type === 'diff' || ev.type === 'queued') return null
       const l = eventLine(ev, id => getAgent(id).nome)
       if (!l) return null
-      return ev.type === 'text' ? { text: `    ${getAgent(agentId).nome}: ${l.text.slice(0, 600)}` } : { ...l, text: `  ${l.text}` }
+      // O que o agente vai dizendo no meio do trabalho: cinza, para separar da resposta.
+      return ev.type === 'text' ? { text: `    ${getAgent(agentId).nome}: ${l.text.slice(0, 600)}`, color: 'gray' } : { ...l, text: `  ${l.text}` }
     }
     // A tarefa de uma etapa pode ser o plano inteiro: na linha vai só o começo.
     if (ev.type === 'child_started') {
       const first = ev.task.split('\n')[0].trim()
-      return { text: `${getAgent(ev.agentId).nome}  ${first.length > 110 ? `${first.slice(0, 109)}…` : first}` }
+      return { text: `${getAgent(ev.agentId).nome}  ${first.length > 110 ? `${first.slice(0, 109)}…` : first}`, color: 'gray' }
     }
-    return eventLine(ev, id => getAgent(id).nome)
+    const l = eventLine(ev, id => getAgent(id).nome)
+    return l && ev.type === 'text' ? { ...l, md: true } : l
   }
 
   // ——— respostas e comandos ———

@@ -361,3 +361,26 @@ describe('/mcp: liberar para o tester', () => {
   })
 })
 
+describe('nova linha sem enviar (como no Claude Code)', () => {
+  const typeAndCheck = async (newline: string) => {
+    const s = stub()
+    const r = render(<App session={s} exit={() => {}} width={100} height={30} />)
+    await tick()
+    r.stdin.write('primeira'); await tick()
+    r.stdin.write(newline); await tick()
+    r.stdin.write('segunda'); await tick()
+    expect(s.run).not.toHaveBeenCalled()
+    const f = r.lastFrame()!
+    expect(f).toMatch(/› primeira\s*│\n\s*│\s+segunda/)
+    r.stdin.write('\r'); await tick()
+    expect(s.run).toHaveBeenCalledWith({ kind: 'send', text: 'primeira\nsegunda' })
+  }
+  it('Shift+Enter (protocolo kitty) pula linha', () => typeAndCheck('\u001B[13;2u'))
+  it('Option+Enter pula linha', () => typeAndCheck('\u001B\r'))
+  it('\\ + Enter pula linha (o \\ some)', () => typeAndCheck('\\\r'))
+  it('o rodapé ensina o atalho', () => {
+    const r = render(<App session={stub()} exit={() => {}} width={140} height={30} />)
+    expect(r.lastFrame()).toContain('Shift+⏎ nova linha')
+  })
+})
+

@@ -61,7 +61,7 @@ describe('sessão do terminal', () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
     await t.until(() => t.texts().includes('Pronto.'))
-    expect(t.texts()).toEqual(expect.arrayContaining(['Plano\nCriar soma.js\nPronto quando: teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto', 'Pronto.']))
+    expect(t.texts()).toEqual(expect.arrayContaining(['## Plano\nCriar soma.js\n\n**Pronto quando:** teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto', 'Pronto.']))
     await t.core.close()
   })
 
@@ -70,7 +70,7 @@ describe('sessão do terminal', () => {
     await t.session.run({ kind: 'send', text: 'crie soma' })
     await t.until(() => t.texts().includes('Pronto.'))
     const x = t.texts()
-    for (const start of ['› crie soma', 'Plano', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
+    for (const start of ['› crie soma', '## Plano', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
       const i = x.findIndex(l => l.startsWith(start))
       expect(i, start).toBeGreaterThan(0)
       expect(x[i - 1], start).toBe('')
@@ -212,6 +212,22 @@ describe('onde o tutti abre', () => {
     const s = await Session.open(t.core, homedir())
     expect((await s.run({ kind: 'send', text: 'oi' })).message).toBe('Abra o tutti dentro da pasta de um projeto (não na pasta pessoal nem na raiz).')
     expect(t.core.store.listRuns(s.conversationId)).toEqual([])
+    await t.core.close()
+  })
+})
+
+describe('cores da conversa', () => {
+  it('o que os agentes vão fazendo fica cinza; a resposta final vem formatada', async () => {
+    const t = await setup()
+    const p = t.core.store.createRun({ id: 'p', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    const e = t.session.profile().esteira!
+    t.session.onEvent(p.id, { type: 'child_started', runId: 'c', agentId: e.executor as never, task: 'faz' })
+    t.core.store.createRun({ id: 'c', conversationId: t.session.conversationId, agentId: e.executor as never, prompt: 'faz', startedAt: 2, hasCheckpoint: false, parentRunId: 'p' })
+    t.session.onEvent('c', { type: 'text', text: 'Vou olhar o card.' })
+    expect(t.session.lines().at(-1)).toMatchObject({ color: 'gray' })
+    t.session.onEvent(p.id, { type: 'text', text: '## Feito\n- item' })
+    expect(t.session.lines().at(-1)).toMatchObject({ text: '## Feito\n- item', md: true })
+    expect(t.session.lines().at(-2)?.text).toBe('')
     await t.core.close()
   })
 })

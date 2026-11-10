@@ -5,6 +5,7 @@ import { COMMANDS, matchCommands } from './menus'
 import { placar } from './placar'
 import type { PanelKind, SessionView } from './session'
 import type { Line } from './lines'
+import { mdLines } from './markdown'
 
 // Tela do terminal (spec tutti-terminal §4), no estilo do Claude Code: placar no topo, conversa, caixa de texto com
 // moldura, menu de comandos ao digitar "/", painéis navegáveis (/config, /agents, /history, /usage, /help) e
@@ -16,12 +17,12 @@ const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.
 
 /** Últimas linhas que cabem em `room` linhas da tela, contando que linha longa quebra em várias (senão a tela passa da
  * janela e o terminal repete o quadro inteiro). */
-export function fitLines<T extends { text: string; parts?: unknown[] }>(lines: T[], width: number, room: number): T[] {
+export function fitLines<T extends { text: string; parts?: unknown[]; wrap?: boolean }>(lines: T[], width: number, room: number): T[] {
   const out: T[] = []
   let used = 0
   for (let i = lines.length - 1; i >= 0; i--) {
     const l = lines[i]
-    const rows = l.parts ? 1 : Math.max(1, Math.ceil([...l.text].length / Math.max(10, width)))
+    const rows = l.parts && !l.wrap ? 1 : Math.max(1, Math.ceil([...l.text].length / Math.max(10, width)))
     if (used + rows > room) break
     used += rows
     out.unshift(l)
@@ -34,7 +35,7 @@ const pasteToken = (n: number, text: string) => { const k = text.split('\n').len
 
 /** Uma linha da tela por linha do texto; em linha com título (`head`), cor e negrito ficam só na primeira. */
 export function screenLines(lines: Line[]): Line[] {
-  return lines.flatMap(l => (l.parts ? [l] : l.text.split('\n').map((t, i) => ({ ...l, text: t, ...(l.head && i > 0 ? { color: undefined, bold: false } : {}) }))))
+  return lines.flatMap(l => (l.md ? mdLines(l.text) : l.parts ? [l] : l.text.split('\n').map((t, i) => ({ ...l, text: t, ...(l.head && i > 0 ? { color: undefined, bold: false } : {}) }))))
 }
 
 const PAD_X = 2
@@ -162,6 +163,9 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
     }
     if (matches.length && key.tab) { type(`/${matches[sel.current].name}`); return }
     if (key.escape) { type(''); return }
+    // Nova linha sem enviar, como no Claude Code: Shift+Enter (terminais com o protocolo kitty), Option+Enter ou \ + Enter.
+    if (key.return && (key.shift || key.meta)) { type(`${typed.current}\n`); return }
+    if (key.return && typed.current.endsWith('\\')) { type(`${typed.current.slice(0, -1)}\n`); return }
     if (key.return) {
       const text = typed.current
       const pick = matches[sel.current]
@@ -184,6 +188,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
     // Processo ocupado: letras e um Enter podem chegar num pedaço só ("fig\r") — isso envia.
     if (nl === body.length - 1) {
       const text = typed.current + body.slice(0, -1)
+      if (text.endsWith('\\')) { type(`${text.slice(0, -1)}\n`); return }
       type('')
       if (pending) session.answer(expand(text))
       else void submit(text)
@@ -204,7 +209,9 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const pendingText = pending ? cap(pending.text) : ''
   const pendingRows = !pending ? 0 : pending.kind === 'question' ? Math.ceil(pendingText.length / inner) : pending.kind === 'plan' ? 6 : 6 + Math.ceil(pendingText.length / (inner - 4))
   const act = pending ? null : session.activity()
-  const room = Math.max(3, height - 1 - 2 - 3 - below - pendingRows - (act ? 1 : 0))
+  // Caixa de entrada: 2 de borda + uma por linha digitada (e as que quebram).
+  const inputRows = panel ? 0 : input.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil((l.length + 3) / Math.max(10, inner - 4))), 0)
+  const room = Math.max(3, height - 1 - 2 - 2 - inputRows - below - pendingRows - (act ? 1 : 0))
   const all = screenLines(session.lines())
   const lines = fitLines(all, inner, room)
 
@@ -220,7 +227,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
       <Text color={MUTED}>{'─'.repeat(inner)}</Text>
       <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden" justifyContent={lines.length < all.length ? 'flex-end' : 'flex-start'}>
       {lines.map((l, i) => (l.parts
-        ? <Text key={i} wrap="truncate">{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})}>{x.text}</Text>)}</Text>
+        ? <Text key={i} wrap={l.wrap ? 'wrap' : 'truncate'}>{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})} bold={!!x.bold}>{x.text}</Text>)}</Text>
         : <Text key={i} {...(l.color ? { color: l.color } : {})} bold={!!l.bold} wrap="wrap">{l.text || ' '}</Text>))}
       </Box>
 
@@ -244,7 +251,11 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
 
       {panel ? <PanelView panel={panel} session={session} width={boxWidth} /> : (
         <Box borderStyle="round" borderColor={MUTED} paddingX={1} width={boxWidth}>
-          <Text><Text color="cyan">› </Text>{input}<Text inverse> </Text></Text>
+          <Box flexDirection="column">
+            {input.split('\n').map((l, i, all) => (
+              <Text key={i}><Text color="cyan">{i ? '  ' : '› '}</Text>{l}{i === all.length - 1 && <Text inverse> </Text>}</Text>
+            ))}
+          </Box>
         </Box>
       )}
 
@@ -258,7 +269,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
           ))}
         </Box>
       ) : (
-        <Text color={MUTED}>  / comandos  ·  ↑↓ navegar  ·  Tab completar  ·  Esc limpar  ·  Ctrl+C sair</Text>
+        <Text color={MUTED} wrap="truncate">  / comandos  ·  Shift+⏎ nova linha  ·  ↑↓ navegar  ·  Tab completar  ·  Esc limpar  ·  Ctrl+C sair</Text>
       ))}
     </Box>
   )

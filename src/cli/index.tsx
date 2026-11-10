@@ -18,6 +18,9 @@ const noKeys = {
 
 const VERSION = typeof __TUTTI_VERSION__ === 'string' ? __TUTTI_VERSION__ : ''
 
+/** Terminais que falam o protocolo kitty (Shift+Enter diferente de Enter): liga direto, sem esperar a resposta da consulta. */
+const KITTY_TERMINALS = new Set(['WarpTerminal', 'iTerm.app', 'ghostty', 'kitty', 'WezTerm'])
+
 async function main() {
   const arg = process.argv[2]
   if (arg === '--version' || arg === '-v') { console.log(`tutti ${VERSION}`); return }
@@ -43,7 +46,8 @@ async function main() {
     process.exit(0)
   }
   const draw = () => <App session={session!} exit={() => void close()} width={out.columns || 100} height={out.rows || 40} />
-  ink = render(draw(), { exitOnCtrlC: false, alternateScreen: true })
+  // kitty: o terminal que suporta (Warp, iTerm2, Ghostty, kitty) diferencia Shift+Enter de Enter.
+  ink = render(draw(), { exitOnCtrlC: false, alternateScreen: true, kittyKeyboard: { mode: KITTY_TERMINALS.has(process.env.TERM_PROGRAM ?? '') ? 'enabled' : 'auto' } })
   out.on('resize', () => ink?.rerender(draw()))
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => void close())
 }
