@@ -78,11 +78,12 @@ describe('sessão do terminal', () => {
     await t.core.close()
   })
 
-  it('ao reabrir, o trabalho de cada etapa aparece no lugar certo, antes do "Pronto."', async () => {
+  it('ao retomar, o trabalho de cada etapa aparece no lugar certo, antes do "Pronto."', async () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
     await t.until(() => t.texts().includes('Pronto.'))
     const reopened = await Session.open(t.core, t.cwd)
+    reopened.resume(reopened.historyView().find(h => h.title === 'crie soma')!.index)
     const lines = reopened.lines().map(l => l.text)
     const forja = lines.findIndex(l => l.includes('Forja: Forja trabalhou.'))
     expect(forja).toBeGreaterThan(lines.findIndex(l => l.startsWith('Forja  ')))
@@ -211,6 +212,44 @@ describe('onde o tutti abre', () => {
     const s = await Session.open(t.core, homedir())
     expect((await s.run({ kind: 'send', text: 'oi' })).message).toBe('Abra o tutti dentro da pasta de um projeto (não na pasta pessoal nem na raiz).')
     expect(t.core.store.listRuns(s.conversationId)).toEqual([])
+    await t.core.close()
+  })
+})
+
+describe('abrir o tutti de novo', () => {
+  it('começa zerado: conversa nova e só a tela de entrada; a anterior fica no /history', async () => {
+    const t = await setup()
+    await t.session.run({ kind: 'send', text: 'crie soma.js' })
+    await t.until(() => t.core.store.listRuns(t.session.conversationId).some(r => !r.parentRunId && r.status !== 'running'))
+    const old = t.session.conversationId
+    const s = await Session.open(t.core, t.cwd)
+    expect(s.conversationId).not.toBe(old)
+    expect(s.lines().map(l => l.text).join('\n')).not.toContain('crie soma.js')
+    expect(s.historyView().map(h => h.title)).toContain('crie soma.js')
+    await t.core.close()
+  })
+  it('abrir sem mandar nada não enche o /history de conversas vazias', async () => {
+    const t = await setup()
+    await Session.open(t.core, t.cwd)
+    await Session.open(t.core, t.cwd)
+    expect(t.core.store.listConversations(t.session.project.id)).toHaveLength(1)
+    await t.core.close()
+  })
+  it('ao retomar, os avisos de posição na fila não voltam para a tela', async () => {
+    const t = await setup()
+    const conv = t.session.conversationId
+    t.core.store.createRun({ id: 'q', conversationId: conv, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    for (const position of [3, 2, 1, 0]) t.core.store.appendEvent('q', { type: 'queued', position })
+    await t.session.run({ kind: 'new' })
+    t.session.resume(t.session.historyView().find(h => h.title === 'p')!.index)
+    expect(t.session.lines().filter(l => l.text.startsWith('Na fila'))).toHaveLength(0)
+    await t.core.close()
+  })
+  it('ao vivo, a posição na fila atualiza a mesma linha', async () => {
+    const t = await setup()
+    t.core.store.createRun({ id: 'q', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    for (const position of [3, 2, 1]) t.session.onEvent('q', { type: 'queued', position })
+    expect(t.texts().filter(l => l.startsWith('Na fila'))).toEqual(['Na fila (posição 1).'])
     await t.core.close()
   })
 })

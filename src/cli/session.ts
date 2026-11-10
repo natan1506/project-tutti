@@ -115,7 +115,10 @@ export class Session implements SessionView {
     const chosen = core.store.getSetting<string>(`profile:${this.project.id}`)
     const trabalho = core.profiles.all().find(p => p.esteira && p.nome === 'Trabalho')
     if (!chosen && trabalho) core.profiles.setActive(this.project.id, trabalho.id)
-    this.conversationId = (core.store.listConversations(this.project.id)[0] ?? core.store.createConversation(this.project.id, 'Terminal')).id
+    // Cada vez que abre começa zerado (como o Claude Code); a conversa anterior fica no /history.
+    // Reaproveita a última se ela ainda está vazia, para abrir e fechar não encher o histórico.
+    const last = core.store.listConversations(this.project.id)[0]
+    this.conversationId = (last && core.store.listRuns(last.id).length === 0 ? last : core.store.createConversation(this.project.id, 'Terminal')).id
     this.snap = core.usage.snapshot()
     this.loadHistory()
   }
@@ -161,6 +164,8 @@ export class Session implements SessionView {
     if ((ev.type === 'approval_resolved' || ev.type === 'plan_resolved' || ev.type === 'question_answered') && this.waiting?.id === ev.id) this.waiting = null
     if (ev.type === 'run_finished' && !run.parentRunId) this.waiting = null
     const line = this.lineFor(run.parentRunId, run.agentId, ev)
+    // A posição na fila muda a cada pedido que termina: atualiza a mesma linha em vez de empilhar.
+    if (line && ev.type === 'queued' && this.out.at(-1)?.text.startsWith('Na fila')) { this.out[this.out.length - 1] = line; this.changed(); return }
     if (line) { if (!run.parentRunId && SPACED.has(ev.type)) this.space(); this.push(line) }
     else this.changed()
   }
@@ -277,6 +282,7 @@ export class Session implements SessionView {
     const byId = new Map(runs.map(r => [r.id, r]))
     const replay = (r: (typeof runs)[number]) => {
       for (const ev of this.core.store.listEvents(r.id)) {
+        if (ev.type === 'queued') continue // só faz sentido ao vivo
         const l = this.lineFor(r.parentRunId, r.agentId, ev)
         if (l) { if (!r.parentRunId && SPACED.has(ev.type)) this.space(); this.out.push(l) }
         const child = ev.type === 'child_started' ? byId.get(ev.runId) : undefined

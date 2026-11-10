@@ -43,7 +43,7 @@ async function main() {
     process.exit(0)
   }
   const draw = () => <App session={session!} exit={() => void close()} width={out.columns || 100} height={out.rows || 40} />
-  ink = render(draw(), { exitOnCtrlC: false })
+  ink = render(draw(), { exitOnCtrlC: false, alternateScreen: true })
   out.on('resize', () => ink?.rerender(draw()))
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(sig, () => void close())
 }

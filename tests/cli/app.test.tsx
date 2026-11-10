@@ -295,3 +295,26 @@ describe('tela não estoura a janela', () => {
     expect(fitLines(lines, 100, 5).map(l => l.text[0])).toEqual(['a', 'x', 'b'])
   })
 })
+
+describe('tela cheia', () => {
+  const frame = (n: number, h: number) => {
+    const many = Array.from({ length: n }, (_, i) => ({ text: `linha ${i} ${'y'.repeat(i % 3 === 0 ? 150 : 5)}` }))
+    const r = render(<App session={stub({ lines: () => many })} exit={() => {}} width={100} height={h} />)
+    return r.lastFrame()!.split('\n')
+  }
+  it('ocupa a altura da janela: placar na primeira linha e caixa de entrada no fim, com pouca ou muita conversa', () => {
+    for (const n of [1, 400]) {
+      const rows = frame(n, 24)
+      expect(rows).toHaveLength(24)
+      expect(rows[0]).toContain('Tutti · app')
+      expect(rows.slice(-4).join('\n')).toContain('╰')
+    }
+  })
+  it('conversa curta fica logo abaixo do placar', () => {
+    expect(frame(1, 24)[2]).toContain('linha 0')
+  })
+  it('na conversa longa, a última linha aparece', () => {
+    expect(frame(400, 24).join('\n')).toContain('linha 399')
+  })
+})
+

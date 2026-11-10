@@ -184,11 +184,13 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const matches = panel || pending ? [] : matchCommands(input)
   const below = panel ? 14 : matches.length ? matches.length + 1 : 1
   const room = Math.max(3, height - 5 - below - (pending ? 5 : 0))
-  const lines = fitLines(session.lines().flatMap(l => (l.parts ? [l] : l.text.split('\n').map(t => ({ ...l, text: t })))), width, room)
+  const all = session.lines().flatMap(l => (l.parts ? [l] : l.text.split('\n').map(t => ({ ...l, text: t }))))
+  const lines = fitLines(all, width, room)
   const boxWidth = Math.max(20, width - 1)
 
+  // Tela cheia: placar fixo no topo, entrada fixa embaixo, conversa no meio (corta por cima o que não cabe).
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" height={height}>
       <Text wrap="truncate">
         <Text bold>{pl.header}</Text>
         {pl.cells.map((c, i) => (
@@ -196,9 +198,11 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
         ))}
       </Text>
       <Text color={MUTED}>{'─'.repeat(Math.max(10, width))}</Text>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden" justifyContent={lines.length < all.length ? 'flex-end' : 'flex-start'}>
       {lines.map((l, i) => (l.parts
         ? <Text key={i} wrap="truncate">{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})}>{x.text}</Text>)}</Text>
         : <Text key={i} {...(l.color ? { color: l.color } : {})} wrap="wrap">{l.text || ' '}</Text>))}
+      </Box>
 
       {pending && pending.kind !== 'question' && (
         <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} width={boxWidth}>
