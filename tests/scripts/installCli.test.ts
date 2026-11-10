@@ -20,7 +20,8 @@ function install(tgz: string) {
   return { home, out, bin: join(home, '.local', 'bin', 'tutti'), dir: join(home, '.local', 'share', 'tutti') }
 }
 
-describe('install.sh (só o terminal)', () => {
+// O Tutti só roda no macOS (o install.sh recusa outros sistemas); o CI roda em Linux.
+describe.skipIf(process.platform !== 'darwin')('install.sh (só o terminal)', () => {
   it('instala em ~/.local/share/tutti, cria ~/.local/bin/tutti e o comando roda', () => {
     const r = install(fakePackage('versao-1'))
     expect(existsSync(join(r.dir, 'out', 'main', 'cli.js'))).toBe(true)
