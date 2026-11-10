@@ -101,3 +101,10 @@ describe('esteira no app', () => {
     ])
   })
 })
+
+describe('verificação no app', () => {
+  it('o resultado do comando aparece como aviso do pedido', () => {
+    const s = play([...parentStart, [P, { type: 'esteira_check', command: 'npm test', ok: false, exitCode: 1, output: 'FAIL x' }]])
+    expect(s.runs[0].notices).toEqual(['✗ npm test falhou (código 1): FAIL x'])
+  })
+})

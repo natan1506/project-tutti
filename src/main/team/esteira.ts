@@ -1,6 +1,6 @@
 import { homedir } from 'node:os'
 import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
-import type { AutonomyLevel } from '@shared/autonomy'
+import type { ApprovalReason, AutonomyLevel } from '@shared/autonomy'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { Esteira, Profile } from '@shared/profiles'
 import type { EsteiraPlan, EsteiraReview } from '@shared/team'
@@ -12,6 +12,8 @@ import type { Store } from '../store/db'
 import type { Brain, UsageSink } from './brain'
 import { parseEsteiraPlan, parseEsteiraReview } from './parse'
 import { executorPrompt, testerPrompt } from './prompts'
+import { runCheck, type CheckResult } from './check'
+import { decide } from '../policy/commandPolicy'
 import type { TeamStartInput } from './teamService'
 
 // Esteira (spec tutti-terminal §3): cérebro → executor → tester → cérebro, com no máximo `maxVoltas` devoluções.
@@ -58,6 +60,8 @@ export interface EsteiraCtx {
   /** Espera o filho (e quem o substituiu por limite); devolve o id final. */
   settle(id: string): Promise<string>
   now?: () => number
+  /** Aprovação no pedido (para o comando de verificação que a política não libera sozinha). */
+  approve?(req: { toolName: string; summary: string; reason?: ApprovalReason }): Promise<boolean>
   /** Pasta pessoal (instruções globais e memória do Claude Code); padrão: a do usuário. */
   homeDir?: string
 }
@@ -144,18 +148,40 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
     return { text: childText(store, final) }
   }
 
+  /** Roda o critério de pronto (o `comando` do plano) depois do tester; pede aprovação se a política não liberar. */
+  let warnedNoCheck = false
+  const verify = async (): Promise<CheckResult | undefined> => {
+    const note = (text: string) => { if (!warnedNoCheck) { warnedNoCheck = true; say({ type: 'notice', text }) } }
+    if (!plan.comando) { note('Sem comando de verificação: o pronto depende só da revisão do cérebro.'); return undefined }
+    const level = ctx.autonomy === 'autonomous' ? 'accept_edits' : ctx.autonomy
+    const d = decide({ toolName: 'Bash', input: { command: plan.comando } }, cwd, { level, sandboxed: false })
+    if (d.decision !== 'allow') {
+      const ok = await ctx.approve?.({ toolName: 'Bash', summary: plan.comando, ...(d.reason ? { reason: d.reason } : {}) }) ?? false
+      if (!ok) { note('Você não liberou o comando de verificação: o pronto depende só da revisão do cérebro.'); return undefined }
+    }
+    const r = await runCheck(plan.comando, cwd, signal)
+    say({ type: 'esteira_check', ...r })
+    return r
+  }
+
   let feedback: string | undefined
   for (let volta = 0; ; volta++) {
     const ex = await step('executor', executorPrompt(plan, feedback))
     if ('stop' in ex) return ex.stop
     const te = await step('tester', testerPrompt(plan, ex.text))
     if ('stop' in te) return te.stop
+    const check = await verify()
+    if (signal.aborted) return 'cancelled'
     const outNow = checkBrain()
     if (outNow) return failed(outNow)
-    const review = await askBrain<EsteiraReview>(
-      () => brain.review({ cwd, prompt: input.prompt, plan, executor: ex.text, tester: te.text, cerebro, signal, onUsage, instructions }), parseEsteiraReview, signal)
-    if (review === 'abort') return 'cancelled'
-    if (!review) return brainFailed()
+    const answer = await askBrain<EsteiraReview>(
+      () => brain.review({ cwd, prompt: input.prompt, plan, executor: ex.text, tester: te.text, cerebro, signal, onUsage, instructions, ...(check ? { check } : {}) }), parseEsteiraReview, signal)
+    if (answer === 'abort') return 'cancelled'
+    if (!answer) return brainFailed()
+    // O "pronto" do cérebro só vale se a verificação real passou (não basta a palavra da IA).
+    const review = answer.pronto && check && !check.ok
+      ? { pronto: false, falta: `O comando \`${check.command}\` falhou (código ${check.exitCode}). Saída:\n${check.output.slice(-1200)}` }
+      : answer
     say({ type: 'esteira_review', pronto: review.pronto, falta: review.falta, volta })
     if (review.pronto) return 'done'
     if (volta >= e.maxVoltas) {

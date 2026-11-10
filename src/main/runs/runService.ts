@@ -7,7 +7,7 @@ import { isPaidApi, providerName, type ProviderId } from '@shared/profiles'
 import type { AgentEvent, RunEvent, RunStatus } from '@shared/events'
 import type { WindowKind } from '@shared/usage'
 import { skillsInstructions, type SkillDraft } from '@shared/skills'
-import { DEFAULT_AUTONOMY, type AutonomyLevel } from '@shared/autonomy'
+import { DEFAULT_AUTONOMY, type ApprovalReason, type AutonomyLevel } from '@shared/autonomy'
 import type { BrowserService } from '../browser/browserService'
 import type { StartRunInput } from '@shared/models'
 import type { AdapterRunOptions, AgentAdapter } from '../adapters/types'
@@ -291,6 +291,11 @@ export class RunService {
   record(runId: string, ev: RunEvent): void {
     this.deps.store.appendEvent(runId, ev)
     this.deps.emit(runId, ev)
+  }
+
+  /** Pedido de aprovação no run (o cartão do app, a caixa do terminal); a esteira usa para o comando de verificação. */
+  askApproval(runId: string, signal: AbortSignal, req: { toolName: string; summary: string; reason?: ApprovalReason }): Promise<boolean> {
+    return this.requestApproval(runId, signal)(req)
   }
 
   private requestApproval(runId: string, signal: AbortSignal): AdapterRunOptions['requestApproval'] {

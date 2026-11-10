@@ -11,5 +11,6 @@ export interface TeamStep { agentId: AgentId; task: string; model?: string; area
 export interface Lineup { steps: TeamStep[]; big: boolean; summary: string }
 
 /** O que o cérebro da esteira manda o executor fazer, e como saber que ficou pronto (spec tutti-terminal §3). */
-export interface EsteiraPlan { tarefa: string; pronto: string }
+/** `comando`: o que o Tutti roda para conferir o pronto (ex.: `npm test`); vazio = sem verificação automática. */
+export interface EsteiraPlan { tarefa: string; pronto: string; comando?: string }
 export interface EsteiraReview { pronto: boolean; falta: string }

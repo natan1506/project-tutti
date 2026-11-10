@@ -2,6 +2,7 @@ import { query, type Options } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentId } from '@shared/agents'
 import type { AgentEvent } from '@shared/events'
 import type { Confirmation, EsteiraPlan, Triage } from '@shared/team'
+import type { CheckResult } from './check'
 import { homedir, tmpdir } from 'node:os'
 import { safeEnv } from '../adapters/env'
 import { executableFor } from '../adapters/executables'
@@ -25,7 +26,7 @@ export interface Brain {
   /** Esteira: o que o executor deve fazer → `{ tarefa, pronto }`. */
   plan(input: { cwd: string; prompt: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink; instructions?: string }): Promise<unknown>
   /** Esteira: ficou pronto? → `{ pronto, falta }`. */
-  review(input: { cwd: string; prompt: string; plan: EsteiraPlan; executor: string; tester: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink; instructions?: string }): Promise<unknown>
+  review(input: { cwd: string; prompt: string; plan: EsteiraPlan; executor: string; tester: string; cerebro: AgentId; signal: AbortSignal; onUsage?: UsageSink; instructions?: string; check?: CheckResult }): Promise<unknown>
 }
 
 const obj = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: 'object', additionalProperties: false, required, properties })
@@ -45,7 +46,7 @@ export const LINEUP_SCHEMA = obj({
   },
 })
 
-export const PLAN_SCHEMA = obj({ tarefa: { type: 'string' }, pronto: { type: 'string' } })
+export const PLAN_SCHEMA = obj({ tarefa: { type: 'string' }, pronto: { type: 'string' }, comando: { type: 'string' } })
 export const REVIEW_SCHEMA = obj({ pronto: { type: 'boolean' }, falta: { type: 'string' } })
 
 const NO_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task', 'Read', 'Glob', 'Grep', 'TodoWrite']
@@ -131,6 +132,6 @@ export class ClaudeBrain implements Brain {
   }
 
   review(i: Parameters<Brain['review']>[0]) {
-    return this.askEsteira(withInstructions(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro), i.instructions), i.cwd, REVIEW_SCHEMA, i.signal, i.cerebro, i.onUsage)
+    return this.askEsteira(withInstructions(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, i.cerebro, i.check), i.instructions), i.cwd, REVIEW_SCHEMA, i.signal, i.cerebro, i.onUsage)
   }
 }

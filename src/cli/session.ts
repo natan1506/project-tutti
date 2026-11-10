@@ -71,7 +71,7 @@ const ROLE_NAME: Record<EsteiraRole, string> = { cerebro: 'cérebro', executor: 
 const TOOL_NAME: Record<ToolKind, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Antigravity', opencode: 'opencode' }
 const MAX_LINES = 500
 /** Eventos do pedido que abrem um bloco novo na conversa. */
-const SPACED = new Set<RunEvent['type']>(['esteira_plan', 'child_started', 'esteira_review'])
+const SPACED = new Set<RunEvent['type']>(['esteira_plan', 'child_started', 'esteira_check', 'esteira_review'])
 const sum = (t: { input: number; output: number }) => t.input + t.output
 const fmtTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace('.', ',')}k` : String(n))
 

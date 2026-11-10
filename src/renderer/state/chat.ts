@@ -95,6 +95,10 @@ export function applyEvent(state: ChatState, runId: string, ev: RunEvent): ChatS
     case 'esteira_plan': return set({ notices: [...run.notices, `Plano: ${ev.plan.tarefa} · Pronto quando: ${ev.plan.pronto}`] })
     case 'esteira_swap': return set({ notices: [...run.notices, `↪ ${ev.reason} — ${getAgent(ev.to).nome} assume`] })
     case 'esteira_review': return set({ notices: [...run.notices, ev.pronto ? 'Revisão: pronto' : `Revisão: falta ${ev.falta}`] })
+    case 'esteira_check': {
+      const tail = ev.output.trim().split('\n').slice(-3).join(' · ')
+      return set({ notices: [...run.notices, ev.ok ? `✓ Verificado pelo Tutti: ${ev.command} passou` : `✗ ${ev.command} falhou (código ${ev.exitCode})${tail ? `: ${tail}` : ''}`] })
+    }
     case 'diff': return set({ files: ev.files })
     case 'run_finished':
       return set({ status: ev.status, finishedAt: Date.now() }, ev.status === 'done' ? 'concluido' : 'disponivel')

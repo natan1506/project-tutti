@@ -60,7 +60,7 @@ export function esteiraPlanPrompt(prompt: string, cerebro: AgentId): string {
     `Você é o ${coordName(cerebro)}, o cérebro do time. Você não implementa: escreve para o executor exatamente o que fazer.`,
     `Pedido do Natan: """${prompt}"""`,
     'Se o pedido citar um card do Linear (ex.: ABC-123), leia o card pelo Linear (descrição, comentários e anexos) antes de planejar; os critérios de aceite do card entram no critério de pronto. Se houver uma skill para o tipo de pedido, siga-a.',
-    'Em `tarefa`: o que fazer, passo a passo, com os arquivos prováveis. Em `pronto`: um critério de pronto verificável (que teste ou comando prova que ficou certo).',
+    'Em `tarefa`: o que fazer, passo a passo, com os arquivos prováveis. Em `pronto`: um critério de pronto verificável. Em `comando`: UM comando de terminal, rodado na raiz do projeto, que sai com código 0 só se estiver pronto (ex.: `npm test`, `pytest -q`); o Tutti roda esse comando ele mesmo para conferir. Deixe vazio só se não existir como verificar por comando.',
   ].join('\n\n')
 }
 
@@ -68,6 +68,7 @@ export function executorPrompt(plan: EsteiraPlan, feedback?: string): string {
   return [
     `Tarefa: ${plan.tarefa}`,
     `Pronto quando: ${plan.pronto}`,
+    plan.comando ? `No fim, o Tutti vai rodar \`${plan.comando}\` para conferir: ele precisa passar.` : '',
     feedback ? `Na revisão anterior faltou: ${feedback}\nCorrija isso.` : '',
     'Mexa só no necessário. No fim, diga em poucas linhas o que mudou.',
   ].filter(Boolean).join('\n\n')
@@ -82,7 +83,7 @@ export function testerPrompt(plan: EsteiraPlan, executorReport: string): string 
   ].join('\n\n')
 }
 
-export function reviewPrompt(prompt: string, plan: EsteiraPlan, executorReport: string, testerReport: string, cerebro: AgentId): string {
+export function reviewPrompt(prompt: string, plan: EsteiraPlan, executorReport: string, testerReport: string, cerebro: AgentId, check?: { command: string; ok: boolean; exitCode: number | null; output: string }): string {
   return [
     `Você é o ${coordName(cerebro)}. Revise se o pedido do Natan ficou pronto.`,
     `Pedido: """${prompt}"""`,
@@ -90,6 +91,7 @@ export function reviewPrompt(prompt: string, plan: EsteiraPlan, executorReport: 
     `Critério de pronto: ${plan.pronto}`,
     `Executor: """${executorReport || '(nada)'}"""`,
     `Tester: """${testerReport || '(nada)'}"""`,
+    check ? `Verificação que o próprio Tutti rodou agora (vale mais que o relato dos agentes): \`${check.command}\` ${check.ok ? 'PASSOU' : `FALHOU (código ${check.exitCode})`}. Saída final:\n"""${check.output.slice(-1500)}"""` : '',
     'Se o critério foi atendido, `pronto: true` e `falta` vazio. Senão, `pronto: false` e em `falta` exatamente o que o executor ainda precisa fazer.',
-  ].join('\n\n')
+  ].filter(Boolean).join('\n\n')
 }

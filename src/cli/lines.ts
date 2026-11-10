@@ -16,6 +16,11 @@ export function eventLine(ev: RunEvent, nomeDe: (id: AgentId) => string): Line |
     case 'esteira_plan': return { text: `Plano: ${ev.plan.tarefa}\n  Pronto quando: ${ev.plan.pronto}`, color: 'cyan' }
     case 'esteira_swap': return { text: `↪ ${ev.reason} — ${nomeDe(ev.to)} assume`, color: 'yellow' }
     case 'esteira_review': return ev.pronto ? { text: '✓ Revisão: pronto', color: 'green' } : { text: `Revisão: falta ${ev.falta}`, color: 'yellow' }
+    case 'esteira_check': {
+      if (ev.ok) return { text: `✓ Verificado pelo Tutti: ${ev.command} passou`, color: 'green' }
+      const tail = ev.output.trim().split('\n').slice(-6).join('\n  ')
+      return { text: `✗ ${ev.command} falhou (código ${ev.exitCode})${tail ? `\n  ${tail}` : ''}`, color: 'red' }
+    }
     case 'child_started': return { text: `${nomeDe(ev.agentId)}  ${ev.task}` }
     case 'diff': {
       if (!ev.files.length) return { text: 'Nenhum arquivo alterado.', color: 'gray' }

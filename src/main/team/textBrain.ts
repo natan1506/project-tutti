@@ -38,6 +38,6 @@ export class TextBrain implements Brain {
   }
 
   review(i: Parameters<Brain['review']>[0]) {
-    return this.ask(withInstructions(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, this.coordinator.id), i.instructions), REVIEW_SCHEMA, i.cwd, i.signal, i.onUsage)
+    return this.ask(withInstructions(reviewPrompt(i.prompt, i.plan, i.executor, i.tester, this.coordinator.id, i.check), i.instructions), REVIEW_SCHEMA, i.cwd, i.signal, i.onUsage)
   }
 }

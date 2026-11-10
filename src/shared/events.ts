@@ -45,4 +45,5 @@ export type RunEvent =
   | { type: 'esteira_plan'; plan: import('./team').EsteiraPlan; volta: number }
   | { type: 'esteira_swap'; role: import('./profiles').EsteiraRole; from: AgentId; to: AgentId; reason: string }
   | { type: 'esteira_review'; pronto: boolean; falta: string; volta: number }
+  | { type: 'esteira_check'; command: string; ok: boolean; exitCode: number | null; output: string }
   | { type: 'run_finished'; status: RunStatus }

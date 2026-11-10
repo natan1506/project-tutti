@@ -24,14 +24,15 @@ const PROFILE: Profile = {
 registerAgents(resolveAgentDefs(PROFILE))
 
 type Review = { pronto: boolean; falta: string }
-function fakeBrain(reviews: Review[] = [{ pronto: true, falta: '' }]) {
+function fakeBrain(reviews: Review[] = [{ pronto: true, falta: '' }], comando?: string) {
   const b = {
     plans: [] as (string | undefined)[], reviewCalls: 0,
     async triage() { throw new Error('esteira não faz triagem') },
     async lineup() { throw new Error('esteira não faz escalação') },
     instructions: [] as (string | undefined)[],
-    async plan(i: { feedback?: string; instructions?: string }) { b.plans.push(i.feedback); b.instructions.push(i.instructions); return { tarefa: 'Criar soma.js', pronto: 'teste de soma passa' } },
-    async review() { return reviews[Math.min(b.reviewCalls++, reviews.length - 1)] },
+    async plan(i: { feedback?: string; instructions?: string }) { b.plans.push(i.feedback); b.instructions.push(i.instructions); return { tarefa: 'Criar soma.js', pronto: 'teste de soma passa', ...(comando !== undefined ? { comando } : {}) } },
+    reviewInputs: [] as unknown[],
+    async review(i: unknown) { b.reviewInputs.push(i); return reviews[Math.min(b.reviewCalls++, reviews.length - 1)] },
   }
   return b as typeof b & Brain
 }
@@ -78,7 +79,7 @@ describe('esteira', () => {
     const id = await t.start()
     await t.team.whenFinished(id)
     const evs = t.events(id)
-    expect(kinds(evs)).toEqual(['run_started', 'team_started', 'esteira_plan', 'child_started', 'child_started', 'esteira_review', 'diff', 'run_finished'])
+    expect(kinds(evs)).toEqual(['run_started', 'team_started', 'esteira_plan', 'child_started', 'child_started', 'notice', 'esteira_review', 'diff', 'run_finished'])
     expect(evs.find(e => e.type === 'esteira_plan')).toMatchObject({ plan: { tarefa: 'Criar soma.js', pronto: 'teste de soma passa' }, volta: 0 })
     expect(evs.at(-1)).toEqual({ type: 'run_finished', status: 'done' })
     expect(t.childAgents(id)).toEqual(['tf', 'tl'])
@@ -193,3 +194,42 @@ describe('peças da esteira', () => {
 })
 
 export type { AgentId }
+
+describe('o Tutti confere o critério de pronto (não acredita só na palavra da IA)', () => {
+  const evs = (t: Awaited<ReturnType<typeof setup>>, id: string) => t.events(id)
+  it('comando que passa: o Tutti roda, registra e a revisão recebe o resultado real', async () => {
+    const t = await setup({ brain: fakeBrain(undefined, 'echo tudo certo') })
+    const id = await t.start()
+    await t.team.whenFinished(id)
+    expect(evs(t, id)).toContainEqual(expect.objectContaining({ type: 'esteira_check', command: 'echo tudo certo', ok: true, exitCode: 0 }))
+    expect(JSON.stringify(t.brain.reviewInputs[0])).toContain('tudo certo')
+    expect(evs(t, id).at(-1)).toEqual({ type: 'run_finished', status: 'done' })
+  })
+  it('cérebro diz pronto mas o comando falha: não vale; volta ao executor com o erro', async () => {
+    const t = await setup({ brain: fakeBrain([{ pronto: true, falta: '' }], 'ls quebrou') })
+    const id = await t.start()
+    await t.team.whenFinished(id)
+    expect(evs(t, id)).toContainEqual(expect.objectContaining({ type: 'esteira_check', command: 'ls quebrou', ok: false }))
+    const executorCalls = t.fake.calls.filter(c => c.agent.id === 'tf')
+    expect(executorCalls.length).toBeGreaterThan(1)
+    expect(executorCalls[1].prompt).toContain('quebrou')
+    expect(evs(t, id).at(-1)).toEqual({ type: 'run_finished', status: 'error' })
+  })
+  it('sem comando de verificação: avisa que o pronto depende só da revisão', async () => {
+    const t = await setup({ brain: fakeBrain(undefined, '') })
+    const id = await t.start()
+    await t.team.whenFinished(id)
+    expect(evs(t, id)).toContainEqual({ type: 'notice', text: 'Sem comando de verificação: o pronto depende só da revisão do cérebro.' })
+  })
+  it('comando que mexe fora do projeto pede aprovação; negado, não roda', async () => {
+    const t = await setup({ brain: fakeBrain(undefined, 'touch /tmp/tutti-check-fora') })
+    const id = await t.start()
+    for (let i = 0; i < 300 && !evs(t, id).some(e => e.type === 'approval_request'); i++) await new Promise(r => setTimeout(r, 10))
+    const req = evs(t, id).find(e => e.type === 'approval_request') as { id: string; summary: string }
+    expect(req.summary).toContain('touch /tmp/tutti-check-fora')
+    t.runs.respondApproval(req.id, false)
+    await t.team.whenFinished(id)
+    expect(evs(t, id).some(e => e.type === 'esteira_check')).toBe(false)
+    expect(evs(t, id)).toContainEqual({ type: 'notice', text: 'Você não liberou o comando de verificação: o pronto depende só da revisão do cérebro.' })
+  })
+})

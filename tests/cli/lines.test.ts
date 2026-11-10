@@ -22,3 +22,13 @@ describe('linhas da conversa', () => {
     expect(eventLine({ type: 'esteira_review', volta: 0, pronto: false, falta: 'X' }, nome)).toMatchObject({ text: 'Revisão: falta X', color: 'yellow' })
   })
 })
+
+describe('verificação do Tutti', () => {
+  it('passou em verde; falhou em vermelho com o fim da saída', () => {
+    expect(eventLine({ type: 'esteira_check', command: 'npm test', ok: true, exitCode: 0, output: 'ok' }, nome)).toEqual({ text: '✓ Verificado pelo Tutti: npm test passou', color: 'green' })
+    const l = eventLine({ type: 'esteira_check', command: 'npm test', ok: false, exitCode: 1, output: 'linha 1\nFAIL soma.test.js' }, nome)!
+    expect(l.color).toBe('red')
+    expect(l.text).toContain('✗ npm test falhou (código 1)')
+    expect(l.text).toContain('FAIL soma.test.js')
+  })
+})
