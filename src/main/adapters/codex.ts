@@ -6,6 +6,7 @@ import type { AgentEvent } from '@shared/events'
 import type { LimitWindow } from '@shared/usage'
 import { summarizeToolCall } from '../policy/commandPolicy'
 import { safeEnv } from './env'
+import { executableFor } from './executables'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 
 // O SDK do Codex não permite interceptar comandos: roda em sandbox só-leitura, exceto num passo da esteira (`write`),
@@ -118,7 +119,8 @@ export function codexEnv(): Record<string, string> {
 
 export class CodexAdapter implements AgentAdapter {
   async *run(opts: AdapterRunOptions): AsyncIterable<AgentEvent> {
-    const codex = new Codex({ env: codexEnv(), config: buildCodexConfig(opts) as never })
+    const codexPath = executableFor('codex')
+    const codex = new Codex({ env: codexEnv(), config: buildCodexConfig(opts) as never, ...(codexPath ? { codexPathOverride: codexPath } : {}) })
     const threadOptions = buildCodexThreadOptions(opts)
     const thread = opts.resumeSessionId ? codex.resumeThread(opts.resumeSessionId, threadOptions) : codex.startThread(threadOptions)
     const state: { threadId?: string } = { threadId: opts.resumeSessionId }

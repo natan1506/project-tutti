@@ -293,7 +293,28 @@ Quando uma ferramenta passa do aviso com um agente trabalhando, aparece um cart�
 
 O app procura as CLIs também em `~/.local/bin`, `~/.opencode/bin` e nas pastas do Homebrew. Agente sem ferramenta pronta aparece travado no palco, com a dica do que falta.
 
-### Pelo `.dmg`
+### Escolha como instalar
+
+| | App + terminal | Só o terminal |
+|---|---|---|
+| O que vem | o app com palco 3D, escritório, navegador e telas de configuração, **mais** o comando `tutti` | só o comando `tutti` |
+| Tamanho | ~400 MB (`.dmg`) | ~9 MB para baixar, ~60 MB instalado |
+| Precisa | macOS | macOS e **Node.js 22.13+** |
+| Claude Code e Codex | vêm embutidos nos SDKs do app | usa o `claude` e o `codex` que você já tem instalados |
+
+Os dois usam o mesmo banco: dá para começar só com o terminal e instalar o app depois (ou o contrário), sem perder conversas, perfis e MCPs. Instalado o app, ele assume o comando `tutti`.
+
+### Só o terminal
+
+```bash
+curl -fsSL https://github.com/natan1506/project-tutti/releases/latest/download/install.sh | sh
+```
+
+O script confere o Node, baixa o pacote certo para o seu Mac (Apple Silicon ou Intel) para `~/.local/share/tutti` e cria `~/.local/bin/tutti`. Para atualizar, rode de novo. Para remover: `rm -rf ~/.local/share/tutti ~/.local/bin/tutti`.
+
+No pacote só do terminal, MCPs e agentes por API que precisam de segredo (chave) só funcionam pelo app, que guarda os segredos no Keychain.
+
+### Pelo `.dmg` (app + terminal)
 
 1. Baixe o `.dmg` da [última release](https://github.com/natan1506/project-tutti/releases): `arm64` para chip Apple, `x64` para Intel.
 2. Abra o `.dmg` e arraste o **Tutti** para **Aplicativos**.

@@ -4,6 +4,7 @@ import type { AgentEvent } from '@shared/events'
 import type { Confirmation, EsteiraPlan, Triage } from '@shared/team'
 import { homedir, tmpdir } from 'node:os'
 import { safeEnv } from '../adapters/env'
+import { executableFor } from '../adapters/executables'
 import { loadUserSkills } from '../instructions/userContext'
 import { mcpToolAccess, resolveMcps, type AgentMcp } from '../mcp/forAgent'
 import { readToolNames } from '@shared/mcp'
@@ -97,6 +98,7 @@ export class ClaudeBrain implements Brain {
     signal.addEventListener('abort', () => abortController.abort(), { once: true })
     return {
       cwd, model: BRAIN_MODEL, env: safeEnv(k => k === 'CLAUDECODE' || k.startsWith('CLAUDE_CODE_')),
+      ...(executableFor('claude') ? { pathToClaudeCodeExecutable: executableFor('claude') } : {}),
       settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [], disallowedTools: NO_TOOLS,
       permissionMode: 'default', outputFormat: { type: 'json_schema', schema: schema as Record<string, unknown> }, abortController,
     }

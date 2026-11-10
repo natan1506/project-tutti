@@ -10,6 +10,7 @@ import { BROWSER_HINT, makeBrowserServer } from '../browser/browserTools'
 import { safeEnv } from './env'
 import { systemAppend, type AdapterRunOptions, type AgentAdapter } from './types'
 import { mcpToolAccess } from '../mcp/forAgent'
+import { executableFor } from './executables'
 
 const FILE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 /** Partes do .git que mudam o que o git executa (hooks, filtros, outro repositório comum). */
@@ -28,6 +29,7 @@ export function buildClaudeOptions(opts: AdapterRunOptions, canUseTool: CanUseTo
     resume: opts.resumeSessionId,
     env: safeEnv(dropEnv),
     settingSources: [], strictMcpConfig: true,
+    ...(executableFor('claude') ? { pathToClaudeCodeExecutable: executableFor('claude') } : {}),
     plugins: opts.skillPlugin ? [{ type: 'local', path: opts.skillPlugin.path }] : [], skills: opts.skillPlugin?.names ?? [],
     mcpServers: {
       ...(opts.askAgent && opts.mode !== 'consult' ? { tutti: makeAgentCallTool(opts.askAgent, opts.consultable) } : {}),
@@ -161,7 +163,7 @@ export async function pollClaudeUsage(queryFn: typeof query = query, now = Date.
   const idle = (async function* () { await new Promise<void>(r => { release = r }) })() as AsyncIterable<never>
   const abortController = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const q = queryFn({ prompt: idle, options: { abortController, cwd: homedir(), env: safeEnv(dropEnv), settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [] } })
+  const q = queryFn({ prompt: idle, options: { abortController, cwd: homedir(), env: safeEnv(dropEnv), settingSources: [], strictMcpConfig: true, mcpServers: {}, plugins: [], skills: [], ...(executableFor('claude') ? { pathToClaudeCodeExecutable: executableFor('claude') } : {}) } })
   try {
     // API experimental: se não responder no prazo, desiste e encerra o processo ocioso.
     const u = await Promise.race([

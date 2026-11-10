@@ -16,7 +16,15 @@ const noKeys = {
   decrypt: (): string => { throw new Error('KEYCHAIN_UNAVAILABLE') },
 }
 
+const VERSION = typeof __TUTTI_VERSION__ === 'string' ? __TUTTI_VERSION__ : ''
+
 async function main() {
+  const arg = process.argv[2]
+  if (arg === '--version' || arg === '-v') { console.log(`tutti ${VERSION}`); return }
+  if (arg === '--help' || arg === '-h') {
+    console.log('tutti — time de agentes no terminal.\nAbra dentro de um repositório e escreva o pedido. Dentro, digite / para ver os comandos.\n  tutti --version   mostra a versão')
+    return
+  }
   const dataDir = process.env.TUTTI_DATA_DIR ?? join(homedir(), 'Library', 'Application Support', 'Tutti')
   let session: Session | undefined
   const core = await createCore({
@@ -24,7 +32,7 @@ async function main() {
     emit: (runId, ev) => session?.onEvent(runId, ev),
     onUsage: s => session?.onUsage(s),
   })
-  session = await Session.open(core, process.cwd(), typeof __TUTTI_VERSION__ === 'string' ? __TUTTI_VERSION__ : '')
+  session = await Session.open(core, process.cwd(), VERSION)
   const stopPolling = core.usage.startPolling()
   const out = process.stdout
   let ink: ReturnType<typeof render> | undefined

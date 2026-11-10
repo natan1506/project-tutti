@@ -1,5 +1,6 @@
 # Release: ao enviar uma tag vX.Y.Z (igual à versão do package.json), gera um .dmg para Apple Silicon e outro
-# para Intel, cada um no seu Mac e em paralelo, e publica os dois na release do GitHub.
+# para Intel, cada um no seu Mac e em paralelo, e publica os dois na release do GitHub. Cada Mac também gera o pacote
+# só do terminal (tutti-cli-darwin-<arch>.tar.gz), e a release leva o install.sh que instala esse pacote.
 # Os testes já rodam no CI; aqui só se monta o app. Se faltar máquina, `npm run release:local` faz o mesmo no Mac.
 # Sem certificado de desenvolvedor: assinatura ad-hoc (build/adhoc-sign.cjs).
 name: Release
@@ -45,10 +46,13 @@ jobs:
       - run: npm ci
       - run: npx electron-vite build
       - run: npx electron-builder --mac --${{ matrix.arch }} --publish never
+      - run: node scripts/pack-cli.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: dmg-${{ matrix.arch }}
-          path: release/Tutti-*.dmg
+          path: |
+            release/Tutti-*.dmg
+            release/tutti-cli-darwin-*.tar.gz
           if-no-files-found: error
 
   publicar:
@@ -58,6 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
       - uses: actions/download-artifact@v4
         with:
           pattern: dmg-*
@@ -68,9 +75,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          ls dmg/*.dmg
+          cp scripts/install.sh dmg/install.sh
+          ls dmg/*.dmg dmg/*.tar.gz dmg/install.sh
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dmg/*.dmg --clobber
+            gh release upload "$TAG" dmg/*.dmg dmg/*.tar.gz dmg/install.sh --clobber
           else
-            gh release create "$TAG" dmg/*.dmg --title "Tutti ${TAG#v}" --generate-notes
+            gh release create "$TAG" dmg/*.dmg dmg/*.tar.gz dmg/install.sh --title "Tutti ${TAG#v}" --generate-notes
           fi
