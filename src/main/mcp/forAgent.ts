@@ -16,7 +16,9 @@ export function mcpForAgent(agent: AgentDef, defs: McpServerDef[], o: { mode?: '
     if (!def.enabled) return []
     if (def.agents !== 'all' && !def.agents.includes(agent.id)) return []
     if (def.nome === 'playwright' && o.hasTuttiBrowser) return []
-    const allowed = claudeCli(agent) && def.mode === 'write' ? 'all' as const : readToolNames(def)
+    // Claude por CLI segue pedindo aprovação a cada escrita; o agente liberado recebe tudo direto.
+    const free = !claudeCli(agent) && !!def.freeAgents?.includes(agent.id)
+    const allowed = free ? def.tools.map(t => t.name) : claudeCli(agent) && def.mode === 'write' ? 'all' as const : readToolNames(def)
     if (allowed !== 'all' && !allowed.length) return []
     return [{ def, allowed, secrets: o.secretsOf(def.id) }]
   })
@@ -28,7 +30,7 @@ export function isAllowedMcpTool(mcps: AgentMcp[], toolName: string): 'read' | '
   if (!m) return 'deny'
   const hit = mcps.find(x => x.def.nome === m[1])
   if (!hit) return 'deny'
-  if (readToolNames(hit.def).includes(m[2])) return 'read'
+  if (readToolNames(hit.def).includes(m[2]) || (Array.isArray(hit.allowed) && hit.allowed.includes(m[2]))) return 'read'
   return hit.allowed === 'all' ? 'write' : 'deny'
 }
 
@@ -48,7 +50,7 @@ export interface ResolvedMcp {
 export function resolveMcps(mcps: AgentMcp[], dir: string, o: { direct?: boolean } = {}): { list: ResolvedMcp[]; cleanup(): void } {
   const cleanups: (() => void)[] = []
   const list = mcps.map(m => {
-    const base = { nome: m.def.nome, read: readToolNames(m.def), write: m.allowed === 'all' }
+    const base = { nome: m.def.nome, read: m.allowed === 'all' ? readToolNames(m.def) : m.allowed, write: m.allowed === 'all' }
     if (m.def.transport.kind === 'http') return { ...base, launch: { kind: 'http' as const, url: m.def.transport.url } }
     if (o.direct) return { ...base, launch: { kind: 'stdio' as const, command: m.def.transport.command, args: m.def.transport.args, env: m.secrets } }
     const l = launchCommand(m.def, m.secrets, dir)

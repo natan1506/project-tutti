@@ -298,6 +298,20 @@ describe('/mcp no terminal', () => {
     expect(t.session.mcpView()[0].precisaDoApp).toBe(true)
     await t.core.close()
   }, 30000)
+  it('"t" libera todas as ferramentas do MCP para o tester (e liga o MCP); de novo, desfaz', async () => {
+    const t = await setup()
+    const fake = join(process.cwd(), 'tests/main/mcp/fixtures/fake-mcp.mjs')
+    await t.session.run({ kind: 'mcp', add: { nome: 'fake', command: process.execPath, args: [fake] } })
+    const [row] = t.session.mcpView()
+    t.session.toggleMcp(row.id)
+    const tester = t.session.profile().esteira!.tester!
+    expect(t.session.toggleTesterFree(row.id)).toContain('Lupa usa todas as ferramentas')
+    expect(t.core.mcp.all()[0]).toMatchObject({ enabled: true, freeAgents: [tester] })
+    expect(t.session.mcpView()[0].livre).toBe('Lupa usa tudo')
+    t.session.toggleTesterFree(row.id)
+    expect(t.core.mcp.all()[0].freeAgents).toEqual([])
+    await t.core.close()
+  }, 30000)
 })
 
 describe('revisão: importar MCP com segredo pelo terminal', () => {

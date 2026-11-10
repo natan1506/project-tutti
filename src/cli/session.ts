@@ -23,7 +23,7 @@ export interface Option { value: string; label: string; hint?: string }
 export interface ConfigRow { key: ConfigKey; label: string; value: string; hint: string; options: Option[] }
 export interface AgentRow { nome: string; ia: string; modelo: string; papel: string; uso: string; color?: string }
 export interface HistoryRow { index: number; title: string; when: string; prompts: number; current: boolean }
-export interface McpRow { id: string; nome: string; estado: string; modo: string; leitura: number; escrita: number; precisaDoApp: boolean }
+export interface McpRow { id: string; nome: string; estado: string; modo: string; leitura: number; escrita: number; precisaDoApp: boolean; livre?: string }
 export interface UsageView { gasto: { nome: string; tokens: string }[]; limites: { ia: string; uso: string; volta: string }[] }
 
 export interface Activity { text: string; detail?: string; since: number }
@@ -50,6 +50,8 @@ export interface SessionView {
   usageView(): UsageView
   mcpView(): McpRow[]
   toggleMcp(id: string): void
+  /** Libera (ou tira) todas as ferramentas do MCP para o tester da esteira. */
+  toggleTesterFree(id: string): string
   mcpImportable(): Promise<{ nome: string }[]>
   importMcp(nome: string): Promise<string>
   subscribe(fn: () => void): () => void
@@ -420,6 +422,7 @@ export class Session implements SessionView {
       leitura: d.tools.filter(t => t.read).length, escrita: d.tools.filter(t => !t.read).length,
       // O terminal não lê o Keychain do app: MCP com segredo só funciona pelo app.
       precisaDoApp: d.secretNames.some(n => this.core.mcp.secretsOf(d.id)[n] === undefined),
+      ...(d.freeAgents?.length ? { livre: `${d.freeAgents.map(a => { try { return getAgent(a as AgentId).nome } catch { return a } }).join(', ')} usa tudo` } : {}),
     }))
   }
 
@@ -427,6 +430,19 @@ export class Session implements SessionView {
     const d = this.core.mcp.all().find(x => x.id === id)
     if (d) this.core.mcp.setEnabled(id, !d.enabled)
     this.changed()
+  }
+
+  toggleTesterFree(id: string): string {
+    const d = this.core.mcp.all().find(x => x.id === id)
+    const tester = this.profile().esteira?.tester
+    if (!d) return ''
+    if (!tester) return 'Este perfil não tem tester.'
+    const nome = getAgent(tester as AgentId).nome
+    const on = !d.freeAgents?.includes(tester)
+    this.core.mcp.setFreeAgents(id, on ? [...(d.freeAgents ?? []), tester] : (d.freeAgents ?? []).filter(a => a !== tester))
+    if (on && !d.enabled) this.core.mcp.setEnabled(id, true)
+    this.changed()
+    return on ? `${nome} usa todas as ferramentas do ${d.nome}, sem pedir aprovação (navegar, clicar, preencher).` : `${nome} volta a usar só as de leitura do ${d.nome}.`
   }
 
   async mcpImportable(): Promise<{ nome: string }[]> {

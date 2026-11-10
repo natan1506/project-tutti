@@ -26,6 +26,7 @@ function stub(over: Partial<SessionView> = {}): SessionView {
     usageView: () => ({ gasto: [{ nome: 'Forja', tokens: '12,0k' }], limites: [{ ia: 'Claude', uso: '87%', volta: 'seg 12:00' }] }),
     mcpView: () => [{ id: 'm1', nome: 'linear', estado: 'ligado', modo: 'só leitura', leitura: 12, escrita: 20, precisaDoApp: false }],
     toggleMcp: vi.fn(),
+    toggleTesterFree: vi.fn(() => 'Lupa usa todas as ferramentas do playwright.'),
     mcpImportable: async () => [{ nome: 'playwright' }],
     importMcp: vi.fn(async () => 'playwright importado (desligado).'),
     activity: () => null,
@@ -345,6 +346,18 @@ describe('aprovação e andamento', () => {
     const [head, body] = screenLines([{ text: 'Plano\ncorpo do plano', color: 'cyan', bold: true, head: true }])
     expect(head).toMatchObject({ text: 'Plano', color: 'cyan', bold: true })
     expect(body).toMatchObject({ text: 'corpo do plano', color: undefined, bold: false })
+  })
+})
+
+describe('/mcp: liberar para o tester', () => {
+  it('"t" na linha do MCP libera para o tester e mostra a confirmação', async () => {
+    const s = stub({ run: vi.fn(async () => ({ panel: 'mcp' as const })) })
+    const r = render(<App session={s} exit={() => {}} width={120} height={40} />)
+    await tick()
+    r.stdin.write('/mcp'); await tick(); r.stdin.write('\r'); await tick(80)
+    r.stdin.write('t'); await tick()
+    expect(s.toggleTesterFree).toHaveBeenCalledWith('m1')
+    expect(r.lastFrame()).toContain('Lupa usa todas as ferramentas do playwright.')
   })
 })
 

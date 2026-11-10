@@ -120,6 +120,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
       if (key.escape) return setPanel(null)
       if (key.upArrow || key.downArrow) return setPanel({ ...p, row: move(p.row + (key.upArrow ? -1 : 1), rows.length), status: undefined })
       if (key.return && rows[p.row]) { session.toggleMcp(rows[p.row].id); return setPanel({ ...p, status: undefined }) }
+      if (ch === 't' && rows[p.row]) return setPanel({ ...p, status: session.toggleTesterFree(rows[p.row].id) })
       if (ch === 'i') {
         void session.mcpImportable().then(list => {
           const cur = panelRef.current
@@ -319,17 +320,18 @@ function PanelView({ panel, session, width }: { panel: Panel; session: SessionVi
     }
     const rows = session.mcpView()
     return (
-      <Frame title="MCPs" width={width} footer="↑↓ navegar  ·  Enter liga/desliga  ·  i importar do Claude Code  ·  Esc fechar">
+      <Frame title="MCPs" width={width} footer="↑↓ navegar  ·  Enter liga/desliga  ·  t libera tudo para o tester  ·  i importar do Claude Code  ·  Esc fechar">
         {rows.length ? rows.map((m, i) => (
           <Text key={m.id} wrap="truncate">
             <Text color={i === panel.row ? 'cyan' : undefined} bold={i === panel.row}>{i === panel.row ? '❯ ' : '  '}{pad(m.nome, 14)}</Text>
             <Text color={m.estado === 'ligado' ? 'green' : m.estado === 'com erro' ? 'red' : MUTED}>{pad(m.estado, 11)}</Text>
             <Text>{pad(m.modo, 15)}</Text>
             <Text color={MUTED}>{`${m.leitura} de leitura · ${m.escrita} de escrita`}{m.precisaDoApp ? '  · tem segredo: só funciona pelo app' : ''}</Text>
+            {m.livre && <Text color="yellow">{`  · ${m.livre}`}</Text>}
           </Text>
         )) : <Text color={MUTED}>Nenhum MCP ainda. Aperte i para importar do Claude Code, ou use /mcp add nome comando…</Text>}
         <Text> </Text>
-        <Text color={MUTED}>Escrita só nos agentes Claude, com sua aprovação a cada uso. Para adicionar com segredo ou mudar quem usa, use o app.</Text>
+        <Text color={MUTED}>Escrita: nos agentes Claude com sua aprovação a cada uso; no tester, só se você liberar (t). Para adicionar com segredo ou mudar quem usa, use o app.</Text>
         {panel.status && <><Text> </Text><Text color="green">✓ {panel.status}</Text></>}
       </Frame>
     )

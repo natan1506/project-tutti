@@ -15,6 +15,11 @@ export interface McpServerDef {
   mode: McpMode
   /** 'all' acompanha agentes novos; senão, ids dos agentes que recebem. */
   agents: 'all' | string[]
+  /**
+   * Agentes (fora o Claude por CLI) que usam todas as ferramentas deste MCP sem pedir aprovação — ex.: o tester com o
+   * Playwright, que precisa navegar e clicar no ambiente de teste. Decisão do Natan em 2026-11-10.
+   */
+  freeAgents?: string[]
   enabled: boolean
   tools: McpToolInfo[]
   lastError?: string
@@ -46,6 +51,7 @@ const schema = z.object({
   secretNames: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)).max(20),
   mode: z.enum(['read', 'write']),
   agents: z.union([z.literal('all'), z.array(z.string().max(80)).max(50)]),
+  freeAgents: z.array(z.string().max(80)).max(50).optional(),
   enabled: z.boolean(),
   tools: z.array(z.object({ name: z.string().max(200), read: z.boolean() })).max(500),
   lastError: z.string().max(2000).optional(),

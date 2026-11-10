@@ -32,6 +32,17 @@ describe('o que cada agente recebe', () => {
     expect(mcpForAgent(claude, [def({ nome: 'playwright' })], { ...o, hasTuttiBrowser: true })).toEqual([])
     expect(mcpForAgent(claude, [def({ nome: 'playwright' })], o)).toHaveLength(1)
   })
+  it('agente liberado (ex.: tester com Playwright) usa todas as ferramentas, sem pedir; os outros seguem só leitura', () => {
+    const d = def({ mode: 'read', freeAgents: ['lupa'] })
+    const x = mcpForAgent(codex, [d], o)
+    expect(x[0].allowed).toEqual(['get_thing', 'save_thing'])
+    expect(isAllowedMcpTool(x, 'mcp__fake__save_thing')).toBe('read')
+    expect(resolveMcps(x, mkdtempSync(join(tmpdir(), 'r-'))).list[0].read).toEqual(['get_thing', 'save_thing'])
+    expect(mcpForAgent(opencode, [d], o)[0].allowed).toEqual(['get_thing'])
+  })
+  it('liberado com só ferramentas de escrita ainda recebe', () => {
+    expect(mcpForAgent(codex, [def({ tools: [{ name: 'browser_click', read: false }], freeAgents: ['lupa'] })], o)).toHaveLength(1)
+  })
   it('sem nenhuma ferramenta de leitura, quem só lê não recebe o MCP', () => {
     expect(mcpForAgent(codex, [def({ tools: [{ name: 'save_thing', read: false }] })], o)).toEqual([])
   })

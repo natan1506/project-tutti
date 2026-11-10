@@ -91,6 +91,11 @@ export class McpService {
     this.write(this.all().map(d => (d.id === id ? { ...d, mode, agents } : d)))
   }
 
+  /** Quem usa todas as ferramentas sem pedir (ver `freeAgents`). */
+  setFreeAgents(id: string, freeAgents: string[]): void {
+    this.write(this.all().map(d => (d.id === id ? { ...d, freeAgents } : d)))
+  }
+
   setEnabled(id: string, enabled: boolean): void {
     this.write(this.all().map(d => (d.id === id ? { ...d, enabled } : d)))
   }
