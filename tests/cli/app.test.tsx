@@ -1,6 +1,6 @@
 import { render } from 'ink-testing-library'
 import { describe, expect, it, vi } from 'vitest'
-import { App } from '../../src/cli/App'
+import { App, fitLines } from '../../src/cli/App'
 import type { SessionView } from '../../src/cli/session'
 
 function stub(over: Partial<SessionView> = {}): SessionView {
@@ -246,5 +246,52 @@ describe('painel /mcp', () => {
     expect(r.lastFrame()).toContain('playwright')
     r.stdin.write('\r'); await tick(80)
     expect(s.importMcp).toHaveBeenCalledWith('playwright')
+  })
+})
+
+describe('colar texto (como no Claude Code)', () => {
+  const texto = 'linha 1\nlinha 2\nlinha 3'
+  it('colagem com várias linhas vira um bloco e não envia nada', async () => {
+    const s = stub()
+    const r = render(<App session={s} exit={() => {}} width={100} />)
+    await tick()
+    r.stdin.write(`\u001B[200~${texto}\u001B[201~`)
+    await tick(80)
+    expect(s.run).not.toHaveBeenCalled()
+    expect(r.lastFrame()).toContain('[Texto colado #1 +3 linhas]')
+    r.stdin.write('\r')
+    await tick(80)
+    expect(s.run).toHaveBeenCalledTimes(1)
+    expect(s.run).toHaveBeenCalledWith({ kind: 'send', text: texto })
+  })
+  it('dá para escrever antes do bloco colado', async () => {
+    const s = stub()
+    const r = render(<App session={s} exit={() => {}} width={100} />)
+    await tick()
+    r.stdin.write('resuma isto: ')
+    await tick()
+    r.stdin.write(`\u001B[200~${texto}\u001B[201~`)
+    await tick(80)
+    r.stdin.write('\r')
+    await tick(80)
+    expect(s.run).toHaveBeenCalledWith({ kind: 'send', text: `resuma isto: ${texto}` })
+  })
+  it('terminal sem bracketed paste: pedaço com várias linhas também é colagem, não vários Enters', async () => {
+    const s = stub()
+    const r = render(<App session={s} exit={() => {}} width={100} />)
+    await tick()
+    r.stdin.write('a\nb\nc\n')
+    await tick(80)
+    expect(s.run).not.toHaveBeenCalled()
+    expect(r.lastFrame()).toContain('[Texto colado #1')
+  })
+})
+
+describe('tela não estoura a janela', () => {
+  it('linha longa conta como várias linhas na altura', () => {
+    const lines = [{ text: 'a' }, { text: 'x'.repeat(250) }, { text: 'b' }]
+    expect(fitLines(lines, 100, 3).map(l => l.text[0])).toEqual(['b'])
+    expect(fitLines(lines, 100, 4).map(l => l.text[0])).toEqual(['x', 'b'])
+    expect(fitLines(lines, 100, 5).map(l => l.text[0])).toEqual(['a', 'x', 'b'])
   })
 })

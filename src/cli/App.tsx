@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from 'ink'
+import { Box, Text, useInput, usePaste } from 'ink'
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { parseCommand, type ConfigKey } from './commands'
 import { COMMANDS, matchCommands } from './menus'
@@ -12,6 +12,24 @@ import type { PanelKind, SessionView } from './session'
 const ACCENT = '#8b6cf6'
 const MUTED = 'gray'
 const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
+
+/** Últimas linhas que cabem em `room` linhas da tela, contando que linha longa quebra em várias (senão a tela passa da
+ * janela e o terminal repete o quadro inteiro). */
+export function fitLines<T extends { text: string; parts?: unknown[] }>(lines: T[], width: number, room: number): T[] {
+  const out: T[] = []
+  let used = 0
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i]
+    const rows = l.parts ? 1 : Math.max(1, Math.ceil([...l.text].length / Math.max(10, width)))
+    if (used + rows > room) break
+    used += rows
+    out.unshift(l)
+  }
+  return out
+}
+
+const PASTE_TOKEN = /\[Texto colado #(\d+) \+\d+ linhas?\]/g
+const pasteToken = (n: number, text: string) => { const k = text.split('\n').length; return `[Texto colado #${n} +${k} ${k === 1 ? 'linha' : 'linhas'}]` }
 
 type Panel = { kind: PanelKind; row: number; picking: number | null; status?: string; importList?: { nome: string }[] }
 
@@ -30,8 +48,20 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const type = (next: string) => { typed.current = next; setInput(next); sel.current = 0; setMenuSel(0) }
   const setPanel = (p: Panel | null) => { panelRef.current = p; setPanelState(p) }
 
-  const submit = async (raw: string) => {
-    const text = raw.trim()
+  // Texto colado (como no Claude Code): vira um bloco na caixa e só é enviado, inteiro, no Enter.
+  const pastes = useRef<string[]>([])
+  const addPaste = (raw: string) => {
+    const text = raw.replace(/\r\n|\r/g, '\n')
+    if (!text.includes('\n') && text.length <= 300) return type(typed.current + text)
+    pastes.current.push(text)
+    type(typed.current + pasteToken(pastes.current.length, text))
+  }
+  const expand = (raw: string) => raw.replace(PASTE_TOKEN, (m, n) => pastes.current[Number(n) - 1] ?? m)
+  usePaste(text => { if (!panelRef.current) addPaste(text) })
+
+  const submit = async (typedText: string) => {
+    const text = expand(typedText).trim()
+    pastes.current = []
     if (!text) return
     const r = await session.run(parseCommand(text))
     if (r.exit) return exit()
@@ -122,22 +152,31 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
       const text = typed.current
       const pick = matches[sel.current]
       type('')
-      if (pending) { if (text.trim()) session.answer(text); return }
+      if (pending) { if (text.trim()) session.answer(expand(text)); pastes.current = []; return }
       void submit(pick ? `/${pick.name}` : text)
       return
     }
-    if (key.backspace || key.delete) { type(typed.current.slice(0, -1)); return }
+    if (key.backspace || key.delete) {
+      // Apaga o bloco colado inteiro, não um caractere dele.
+      const m = typed.current.match(/\[Texto colado #\d+ \+\d+ linhas?\]$/)
+      type(m ? typed.current.slice(0, -m[0].length) : typed.current.slice(0, -1))
+      return
+    }
     if (key.ctrl || key.meta || key.tab || key.upArrow || key.downArrow || key.leftArrow || key.rightArrow) return
     if (!ch) return
-    // Processo ocupado: letras e Enter podem chegar num pedaço só ("fig\r"); cada quebra de linha envia.
-    const parts = ch.split(/\r\n|\r|\n/)
-    for (let i = 0; i < parts.length - 1; i++) {
-      const text = typed.current + parts[i]
+    const body = ch.replace(/\r\n|\r/g, '\n')
+    const nl = body.indexOf('\n')
+    if (nl === -1) { type(typed.current + body); return }
+    // Processo ocupado: letras e um Enter podem chegar num pedaço só ("fig\r") — isso envia.
+    if (nl === body.length - 1) {
+      const text = typed.current + body.slice(0, -1)
       type('')
-      if (pending) session.answer(text)
+      if (pending) session.answer(expand(text))
       else void submit(text)
+      return
     }
-    type(typed.current + parts.at(-1)!)
+    // Várias linhas num pedaço só é colagem (terminal sem bracketed paste): nunca vira vários pedidos.
+    addPaste(body.replace(/\n$/, ''))
   })
 
   const pl = placar(session.header(), session.esteiraAgents(), session.usage(), width, Date.now())
@@ -145,7 +184,7 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const matches = panel || pending ? [] : matchCommands(input)
   const below = panel ? 14 : matches.length ? matches.length + 1 : 1
   const room = Math.max(3, height - 5 - below - (pending ? 5 : 0))
-  const lines = session.lines().flatMap(l => (l.parts ? [l] : l.text.split('\n').map(t => ({ ...l, text: t })))).slice(-room)
+  const lines = fitLines(session.lines().flatMap(l => (l.parts ? [l] : l.text.split('\n').map(t => ({ ...l, text: t })))), width, room)
   const boxWidth = Math.max(20, width - 1)
 
   return (
