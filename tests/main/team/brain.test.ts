@@ -62,7 +62,7 @@ describe('ClaudeBrain na esteira: o que o Natan configurou no Claude Code', () =
     const q = fakeQuery({ subtype: 'success', structured_output: { tarefa: 't', pronto: 'p' } })
     const linear = { id: 'm', nome: 'linear', transport: { kind: 'stdio' as const, command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'] }, secretNames: [], mode: 'write' as const, agents: 'all' as const, enabled: true, tools: [{ name: 'get_issue', read: true }, { name: 'save_issue', read: false }] }
     const mcpFor = (id: string) => (id === 'bussola' ? [{ def: linear, allowed: 'all' as const, secrets: {} }] : [])
-    await new ClaudeBrain(q.fn, { homeDir: h, pluginDir: join(h, 'plug'), mcpFor }).plan({ cwd: '/p', prompt: 'entrega o DOKZ-1', cerebro: 'bussola', signal, instructions: 'use pnpm sempre' })
+    await new ClaudeBrain(q.fn, { homeDir: h, pluginDir: join(h, 'plug'), mcpFor }).plan({ cwd: '/p', prompt: 'entrega o ABC-1', cerebro: 'bussola', signal, instructions: 'use pnpm sempre' })
     const { prompt, options: o } = q.seen[0]
     expect(prompt).toContain('use pnpm sempre')
     expect(prompt).toContain('Linear')

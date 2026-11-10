@@ -72,7 +72,7 @@ Hoje o Tutti só usa um MCP: o Linear, que o cérebro da esteira pega do `~/.cla
 
 ### Verificado em 2026-11-09
 - Linear real importado pelo `McpService` (OAuth do `mcp-remote`): 70 ferramentas, 38 de leitura e 32 de escrita (`whoami` caiu em escrita pelo nome; dá para mover).
-- Codex leu o título do DOKZ-2166 pelo Linear e só enxergou as 38 de leitura (`enabled_tools` funciona).
+- Codex leu o título de um card real pelo Linear e só enxergou as 38 de leitura (`enabled_tools` funciona).
 - Claude tentou `save_comment`: o Tutti pediu aprovação (motivo "ação de um MCP"), foi negada e nada foi escrito.
 - opencode aceitou a config (servidor `fake` reconhecido; `fake_*` negado e `fake_get_thing` liberado nas permissões). A conexão ao vivo do MCP no opencode não foi vista sem um pedido.
 

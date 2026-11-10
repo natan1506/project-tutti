@@ -31,7 +31,7 @@ describe('placar', () => {
     expect(p.cells[0].text).toBe('██████████░░░░░  68%')
   })
   it('sexta a 80 colunas: dois esgotados ainda cabem e a reserva aparece', () => {
-    const p = placar('Tutti · docpay-backoffice', AGENTS, snap([row('claude', 100, { resetsAt: segunda }), row('codex', 100, { resetsAt: segunda }), row('opencode', 10)]), 80, now)
+    const p = placar('Tutti · minha-api', AGENTS, snap([row('claude', 100, { resetsAt: segunda }), row('codex', 100, { resetsAt: segunda }), row('opencode', 10)]), 80, now)
     expect(placarWidth(p)).toBeLessThanOrEqual(80)
     expect(p.cells[3].text).toContain('10%')
     expect(p.cells[0].text).toContain('seg')
@@ -43,7 +43,7 @@ describe('placar', () => {
   })
 
   it('80 colunas: continua numa linha só', () => {
-    const p = placar('Tutti · docpay-backoffice', AGENTS, snap([row('claude', 68), row('codex', 27), row('opencode', 0)]), 80, now)
+    const p = placar('Tutti · minha-api', AGENTS, snap([row('claude', 68), row('codex', 27), row('opencode', 0)]), 80, now)
     expect(placarWidth(p)).toBeLessThanOrEqual(80)
   })
 })

@@ -69,7 +69,7 @@ Tela cheia no terminal, ao estilo do Claude Code.
 **Placar no topo, sempre visível, uma linha só:** nome de cada agente da esteira, barra cheia (`██████░░░░`) e percentual de uso da janela de limite que importa para aquela ferramenta.
 
 ```
-Tutti · docpay-backoffice   Bússola ██████████░░░░░ 68%   Forja ████░░░░░░░░░░░ 27%   Radar ██░░░░░░░░░░░░░ 12%   Curinga ░░░░░░░░░░░░░░░  0%
+Tutti · minha-api   Bússola ██████████░░░░░ 68%   Forja ████░░░░░░░░░░░ 27%   Radar ██░░░░░░░░░░░░░ 12%   Curinga ░░░░░░░░░░░░░░░  0%
 ```
 
 - Cor por faixa: verde até 60%, amarelo até 85%, vermelho acima (decisão minha).
