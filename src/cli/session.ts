@@ -11,6 +11,7 @@ import type { Core } from '../main/core'
 import { isGitRepo, runGit } from '../main/git/git'
 import type { Command, ConfigKey } from './commands'
 import { bannerLines } from './banner'
+import { checkupLines } from './doctor'
 import { eventLine, type Line } from './lines'
 
 // Estado da tela do terminal, sem React (spec tutti-terminal §4): projeto, conversa, linhas, pendência e comandos.
@@ -78,7 +79,7 @@ const fmtTokens = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace('
 export class Session implements SessionView {
   readonly project: Project
   conversationId: string
-  private out: Line[] = []
+  out: Line[] = []
   private waiting: Pending | null = null
   private listeners = new Set<() => void>()
   private snap: UsageSnapshot
@@ -91,8 +92,22 @@ export class Session implements SessionView {
   static async open(core: Core, cwd: string, version = ''): Promise<Session> {
     let root = realpathSync(cwd)
     try { root = realpathSync((await runGit(cwd, ['rev-parse', '--show-toplevel'])).trim()) } catch { /* sem git: a própria pasta */ }
-    return new Session(core, root, version)
+    const s = new Session(core, root, version)
+    // Primeira impressão: o que falta aparece logo depois da tela de entrada, antes de um erro no meio do pedido.
+    void s.checkup().then(r => { s.out.splice(s.bannerSize, 0, ...r.lines, { text: '' }); s.changed() }).catch(() => {})
+    return s
   }
+
+  /** O que falta para o time trabalhar (ferramentas, login, Node, git). */
+  async checkup(): Promise<{ ok: boolean; lines: Line[] }> {
+    return checkupLines({
+      team: this.esteiraAgents(), tools: await this.core.tools(), git: await isGitRepo(this.cwd),
+      // Dentro do app o Node é o do Electron; no pacote só do terminal, o da máquina.
+      node: process.versions.electron ? undefined : process.versions.node,
+    })
+  }
+
+  private bannerSize = 0
 
   constructor(private core: Core, readonly cwd: string, private version = '') {
     this.project = core.store.upsertProject(cwd)
@@ -197,6 +212,7 @@ export class Session implements SessionView {
         return cmd.kind === 'new' ? { message: 'Conversa nova.' } : {}
       }
       case 'help': return { panel: 'help' }
+      case 'doctor': return { message: (await this.checkup()).lines.map(l => l.text).join('\n') }
       case 'history': return cmd.index === undefined ? { panel: 'history' } : this.history(cmd.index)
       case 'undo': return this.undo()
       case 'agents': return { panel: 'agents' }
@@ -255,6 +271,7 @@ export class Session implements SessionView {
 
   private loadHistory(): void {
     this.out = this.banner()
+    this.bannerSize = this.out.length
     // O trabalho de cada etapa entra logo depois do "child_started" dela, como aconteceu ao vivo.
     const runs = this.core.store.listRuns(this.conversationId)
     const byId = new Map(runs.map(r => [r.id, r]))
@@ -441,7 +458,7 @@ export class Session implements SessionView {
     this.changed()
   }
 
-  private changed(): void {
+  changed(): void {
     for (const fn of this.listeners) fn()
   }
 }

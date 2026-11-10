@@ -7,7 +7,7 @@ describe('menu de comandos', () => {
     const all = matchCommands('/')
     expect(all.map(c => c.name)).toEqual(COMMANDS.map(c => c.name))
     expect(all.every(c => c.desc.length > 10)).toBe(true)
-    for (const n of ['config', 'agents', 'mcp', 'usage', 'history', 'new', 'clear', 'undo', 'stop', 'help', 'exit']) expect(all.map(c => c.name)).toContain(n)
+    for (const n of ['config', 'agents', 'mcp', 'usage', 'history', 'new', 'clear', 'undo', 'doctor', 'stop', 'help', 'exit']) expect(all.map(c => c.name)).toContain(n)
   })
   it('filtra pelo começo e depois por trecho', () => {
     expect(matchCommands('/co').map(c => c.name)).toEqual(['config'])
@@ -38,4 +38,8 @@ describe('/mcp', () => {
     expect(parseCommand('/mcp add x npx -y y')).toEqual({ kind: 'mcp', add: { nome: 'x', command: 'npx', args: ['-y', 'y'] } })
     expect(parseCommand('/mcp add')).toEqual({ kind: 'unknown', name: 'mcp add' })
   })
+})
+
+describe('/doctor', () => {
+  it('é um comando', () => { expect(parseCommand('/doctor')).toEqual({ kind: 'doctor' }) })
 })

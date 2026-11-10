@@ -243,3 +243,18 @@ describe('revisão: importar MCP com segredo pelo terminal', () => {
     await t.core.close()
   }, 30000)
 })
+
+describe('checagem ao abrir e /doctor', () => {
+  it('/doctor diz o que falta (pasta sem git)', async () => {
+    const t = await setup({ git: false })
+    const r = await t.session.run({ kind: 'doctor' })
+    expect(r.message).toContain('Pasta sem git')
+    await t.core.close()
+  })
+  it('ao abrir, a checagem aparece sozinha logo depois da tela de entrada', async () => {
+    const t = await setup({ git: false })
+    await t.until(() => t.texts().some(l => l.includes('Pasta sem git')))
+    expect(t.texts().some(l => l.includes('Pasta sem git'))).toBe(true)
+    await t.core.close()
+  })
+})

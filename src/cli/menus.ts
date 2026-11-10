@@ -11,6 +11,7 @@ export const COMMANDS: CommandInfo[] = [
   { name: 'new', desc: 'Começar uma conversa nova' },
   { name: 'clear', desc: 'Limpar a tela e começar uma conversa nova' },
   { name: 'undo', desc: 'Desfazer o último pedido (só em pasta com git)' },
+  { name: 'doctor', desc: 'Conferir se Claude, Codex e opencode estão instalados e logados, e o que falta' },
   { name: 'stop', desc: 'Parar o time agora' },
   { name: 'help', desc: 'Ver os comandos e os atalhos de teclado' },
   { name: 'exit', desc: 'Fechar o Tutti (Ctrl+C também fecha)' },
