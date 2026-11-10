@@ -1,6 +1,6 @@
 import { render } from 'ink-testing-library'
 import { describe, expect, it, vi } from 'vitest'
-import { App, fitLines } from '../../src/cli/App'
+import { App, fitLines, screenLines } from '../../src/cli/App'
 import type { SessionView } from '../../src/cli/session'
 
 function stub(over: Partial<SessionView> = {}): SessionView {
@@ -28,6 +28,7 @@ function stub(over: Partial<SessionView> = {}): SessionView {
     toggleMcp: vi.fn(),
     mcpImportable: async () => [{ nome: 'playwright' }],
     importMcp: vi.fn(async () => 'playwright importado (desligado).'),
+    activity: () => null,
     subscribe: () => () => {},
     ...over,
   }
@@ -35,9 +36,9 @@ function stub(over: Partial<SessionView> = {}): SessionView {
 const tick = (ms = 30) => new Promise(r => setTimeout(r, ms))
 
 describe('tela do terminal', () => {
-  it('o placar com os 4 agentes é a primeira linha', () => {
+  it('o placar com os 4 agentes é a primeira linha (depois da margem)', () => {
     const r = render(<App session={stub()} exit={() => {}} width={100} />)
-    const first = r.lastFrame()!.split('\n')[0]
+    const first = r.lastFrame()!.split('\n')[1]
     expect(first).toContain('Tutti · app')
     for (const n of ['Bússola', 'Forja', 'Lupa', 'Curinga']) expect(first).toContain(n)
   })
@@ -102,7 +103,7 @@ describe('tela do terminal', () => {
   it('linha vazia da conversa ocupa espaço (separa a tela de entrada)', () => {
     const r = render(<App session={stub({ lines: () => [{ text: 'A' }, { text: '' }, { text: 'B' }] })} exit={() => {}} width={100} />)
     const rows = r.lastFrame()!.split('\n')
-    expect(rows.indexOf('B') - rows.indexOf('A')).toBe(2)
+    expect(rows.findIndex(l => l.trim() === 'B') - rows.findIndex(l => l.trim() === 'A')).toBe(2)
   })
 
   it('Ctrl+C fecha', async () => {
@@ -306,15 +307,44 @@ describe('tela cheia', () => {
     for (const n of [1, 400]) {
       const rows = frame(n, 24)
       expect(rows).toHaveLength(24)
-      expect(rows[0]).toContain('Tutti · app')
+      expect(rows[0].trim()).toBe('')
+      expect(rows[1]).toMatch(/^ {2}Tutti · app/)
       expect(rows.slice(-4).join('\n')).toContain('╰')
     }
   })
   it('conversa curta fica logo abaixo do placar', () => {
-    expect(frame(1, 24)[2]).toContain('linha 0')
+    expect(frame(1, 24)[3]).toContain('linha 0')
   })
   it('na conversa longa, a última linha aparece', () => {
     expect(frame(400, 24).join('\n')).toContain('linha 399')
+  })
+})
+
+describe('aprovação e andamento', () => {
+  it('plano longo: a caixa mostra só a pergunta e as opções, sem passar da tela', () => {
+    const plan = Array.from({ length: 40 }, (_, i) => `passo ${i}`).join('\n')
+    const r = render(<App session={stub({ pending: () => ({ kind: 'plan', id: 'x', text: plan }) })} exit={() => {}} width={100} height={30} />)
+    const rows = r.lastFrame()!.split('\n')
+    expect(rows).toHaveLength(30)
+    expect(rows.join('\n')).toContain('1. Aprovar')
+    expect(rows.join('\n')).toContain('2. Recusar')
+    expect(rows.join('\n')).not.toContain('passo 0')
+  })
+  it('pedido de permissão longo é cortado em poucas linhas', () => {
+    const r = render(<App session={stub({ pending: () => ({ kind: 'approval', id: 'x', text: 'rm '.repeat(400) }) })} exit={() => {}} width={100} height={30} />)
+    const rows = r.lastFrame()!.split('\n')
+    expect(rows).toHaveLength(30)
+    expect(rows.join('\n')).toContain('2. Negar')
+  })
+  it('enquanto o time trabalha, uma linha diz quem está fazendo o quê e há quanto tempo', () => {
+    const r = render(<App session={stub({ activity: () => ({ text: 'Forja executando a tarefa', detail: 'Editando soma.js', since: Date.now() - 12_000 }) })} exit={() => {}} width={100} height={30} />)
+    const f = r.lastFrame()!
+    expect(f).toMatch(/Forja executando a tarefa.*12s.*Editando soma\.js/)
+  })
+  it('o plano tem o título colorido e o corpo na cor normal', () => {
+    const [head, body] = screenLines([{ text: 'Plano\ncorpo do plano', color: 'cyan', bold: true, head: true }])
+    expect(head).toMatchObject({ text: 'Plano', color: 'cyan', bold: true })
+    expect(body).toMatchObject({ text: 'corpo do plano', color: undefined, bold: false })
   })
 })
 

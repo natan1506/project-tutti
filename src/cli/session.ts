@@ -12,7 +12,7 @@ import { isGitRepo, runGit } from '../main/git/git'
 import type { Command, ConfigKey } from './commands'
 import { bannerLines } from './banner'
 import { checkupLines } from './doctor'
-import { eventLine, type Line } from './lines'
+import { eventLine, promptLine, type Line } from './lines'
 
 // Estado da tela do terminal, sem React (spec tutti-terminal §4): projeto, conversa, linhas, pendência e comandos.
 
@@ -26,6 +26,8 @@ export interface HistoryRow { index: number; title: string; when: string; prompt
 export interface McpRow { id: string; nome: string; estado: string; modo: string; leitura: number; escrita: number; precisaDoApp: boolean }
 export interface UsageView { gasto: { nome: string; tokens: string }[]; limites: { ia: string; uso: string; volta: string }[] }
 
+export interface Activity { text: string; detail?: string; since: number }
+
 /** O que a tela (App) usa da sessão. */
 export interface SessionView {
   header(): string
@@ -33,6 +35,8 @@ export interface SessionView {
   usage(): UsageSnapshot
   lines(): Line[]
   pending(): Pending | null
+  /** O que o time está fazendo agora (null = parado). */
+  activity(): Activity | null
   run(cmd: Command): Promise<RunResult>
   answer(value: string): void
   say(text: string, color?: Line['color']): void
@@ -84,6 +88,7 @@ export class Session implements SessionView {
   private listeners = new Set<() => void>()
   private snap: UsageSnapshot
   private lastPlan = ''
+  private act: Activity | null = null
 
   /**
    * Abre na raiz do repositório quando `cwd` está dentro de um: o projeto (e a trava entre app e terminal)
@@ -128,6 +133,37 @@ export class Session implements SessionView {
   header(): string { return `Tutti · ${basename(this.cwd)}` }
   lines(): Line[] { return this.out }
   pending(): Pending | null { return this.waiting }
+  activity(): Activity | null { return this.act }
+
+  private doing(text: string, detail?: string): void {
+    this.act = { text, ...(detail ? { detail } : {}), since: this.act?.text === text ? this.act.since : Date.now() }
+  }
+
+  /** Atualiza a linha de andamento com o evento do pedido. */
+  private track(run: { parentRunId: string | null; agentId: AgentId }, ev: RunEvent): void {
+    const e = this.profile().esteira
+    const cerebro = e?.cerebro ? getAgent(e.cerebro as AgentId).nome : 'O cérebro'
+    const first = (s: string) => { const l = s.trim().split('\n')[0]; return l.length > 80 ? `${l.slice(0, 79)}…` : l }
+    if (run.parentRunId) {
+      if (ev.type === 'tool') this.doing(this.act?.text ?? getAgent(run.agentId).nome, first(ev.summary))
+      else if (ev.type === 'run_finished') this.doing(this.roleOf(run.agentId) === 'tester' ? 'Tutti conferindo o critério de pronto' : 'Repassando para o próximo')
+      return
+    }
+    switch (ev.type) {
+      case 'team_started': case 'run_started': this.doing(`${cerebro} pensando no plano`); break
+      case 'queued': this.doing(ev.position > 0 ? `Na fila (posição ${ev.position})` : `${cerebro} pensando no plano`); break
+      case 'esteira_plan': this.doing('Repassando a tarefa'); break
+      case 'child_started': {
+        const verb: Record<string, string> = { executor: 'executando a tarefa', tester: 'testando', reserva: 'executando a tarefa', 'cérebro': 'revisando' }
+        this.doing(`${getAgent(ev.agentId).nome} ${verb[this.roleOf(ev.agentId)] ?? 'trabalhando'}`)
+        break
+      }
+      case 'esteira_check': this.doing(`${cerebro} revisando o resultado`); break
+      case 'esteira_review': this.doing(ev.pronto ? 'Fechando' : 'Devolvendo ao executor'); break
+      case 'tool': this.doing(this.act?.text ?? cerebro, first(ev.summary)); break
+      case 'run_finished': this.act = null; break
+    }
+  }
   usage(): UsageSnapshot { return this.snap }
   profile(): Profile { return this.core.profiles.activeFor(this.project.id) }
   profileName(): string { return this.profile().nome }
@@ -163,6 +199,7 @@ export class Session implements SessionView {
     if (ev.type === 'question') this.waiting = { kind: 'question', id: ev.id, text: `${getAgent(run.agentId).nome} pergunta: ${ev.text}` }
     if ((ev.type === 'approval_resolved' || ev.type === 'plan_resolved' || ev.type === 'question_answered') && this.waiting?.id === ev.id) this.waiting = null
     if (ev.type === 'run_finished' && !run.parentRunId) this.waiting = null
+    this.track(run, ev)
     const line = this.lineFor(run.parentRunId, run.agentId, ev)
     // A posição na fila muda a cada pedido que termina: atualiza a mesma linha em vez de empilhar.
     if (line && ev.type === 'queued' && this.out.at(-1)?.text.startsWith('Na fila')) { this.out[this.out.length - 1] = line; this.changed(); return }
@@ -181,7 +218,7 @@ export class Session implements SessionView {
       if (ev.type === 'run_finished' || ev.type === 'diff' || ev.type === 'queued') return null
       const l = eventLine(ev, id => getAgent(id).nome)
       if (!l) return null
-      return ev.type === 'text' ? { text: `    ${getAgent(agentId).nome}: ${l.text.slice(0, 600)}`, color: 'gray' } : { ...l, text: `  ${l.text}` }
+      return ev.type === 'text' ? { text: `    ${getAgent(agentId).nome}: ${l.text.slice(0, 600)}` } : { ...l, text: `  ${l.text}` }
     }
     // A tarefa de uma etapa pode ser o plano inteiro: na linha vai só o começo.
     if (ev.type === 'child_started') {
@@ -241,11 +278,13 @@ export class Session implements SessionView {
     const profile = this.profile()
     if (!profile.esteira) return { message: `Este projeto usa o perfil ${profile.nome}, sem esteira. Use /config perfil Trabalho.` }
     this.space()
-    this.push({ text: `› ${text}`, color: 'cyan' })
+    this.push(promptLine(text))
+    this.doing(`${getAgent(profile.esteira.cerebro as AgentId).nome} pensando no plano`)
     try {
       await this.core.team.start({ projectPath: this.cwd, conversationId: this.conversationId, prompt: text, profileId: profile.id })
       return {}
     } catch (e) {
+      this.act = null
       const code = e instanceof Error ? e.message : String(e)
       const cerebro = getAgent(profile.esteira.cerebro as AgentId)
       if (code === 'TOOL_UNAVAILABLE') return { message: `${cerebro.nome} (${TOOL_NAME[cerebro.tool]}) não está pronto: confira se está instalado e logado.` }
@@ -292,7 +331,7 @@ export class Session implements SessionView {
     for (const r of runs) {
       if (r.parentRunId) continue
       this.space()
-      this.out.push({ text: `› ${r.prompt}`, color: 'cyan' })
+      this.out.push(promptLine(r.prompt))
       replay(r)
     }
     this.out = this.out.slice(-MAX_LINES)

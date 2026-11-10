@@ -61,7 +61,7 @@ describe('sessão do terminal', () => {
     const t = await setup()
     await t.session.run({ kind: 'send', text: 'crie soma' })
     await t.until(() => t.texts().includes('Pronto.'))
-    expect(t.texts()).toEqual(expect.arrayContaining(['Plano: Criar soma.js\n  Pronto quando: teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto', 'Pronto.']))
+    expect(t.texts()).toEqual(expect.arrayContaining(['Plano\nCriar soma.js\nPronto quando: teste passa', 'Forja  Criar soma.js', '✓ Revisão: pronto', 'Pronto.']))
     await t.core.close()
   })
 
@@ -70,7 +70,7 @@ describe('sessão do terminal', () => {
     await t.session.run({ kind: 'send', text: 'crie soma' })
     await t.until(() => t.texts().includes('Pronto.'))
     const x = t.texts()
-    for (const start of ['› crie soma', 'Plano:', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
+    for (const start of ['› crie soma', 'Plano', 'Forja  ', 'Lupa  ', '✓ Revisão']) {
       const i = x.findIndex(l => l.startsWith(start))
       expect(i, start).toBeGreaterThan(0)
       expect(x[i - 1], start).toBe('')
@@ -250,6 +250,35 @@ describe('abrir o tutti de novo', () => {
     t.core.store.createRun({ id: 'q', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
     for (const position of [3, 2, 1]) t.session.onEvent('q', { type: 'queued', position })
     expect(t.texts().filter(l => l.startsWith('Na fila'))).toEqual(['Na fila (posição 1).'])
+    await t.core.close()
+  })
+})
+
+describe('o que o time está fazendo agora', () => {
+  it('mostra quem está trabalhando e no quê, e some quando o pedido acaba', async () => {
+    const t = await setup()
+    const p = t.core.store.createRun({ id: 'p', conversationId: t.session.conversationId, agentId: 'bussola', prompt: 'p', startedAt: 1, hasCheckpoint: false })
+    t.session.onEvent(p.id, { type: 'team_started' })
+    expect(t.session.activity()?.text).toBe('Bússola pensando no plano')
+    const e = t.session.profile().esteira!
+    t.session.onEvent(p.id, { type: 'child_started', runId: 'c', agentId: e.executor as never, task: 'faz' })
+    expect(t.session.activity()?.text).toBe('Forja executando a tarefa')
+    t.core.store.createRun({ id: 'c', conversationId: t.session.conversationId, agentId: e.executor as never, prompt: 'faz', startedAt: 2, hasCheckpoint: false, parentRunId: 'p' })
+    t.session.onEvent('c', { type: 'tool', name: 'Edit', summary: 'Editando soma.js' })
+    expect(t.session.activity()?.detail).toBe('Editando soma.js')
+    t.session.onEvent(p.id, { type: 'child_started', runId: 'd', agentId: e.tester as never, task: 'testa' })
+    expect(t.session.activity()?.text).toBe('Lupa testando')
+    t.session.onEvent(p.id, { type: 'run_finished', status: 'done' })
+    expect(t.session.activity()).toBeNull()
+    await t.core.close()
+  })
+  it('pedido longo (colado) aparece resumido na conversa', async () => {
+    const t = await setup()
+    const long = Array.from({ length: 68 }, (_, i) => `linha ${i + 1}`).join('\n')
+    await t.session.run({ kind: 'send', text: long })
+    const shown = t.texts().filter(l => l.startsWith('› ') || /^ {2}linha \d+$/.test(l) || l.includes('mais 6'))
+    expect(shown.join('\n')).toContain('… (mais 65 linhas)')
+    expect(shown.join('\n')).not.toContain('linha 4')
     await t.core.close()
   })
 })

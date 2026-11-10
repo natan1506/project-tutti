@@ -4,6 +4,7 @@ import { parseCommand, type ConfigKey } from './commands'
 import { COMMANDS, matchCommands } from './menus'
 import { placar } from './placar'
 import type { PanelKind, SessionView } from './session'
+import type { Line } from './lines'
 
 // Tela do terminal (spec tutti-terminal §4), no estilo do Claude Code: placar no topo, conversa, caixa de texto com
 // moldura, menu de comandos ao digitar "/", painéis navegáveis (/config, /agents, /history, /usage, /help) e
@@ -31,6 +32,15 @@ export function fitLines<T extends { text: string; parts?: unknown[] }>(lines: T
 const PASTE_TOKEN = /\[Texto colado #(\d+) \+\d+ linhas?\]/g
 const pasteToken = (n: number, text: string) => { const k = text.split('\n').length; return `[Texto colado #${n} +${k} ${k === 1 ? 'linha' : 'linhas'}]` }
 
+/** Uma linha da tela por linha do texto; em linha com título (`head`), cor e negrito ficam só na primeira. */
+export function screenLines(lines: Line[]): Line[] {
+  return lines.flatMap(l => (l.parts ? [l] : l.text.split('\n').map((t, i) => ({ ...l, text: t, ...(l.head && i > 0 ? { color: undefined, bold: false } : {}) }))))
+}
+
+const PAD_X = 2
+const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+const elapsed = (since: number) => { const s = Math.max(0, Math.round((Date.now() - since) / 1000)); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}min ${s % 60}s` }
+
 type Panel = { kind: PanelKind; row: number; picking: number | null; status?: string; importList?: { nome: string }[] }
 
 export function App({ session, exit, width, height = 40 }: { session: SessionView; exit: () => void; width: number; height?: number }) {
@@ -40,6 +50,9 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const [choice, setChoice] = useState(0)
   const [panel, setPanelState] = useState<Panel | null>(null)
   useEffect(() => session.subscribe(redraw), [session])
+  // Enquanto o time trabalha, o indicador gira e o tempo conta.
+  const busy = session.activity() !== null
+  useEffect(() => { if (!busy) return; const t = setInterval(redraw, 150); return () => clearInterval(t) }, [busy])
 
   // Teclas chegam mais rápido que a tela redesenha: texto e painel vivem em refs, e o estado só redesenha.
   const typed = useRef('')
@@ -183,37 +196,50 @@ export function App({ session, exit, width, height = 40 }: { session: SessionVie
   const pending = session.pending()
   const matches = panel || pending ? [] : matchCommands(input)
   const below = panel ? 14 : matches.length ? matches.length + 1 : 1
-  const room = Math.max(3, height - 5 - below - (pending ? 5 : 0))
-  const all = session.lines().flatMap(l => (l.parts ? [l] : l.text.split('\n').map(t => ({ ...l, text: t }))))
-  const lines = fitLines(all, width, room)
-  const boxWidth = Math.max(20, width - 1)
+  const inner = Math.max(20, width - 2 * PAD_X)
+  const boxWidth = inner
+  // Texto de aprovação/pergunta cabe em até 3 linhas da caixa; o plano em si já está na conversa.
+  const cap = (s: string) => { const max = 3 * (inner - 4); const one = s.replace(/\s*\n\s*/g, ' · '); return one.length > max ? `${one.slice(0, max - 1)}…` : one }
+  const pendingText = pending ? cap(pending.text) : ''
+  const pendingRows = !pending ? 0 : pending.kind === 'question' ? Math.ceil(pendingText.length / inner) : pending.kind === 'plan' ? 6 : 6 + Math.ceil(pendingText.length / (inner - 4))
+  const act = pending ? null : session.activity()
+  const room = Math.max(3, height - 1 - 2 - 3 - below - pendingRows - (act ? 1 : 0))
+  const all = screenLines(session.lines())
+  const lines = fitLines(all, inner, room)
 
   // Tela cheia: placar fixo no topo, entrada fixa embaixo, conversa no meio (corta por cima o que não cabe).
   return (
-    <Box flexDirection="column" height={height}>
+    <Box flexDirection="column" height={height} paddingTop={1} paddingX={PAD_X}>
       <Text wrap="truncate">
         <Text bold>{pl.header}</Text>
         {pl.cells.map((c, i) => (
           <Text key={i}>{'   '}<Text bold>{c.nome}</Text> <Text color={c.color}>{c.text}</Text></Text>
         ))}
       </Text>
-      <Text color={MUTED}>{'─'.repeat(Math.max(10, width))}</Text>
+      <Text color={MUTED}>{'─'.repeat(inner)}</Text>
       <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden" justifyContent={lines.length < all.length ? 'flex-end' : 'flex-start'}>
       {lines.map((l, i) => (l.parts
         ? <Text key={i} wrap="truncate">{l.parts.map((x, j) => <Text key={j} {...(x.color ? { color: x.color } : {})} {...(x.bg ? { backgroundColor: x.bg } : {})}>{x.text}</Text>)}</Text>
-        : <Text key={i} {...(l.color ? { color: l.color } : {})} wrap="wrap">{l.text || ' '}</Text>))}
+        : <Text key={i} {...(l.color ? { color: l.color } : {})} bold={!!l.bold} wrap="wrap">{l.text || ' '}</Text>))}
       </Box>
 
       {pending && pending.kind !== 'question' && (
         <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} width={boxWidth}>
-          <Text color="yellow" bold>{pending.kind === 'plan' ? 'Aprovar o plano?' : 'Permitir?'}</Text>
-          <Text wrap="wrap">{pending.text}</Text>
+          <Text color="yellow" bold>{pending.kind === 'plan' ? 'Aprovar o plano acima?' : 'Permitir?'}</Text>
+          {pending.kind !== 'plan' && <Text wrap="wrap">{pendingText}</Text>}
           <Text> </Text>
           <Text color={choice === 0 ? 'cyan' : undefined}>{choice === 0 ? '❯ ' : '  '}1. {pending.kind === 'plan' ? 'Aprovar' : 'Permitir'}</Text>
           <Text color={choice === 1 ? 'cyan' : undefined}>{choice === 1 ? '❯ ' : '  '}2. {pending.kind === 'plan' ? 'Recusar' : 'Negar'}</Text>
         </Box>
       )}
-      {pending?.kind === 'question' && <Text color="yellow">{pending.text}</Text>}
+      {pending?.kind === 'question' && <Text color="yellow" wrap="wrap">{pendingText}</Text>}
+      {act && (
+        <Text wrap="truncate">
+          <Text color="cyan">{SPINNER[Math.floor(Date.now() / 120) % SPINNER.length]} </Text>
+          <Text bold>{act.text}</Text>
+          <Text color={MUTED}>{`  ·  ${elapsed(act.since)}${act.detail ? `  ·  ${act.detail}` : ''}  ·  /stop para parar`}</Text>
+        </Text>
+      )}
 
       {panel ? <PanelView panel={panel} session={session} width={boxWidth} /> : (
         <Box borderStyle="round" borderColor={MUTED} paddingX={1} width={boxWidth}>

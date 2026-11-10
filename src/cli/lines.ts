@@ -4,7 +4,20 @@ import type { RunEvent } from '@shared/events'
 // Como cada evento vira linha na conversa do terminal; null = não aparece (uso, eventos internos, pendências).
 
 /** Linha da conversa; `parts` pinta pedaços com cores diferentes (`text` é a junção deles). */
-export interface Line { text: string; color?: 'green' | 'yellow' | 'red' | 'gray' | 'cyan'; parts?: { text: string; color?: string; bg?: string }[] }
+export interface Line {
+  text: string; color?: 'green' | 'yellow' | 'red' | 'gray' | 'cyan'; bold?: boolean
+  /** Cor e negrito só na primeira linha do texto (título); o resto na cor normal. */
+  head?: boolean
+  parts?: { text: string; color?: string; bg?: string }[]
+}
+
+/** O pedido na conversa: pedido colado de 68 linhas vira as 3 primeiras e quantas faltam. */
+export function promptLine(prompt: string): Line {
+  const all = prompt.split('\n')
+  const shown = all.slice(0, 3).map((l, i) => (i ? `  ${l}` : `› ${l}`))
+  if (all.length > 3) shown.push(`  … (mais ${all.length - 3} linhas)`)
+  return { text: shown.join('\n'), color: 'cyan', bold: true, head: true }
+}
 
 export function eventLine(ev: RunEvent, nomeDe: (id: AgentId) => string): Line | null {
   switch (ev.type) {
@@ -13,7 +26,7 @@ export function eventLine(ev: RunEvent, nomeDe: (id: AgentId) => string): Line |
     case 'notice': return { text: ev.text, color: 'yellow' }
     case 'error': return { text: `Erro: ${ev.message}`, color: 'red' }
     case 'queued': return ev.position > 0 ? { text: `Na fila (posição ${ev.position}).`, color: 'gray' } : null
-    case 'esteira_plan': return { text: `Plano: ${ev.plan.tarefa}\n  Pronto quando: ${ev.plan.pronto}`, color: 'cyan' }
+    case 'esteira_plan': return { text: `Plano${ev.volta > 1 ? ` (volta ${ev.volta})` : ''}\n${ev.plan.tarefa}\nPronto quando: ${ev.plan.pronto}`, color: 'cyan', bold: true, head: true }
     case 'esteira_swap': return { text: `↪ ${ev.reason} — ${nomeDe(ev.to)} assume`, color: 'yellow' }
     case 'esteira_review': return ev.pronto ? { text: '✓ Revisão: pronto', color: 'green' } : { text: `Revisão: falta ${ev.falta}`, color: 'yellow' }
     case 'esteira_check': {
