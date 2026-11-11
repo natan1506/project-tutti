@@ -89,3 +89,21 @@ describe('parseLineup', () => {
     expect(parseLineup(undefined, ALL, MODELS)).toBeNull()
   })
 })
+
+describe('plano da esteira', () => {
+  it('consulta vem como booleano; texto ou ausente vira mudança', async () => {
+    const { parseEsteiraPlan } = await import('../../../src/main/team/parse')
+    expect(parseEsteiraPlan({ tarefa: 't', pronto: 'p', consulta: true })).toEqual({ tarefa: 't', pronto: 'p', consulta: true })
+    expect(parseEsteiraPlan({ tarefa: 't', pronto: 'p', consulta: 'sim' })).toEqual({ tarefa: 't', pronto: 'p' })
+  })
+})
+
+describe('textos da esteira', () => {
+  it('o cérebro é avisado de que o executor é outra IA (sem nomes de ferramentas do Claude) e de quando é consulta', async () => {
+    const { esteiraPlanPrompt, executorPrompt } = await import('../../../src/main/team/prompts')
+    const p = esteiraPlanPrompt('liste os cards', 'bussola')
+    expect(p).toContain('`consulta`')
+    expect(p).toContain('ToolSearch')
+    expect(executorPrompt({ tarefa: 't', pronto: 'p', consulta: true })).toContain('Responda direto ao Natan')
+  })
+})

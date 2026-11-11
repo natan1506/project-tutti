@@ -125,7 +125,7 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
   }
 
   /** Roda um papel; devolve o texto do filho ou o status que encerra o pedido. */
-  const step = async (role: 'executor' | 'tester', prompt: string): Promise<{ text: string } | { stop: RunStatus }> => {
+  const step = async (role: 'executor' | 'tester', prompt: string): Promise<{ text: string; last: string } | { stop: RunStatus }> => {
     const ready = await readyIds()
     const pick = pickForRole(role, e, id => ready.has(id))
     if (!pick) {
@@ -149,7 +149,8 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
     const nome = getAgent((run?.agentId ?? pick.id) as AgentId).nome
     if (run?.status === 'error') { say({ type: 'text', text: `Parei porque o ${nome} falhou.` }); return { stop: 'error' } }
     if (run?.status === 'cancelled') { say({ type: 'text', text: `Parei porque o passo do ${nome} foi cancelado.` }); return { stop: 'cancelled' } }
-    return { text: childText(store, final) }
+    const last = store.listEvents(final).flatMap(ev => (ev.type === 'text' ? [ev.text] : [])).at(-1) ?? ''
+    return { text: childText(store, final), last }
   }
 
   /** Roda o critério de pronto (o `comando` do plano) depois do tester; pede aprovação se a política não liberar. */
@@ -166,6 +167,15 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
     const r = await runCheck(plan.comando, cwd, signal)
     say({ type: 'esteira_check', ...r })
     return r
+  }
+
+  // Consulta: o executor responde e a resposta vai direto ao Natan (sem tester, revisão nem segunda volta: economiza
+  // o cérebro e o tempo num pedido que não muda nada).
+  if (plan.consulta) {
+    const ex = await step('executor', executorPrompt(plan))
+    if ('stop' in ex) return ex.stop
+    say({ type: 'text', text: ex.last || 'O executor não trouxe resposta.' })
+    return 'done'
   }
 
   let feedback: string | undefined

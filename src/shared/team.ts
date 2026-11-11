@@ -12,5 +12,6 @@ export interface Lineup { steps: TeamStep[]; big: boolean; summary: string }
 
 /** O que o cérebro da esteira manda o executor fazer, e como saber que ficou pronto (spec tutti-terminal §3). */
 /** `comando`: o que o Tutti roda para conferir o pronto (ex.: `npm test`); vazio = sem verificação automática. */
-export interface EsteiraPlan { tarefa: string; pronto: string; comando?: string }
+/** `consulta`: o pedido só quer informação; o executor responde direto ao Natan, sem tester nem revisão. */
+export interface EsteiraPlan { tarefa: string; pronto: string; comando?: string; consulta?: boolean }
 export interface EsteiraReview { pronto: boolean; falta: string }

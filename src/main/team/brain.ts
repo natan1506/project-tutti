@@ -46,7 +46,7 @@ export const LINEUP_SCHEMA = obj({
   },
 })
 
-export const PLAN_SCHEMA = obj({ tarefa: { type: 'string' }, pronto: { type: 'string' }, comando: { type: 'string' } })
+export const PLAN_SCHEMA = obj({ tarefa: { type: 'string' }, pronto: { type: 'string' }, comando: { type: 'string' }, consulta: { type: 'boolean' } })
 export const REVIEW_SCHEMA = obj({ pronto: { type: 'boolean' }, falta: { type: 'string' } })
 
 const NO_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'WebFetch', 'WebSearch', 'Task', 'Read', 'Glob', 'Grep', 'TodoWrite']

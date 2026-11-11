@@ -89,7 +89,7 @@ const text = (v: unknown, max = 4000) => (typeof v === 'string' ? v.trim().slice
 export function parseEsteiraPlan(raw: unknown): import('@shared/team').EsteiraPlan | null {
   const r = record(raw)
   const tarefa = text(r?.tarefa), pronto = text(r?.pronto, 1000), comando = text(r?.comando, 500)
-  return tarefa && pronto ? { tarefa, pronto, ...(comando ? { comando } : {}) } : null
+  return tarefa && pronto ? { tarefa, pronto, ...(comando ? { comando } : {}), ...(r?.consulta === true ? { consulta: true } : {}) } : null
 }
 
 export function parseEsteiraReview(raw: unknown): import('@shared/team').EsteiraReview | null {

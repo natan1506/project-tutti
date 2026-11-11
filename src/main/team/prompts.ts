@@ -60,11 +60,20 @@ export function esteiraPlanPrompt(prompt: string, cerebro: AgentId): string {
     `Você é o ${coordName(cerebro)}, o cérebro do time. Você não implementa: escreve para o executor exatamente o que fazer.`,
     `Pedido do Natan: """${prompt}"""`,
     'Se o pedido citar um card do Linear (ex.: ABC-123), leia o card pelo Linear (descrição, comentários e anexos) antes de planejar; os critérios de aceite do card entram no critério de pronto. Se houver uma skill para o tipo de pedido, siga-a.',
+    'O executor é outra IA (ex.: Codex), com ferramentas diferentes das suas: diga O QUE buscar ou fazer (ex.: "consulte o Linear", "rode os testes"), nunca nomes de ferramentas suas (ToolSearch, mcp__…, select:…).',
+    'Em `consulta`: true quando o pedido só quer informação (listar, ver, explicar, conferir algo) e nada deve mudar. Aí o executor responde direto ao Natan e não há tester nem revisão: escreva a `tarefa` curta, dizendo o que trazer e em que formato. Em pedido que muda algo (código, card, arquivo), false.',
     'Em `tarefa`: o que fazer, passo a passo, com os arquivos prováveis. Em `pronto`: um critério de pronto verificável. Em `comando`: UM comando de terminal, rodado na raiz do projeto, que sai com código 0 só se estiver pronto (ex.: `npm test`, `pytest -q`); o Tutti roda esse comando ele mesmo para conferir. Deixe vazio só se não existir como verificar por comando.',
   ].join('\n\n')
 }
 
 export function executorPrompt(plan: EsteiraPlan, feedback?: string): string {
+  if (plan.consulta) {
+    return [
+      `Pedido (só consulta, não mude nada): ${plan.tarefa}`,
+      `Bom o bastante quando: ${plan.pronto}`,
+      'Responda direto ao Natan, em português, com o resultado pronto para ler (tabela ou lista curta). Se não conseguir acessar algo, diga exatamente o erro que apareceu.',
+    ].join('\n\n')
+  }
   return [
     `Tarefa: ${plan.tarefa}`,
     `Pronto quando: ${plan.pronto}`,

@@ -24,13 +24,13 @@ const PROFILE: Profile = {
 registerAgents(resolveAgentDefs(PROFILE))
 
 type Review = { pronto: boolean; falta: string }
-function fakeBrain(reviews: Review[] = [{ pronto: true, falta: '' }], comando?: string) {
+function fakeBrain(reviews: Review[] = [{ pronto: true, falta: '' }], comando?: string, consulta = false) {
   const b = {
     plans: [] as (string | undefined)[], reviewCalls: 0,
     async triage() { throw new Error('esteira não faz triagem') },
     async lineup() { throw new Error('esteira não faz escalação') },
     instructions: [] as (string | undefined)[],
-    async plan(i: { feedback?: string; instructions?: string }) { b.plans.push(i.feedback); b.instructions.push(i.instructions); return { tarefa: 'Criar soma.js', pronto: 'teste de soma passa', ...(comando !== undefined ? { comando } : {}) } },
+    async plan(i: { feedback?: string; instructions?: string }) { b.plans.push(i.feedback); b.instructions.push(i.instructions); return { tarefa: 'Criar soma.js', pronto: 'teste de soma passa', ...(comando !== undefined ? { comando } : {}), ...(consulta ? { consulta: true } : {}) } },
     reviewInputs: [] as unknown[],
     async review(i: unknown) { b.reviewInputs.push(i); return reviews[Math.min(b.reviewCalls++, reviews.length - 1)] },
   }
@@ -165,6 +165,18 @@ describe('esteira', () => {
     expect(t.childAgents(id)).toEqual([])
     expect(t.events(id)).toContainEqual({ type: 'text', text: 'Plano recusado; nada foi alterado.' })
     expect(t.events(id).at(-1)).toEqual({ type: 'run_finished', status: 'cancelled' })
+  })
+
+  it('consulta (só informação): o executor responde direto, sem tester, sem revisão e sem segunda volta', async () => {
+    const brain = fakeBrain(undefined, undefined, true)
+    const t = await setup({ brain })
+    const id = await t.start()
+    await t.team.whenFinished(id)
+    expect(t.childAgents(id)).toHaveLength(1)
+    expect(brain.reviewCalls).toBe(0)
+    const last = t.events(id).filter(e => e.type === 'text').at(-1) as { text: string }
+    expect(last.text).toBe('Fiz soma.js.')
+    expect(t.events(id).at(-1)).toEqual({ type: 'run_finished', status: 'done' })
   })
 
   it('só plano: o cérebro planeja, ninguém executa e não pede aprovação', async () => {
