@@ -60,6 +60,10 @@ describe('mapCodexEvent', () => {
     expect(mapCodexEvent(ev({ type: 'item.started', item: { id: 'i', type: 'command_execution', command: `/bin/zsh -lc 'cat a.ts'`, status: 'in_progress' } }), cwd, {}))
       .toEqual([{ type: 'tool', name: 'Shell', summary: 'cat a.ts' }])
   })
+  it('ferramenta de MCP vira passo com o nome mcp__servidor__ferramenta (a tela resume "usou linear N vezes")', () => {
+    expect(mapCodexEvent(ev({ type: 'item.started', item: { id: 'i', type: 'mcp_tool_call', server: 'linear', tool: 'list_issues', arguments: {}, status: 'in_progress' } }), cwd, {}))
+      .toEqual([{ type: 'tool', name: 'mcp__linear__list_issues', summary: 'linear: list_issues' }])
+  })
   it('comando concluído não duplica o passo', () => {
     expect(mapCodexEvent(ev({ type: 'item.completed', item: { id: 'i', type: 'command_execution', command: 'ls', status: 'completed' } }), cwd, {})).toEqual([])
   })
@@ -121,14 +125,18 @@ const MCP: import('../../../src/main/mcp/forAgent').ResolvedMcp = {
 }
 
 describe('MCPs no Codex', () => {
-  it('só as ferramentas de leitura (enabled_tools); sem MCP, nenhum', () => {
+  // Codex 0.163/0.166 (testado em 2026-11-11): servidor opcional ainda subindo fica de fora do pedido ("omitting pending
+  // optional MCP server") — `required` faz o Codex esperar. Só as de leitura vêm pré-aprovadas; o resto pede aprovação,
+  // que o Codex nega sozinho (approval_policy "never").
+  it('só as ferramentas de leitura rodam: o resto pede aprovação, que o Codex nega sozinho; sem MCP, nenhum', () => {
     expect(buildCodexConfig(opts())).toEqual({ mcp_servers: {} })
     expect(buildCodexConfig(opts({ mcp: [MCP] }))).toEqual({ mcp_servers: { fake: {
-      command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' }, enabled_tools: ['get_thing'],
+      command: '/usr/bin/node', args: ['/x/tutti-mcp-launch.cjs', '/x/mcp-1.json'], env: { ELECTRON_RUN_AS_NODE: '1' },
+      required: true, startup_timeout_sec: 60, default_tools_approval_mode: 'prompt', tools: { get_thing: { approval_mode: 'approve' } },
     } } })
   })
   it('MCP por URL vira url', () => {
     const http = { ...MCP, launch: { kind: 'http' as const, url: 'https://mcp.x/mcp' } }
-    expect(buildCodexConfig(opts({ mcp: [http] })).mcp_servers.fake).toEqual({ url: 'https://mcp.x/mcp', enabled_tools: ['get_thing'] })
+    expect(buildCodexConfig(opts({ mcp: [http] })).mcp_servers.fake).toEqual({ url: 'https://mcp.x/mcp', required: true, startup_timeout_sec: 60, default_tools_approval_mode: 'prompt', tools: { get_thing: { approval_mode: 'approve' } } })
   })
 })

@@ -22,12 +22,19 @@ export function buildCodexThreadOptions(opts: AdapterRunOptions): ThreadOptions 
   }
 }
 
-/** MCPs do Codex (spec mcps §3): só as ferramentas de leitura, pela lista `enabled_tools` do próprio Codex. */
+/**
+ * MCPs do Codex (spec mcps §3), testado em 2026-11-11 no Codex 0.163 e 0.166:
+ * - `required`: sem isto, servidor que ainda está subindo fica de fora do pedido ("omitting pending optional MCP server")
+ *   e o agente diz que o Linear não existe. Com ele, o Codex espera (até `startup_timeout_sec`).
+ * - Só as ferramentas de leitura rodam: toda ferramenta pede aprovação — que o Codex nega sozinho, porque roda com
+ *   approval_policy "never" — e só as de leitura vêm pré-aprovadas.
+ */
 export function buildCodexConfig(opts: AdapterRunOptions): { mcp_servers: Record<string, Record<string, unknown>> } {
   const list = opts.mode === 'consult' ? [] : opts.mcp ?? []
+  const access = (read: string[]) => ({ required: true, startup_timeout_sec: 60, default_tools_approval_mode: 'prompt', tools: Object.fromEntries(read.map(n => [n, { approval_mode: 'approve' }])) })
   return { mcp_servers: Object.fromEntries(list.map(m => [m.nome, m.launch.kind === 'http'
-    ? { url: m.launch.url, enabled_tools: m.read }
-    : { command: m.launch.command, args: m.launch.args, env: m.launch.env, enabled_tools: m.read }])) }
+    ? { url: m.launch.url, ...access(m.read) }
+    : { command: m.launch.command, args: m.launch.args, env: m.launch.env, ...access(m.read) }])) }
 }
 
 export function buildCodexPrompt(opts: AdapterRunOptions): string {
@@ -45,6 +52,7 @@ export function mapCodexEvent(ev: ThreadEvent, cwd: string, state: { threadId?: 
       state.threadId = ev.thread_id
       return []
     case 'item.started':
+      if (ev.item.type === 'mcp_tool_call') return [{ type: 'tool', name: `mcp__${ev.item.server}__${ev.item.tool}`, summary: `${ev.item.server}: ${ev.item.tool}` }]
       return ev.item.type === 'command_execution' ? [{ type: 'tool', name: 'Shell', summary: unwrapShell(ev.item.command) }] : []
     case 'item.completed':
       if (ev.item.type === 'agent_message') return [{ type: 'text', text: ev.item.text }]
