@@ -1,5 +1,5 @@
 import { homedir } from 'node:os'
-import { getAgent, type AgentId, type ToolKind } from '@shared/agents'
+import { getAgent, type AgentDef, type AgentId, type ToolKind } from '@shared/agents'
 import type { ApprovalReason, AutonomyLevel } from '@shared/autonomy'
 import type { RunEvent, RunStatus } from '@shared/events'
 import type { Esteira, Profile } from '@shared/profiles'
@@ -54,6 +54,8 @@ export interface EsteiraCtx {
   runs: RunService
   store: Store
   brain: Brain
+  /** Cérebro de outro agente (quem assume quando o titular fica sem limite). */
+  brainFor?(agent: AgentDef): Brain
   say(ev: RunEvent): void
   autonomy: AutonomyLevel
   waitPlan(): Promise<boolean>
@@ -83,22 +85,40 @@ async function askBrain<T>(call: () => Promise<unknown>, parse: (raw: unknown) =
 }
 
 export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
-  const { runs, store, brain, signal, input, parentId, say } = ctx
+  const { runs, store, signal, input, parentId, say } = ctx
+  let brain = ctx.brain
   const e = ctx.profile.esteira!
   const cwd = input.projectPath
-  const cerebro = e.cerebro as AgentId
-  const brainAgent = getAgent(cerebro)
+  let cerebro = e.cerebro as AgentId
+  let brainAgent = getAgent(cerebro)
   const onUsage: UsageSink = ev => runs.recordUsage(parentId, cerebro, ev)
   const now = ctx.now ?? Date.now
   const failed = (msg: string): RunStatus => { say({ type: 'error', message: msg }); return 'error' }
   const brainFailed = () => failed(`O ${brainAgent.nome} não conseguiu planejar ou revisar. Tente de novo.`)
-  const checkBrain = (): string | null => {
+  /**
+   * Cérebro sem limite: o primeiro do time (executor, tester, reserva) com limite e pronto assume — é para isso que o
+   * time existe (quando o Claude acaba, os outros seguem). Só para se ninguém puder.
+   */
+  const checkBrain = async (): Promise<string | null> => {
     const s = brainOut(store.latestLimits(), brainAgent.tool, now())
     if (!s.out) return null
-    return `${brainAgent.nome} (${TOOL_NAME[brainAgent.tool]}) sem limite${s.until ? ` até ${quando(s.until)}` : ''} — o time parou`
+    const why = `${brainAgent.nome} (${TOOL_NAME[brainAgent.tool]}) sem limite${s.until ? ` até ${quando(s.until)}` : ''}`
+    if (ctx.brainFor) {
+      for (const id of [...new Set([e.executor, e.tester, e.reserva].filter(Boolean) as string[])]) {
+        if (id === cerebro) continue
+        const a = getAgent(id as AgentId)
+        if (brainOut(store.latestLimits(), a.tool, now()).out || !(await runs.availability(id as AgentId)).ok) continue
+        say({ type: 'esteira_swap', role: 'cerebro', from: cerebro, to: id as AgentId, reason: why })
+        cerebro = id as AgentId
+        brainAgent = a
+        brain = ctx.brainFor(a)
+        return null
+      }
+    }
+    return `${why} e ninguém do time pode assumir — o time parou`
   }
 
-  const out = checkBrain()
+  const out = await checkBrain()
   if (out) return failed(out)
   // O cérebro planeja com as mesmas regras do projeto que o executor recebe (CLAUDE.md, AGENTS.md e, se for Claude ou Codex, a memória).
   const trusted = brainAgent.transport.kind === 'cli' && (brainAgent.tool === 'claude' || brainAgent.tool === 'codex')
@@ -186,7 +206,7 @@ export async function runEsteira(ctx: EsteiraCtx): Promise<RunStatus> {
     if ('stop' in te) return te.stop
     const check = await verify()
     if (signal.aborted) return 'cancelled'
-    const outNow = checkBrain()
+    const outNow = await checkBrain()
     if (outNow) return failed(outNow)
     const answer = await askBrain<EsteiraReview>(
       () => brain.review({ cwd, prompt: input.prompt, plan, executor: ex.text, tester: te.text, cerebro, signal, onUsage, instructions, ...(check ? { check } : {}) }), parseEsteiraReview, signal)

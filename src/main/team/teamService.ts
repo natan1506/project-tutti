@@ -129,6 +129,7 @@ export class TeamService {
         ? await runEsteira({
           parentId, input, profile, signal, active, runs, store: this.deps.store,
           brain: this.deps.brainFor?.(getAgent(profile.esteira.cerebro as AgentId)) ?? this.deps.brain,
+          ...(this.deps.brainFor ? { brainFor: (a: AgentDef) => this.deps.brainFor!(a) } : {}),
           say: ev => this.say(parentId, ev), autonomy: runs.autonomyOf(input.projectPath),
           waitPlan: () => this.waitPlan(parentId, signal), settle: id => this.settle(id, active, signal),
           approve: req => runs.askApproval(parentId, signal, req),

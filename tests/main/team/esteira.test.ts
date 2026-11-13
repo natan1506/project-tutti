@@ -64,11 +64,12 @@ async function setup(o: { brain?: ReturnType<typeof fakeBrain>; ready?: (t: Tool
   const toolReady = async (t: ToolKind) => o.ready?.(t) ?? true
   const runs = new RunService({ store, adapters, emit, homeDir: mkdtempSync(join(tmpdir(), 'h-')), toolReady, autonomyFor: () => o.autonomy ?? 'autonomous' })
   const brain = o.brain ?? fakeBrain()
-  const team = new TeamService({ runs, store, brain, adapters, toolReady, emit, profileOf: () => PROFILE, brainFor: () => brain })
+  const brainsAsked: string[] = []
+  const team = new TeamService({ runs, store, brain, adapters, toolReady, emit, profileOf: () => PROFILE, brainFor: a => { brainsAsked.push(a.id); return brain } })
   const start = (more: { planOnly?: boolean } = {}) => team.start({ projectPath: dir, conversationId: conv.id, prompt: 'crie soma(a,b) com teste', profileId: 'trab', ...more })
   const events = (id: string) => emitted.filter(e => e.runId === id).map(e => e.ev)
   const childAgents = (id: string) => store.listChildren(id).map(r => r.agentId)
-  return { dir, store, fake, runs, team, start, events, childAgents, brain, emitted }
+  return { dir, store, fake, runs, team, start, events, childAgents, brain, emitted, brainsAsked }
 }
 
 const kinds = (evs: RunEvent[]) => evs.map(e => e.type).filter(t => t !== 'queued')
@@ -142,14 +143,28 @@ describe('esteira', () => {
     expect(t.events(id).at(-1)).toEqual({ type: 'run_finished', status: 'error' })
   })
 
-  it('cérebro sem limite: para antes de chamar o executor', async () => {
+  it('cérebro sem limite: outro agente do time assume como cérebro e o pedido segue', async () => {
     const t = await setup()
     const segunda = new Date(2026, 10, 16, 9, 0).getTime()
     t.store.recordLimit({ tool: 'claude', window: 'seven_day', utilization: 100, resetsAt: segunda, at: Date.now() })
     const id = await t.start()
     await t.team.whenFinished(id)
+    const swap = t.events(id).find(e => e.type === 'esteira_swap') as { role: string; from: string; to: string; reason: string }
+    expect(swap).toMatchObject({ role: 'cerebro', from: 'tb', to: 'tf' })
+    expect(swap.reason).toMatch(/^Bússola \(Claude\) sem limite até /)
+    expect(t.brainsAsked).toContain('tf')
+    expect(t.childAgents(id)).toEqual(['tf', 'tl'])
+    expect(t.events(id).at(-1)).toEqual({ type: 'run_finished', status: 'done' })
+  })
+
+  it('todos sem limite: o time para avisando', async () => {
+    const t = await setup()
+    const segunda = new Date(2026, 10, 16, 9, 0).getTime()
+    for (const tool of ['claude', 'codex', 'opencode'] as const) t.store.recordLimit({ tool, window: 'seven_day', utilization: 100, resetsAt: segunda, at: Date.now() })
+    const id = await t.start()
+    await t.team.whenFinished(id)
     const msg = t.events(id).find(e => e.type === 'error') as { message: string }
-    expect(msg.message).toMatch(/^Bússola \(Claude\) sem limite até .+ — o time parou$/)
+    expect(msg.message).toMatch(/^Bússola \(Claude\) sem limite até .+ e ninguém do time pode assumir — o time parou$/)
     expect(t.childAgents(id)).toEqual([])
     expect(t.brain.plans).toEqual([])
   })

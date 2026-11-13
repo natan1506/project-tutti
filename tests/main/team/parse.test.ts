@@ -104,6 +104,7 @@ describe('textos da esteira', () => {
     const p = esteiraPlanPrompt('liste os cards', 'bussola')
     expect(p).toContain('`consulta`')
     expect(p).toContain('ToolSearch')
+    expect(p).toContain('mande o executor ler o card')
     expect(executorPrompt({ tarefa: 't', pronto: 'p', consulta: true })).toContain('Responda direto ao Natan')
   })
 })
